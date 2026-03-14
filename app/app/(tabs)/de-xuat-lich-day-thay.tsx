@@ -26,6 +26,10 @@ import {
 // =================================================================
 const PRIMARY_COLOR = "#3B5998";
 const BACKGROUND_COLOR = "#F0F2F5";
+const TIME_MAP: Record<number, string> = {
+  1: "07:00", 2: "07:50", 3: "09:00", 4: "09:50", 5: "10:40",
+  7: "13:00", 8: "13:50", 9: "15:00", 10: "15:50", 11: "16:40", 12: "17:30"
+};
 
 const parseDateSafe = (dateStr: string): Date => {
   if (!dateStr) return new Date();
@@ -37,8 +41,54 @@ const parseDateSafe = (dateStr: string): Date => {
   return new Date(dateStr);
 };
 
+const getTimeByTiet = (dateStr: string, tiet: number, isStart: boolean): Date => {
+  const date = parseDateSafe(dateStr);
+  const timeStr = TIME_MAP[tiet] || "07:00";
+  const [h, m] = timeStr.split(":").map(Number);
+  date.setHours(h, m, 0, 0);
+  if (!isStart) date.setMinutes(date.getMinutes() + 45);
+  return date;
+};
+
+const isSessionFinished = (item: any, now: Date): boolean => {
+  const ngayHoc = item?.ngay_hoc || item?.ngay;
+  const tietBD = Number(item?.tiet_bat_dau);
+  const soTiet = Number(item?.so_tiet);
+
+  if (ngayHoc && Number.isFinite(tietBD) && Number.isFinite(soTiet) && soTiet > 0) {
+    const tietKT = tietBD + soTiet - 1;
+    const endDateTime = getTimeByTiet(ngayHoc, tietKT, false);
+    return now > endDateTime;
+  }
+
+  const dateOnly = parseDateSafe(ngayHoc);
+  dateOnly.setHours(23, 59, 59, 999);
+  return now > dateOnly;
+};
+
 type HocKySimple = { id: string; name: string; };
 type ProposalStatus = 'all' | 'pending' | 'approved' | 'rejected';
+type WeekFilterOption = { key: string; label: string; start: Date; end: Date };
+
+const getWeekStart = (date: Date): Date => {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const getWeekEnd = (weekStart: Date): Date => {
+  const d = new Date(weekStart);
+  d.setDate(d.getDate() + 6);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
+
+const formatShortDate = (date: Date): string => {
+  return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
+};
 
 export default function QuanLyDeXuatScreen() {
   const [activeTab, setActiveTab] = useState<"LICH_DAY" | "MO_LAI" | "LICH_SU">("LICH_DAY");
@@ -50,6 +100,11 @@ export default function QuanLyDeXuatScreen() {
   const [statusFilter, setStatusFilter] = useState<ProposalStatus>('all');
   const [filterFrom, setFilterFrom] = useState("");
   const [filterTo, setFilterTo] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState<string>('all');
+  const [weekFilter, setWeekFilter] = useState<string>('all');
+  const [reopenSubjectFilter, setReopenSubjectFilter] = useState<string>('all');
+  const [reopenWeekFilter, setReopenWeekFilter] = useState<string>('all');
+  const [showFilterPanel, setShowFilterPanel] = useState(false);
 
   // States dữ liệu
   const [lichDay, setLichDay] = useState<any[]>([]);
@@ -172,7 +227,10 @@ export default function QuanLyDeXuatScreen() {
     ]);
     if (lichRes.success) {
       const now = new Date();
-      const past = lichRes.data.filter((item: any) => parseDateSafe(item.ngay_hoc) < now);
+      const past = lichRes.data.filter((item: any) => {
+        if (item.trang_thai === 'completed' || item.trang_thai === 'cancelled') return false;
+        return isSessionFinished(item, now);
+      });
 
       // Lấy danh sách buoi_id đã có đề xuất mở lại pending/approved
       const existingProposals: Set<string> = new Set();
@@ -214,9 +272,112 @@ export default function QuanLyDeXuatScreen() {
     today.setHours(0, 0, 0, 0);
     return lichDay.filter(item =>
       parseDateSafe(item.ngay_hoc) >= today &&
-      !approvedSubstituteBuoiIds.has(item.buoi_id)
+      item.trang_thai !== 'completed' &&
+      item.trang_thai !== 'cancelled'
     );
-  }, [lichDay, approvedSubstituteBuoiIds]);
+  }, [lichDay]);
+
+  const subjectOptions = useMemo(() => {
+    const names = Array.from(new Set(upcomingLichDay.map(item => item.ten_mon).filter(Boolean)));
+    return ['all', ...names];
+  }, [upcomingLichDay]);
+
+  const weekOptions = useMemo<WeekFilterOption[]>(() => {
+    const map = new Map<string, WeekFilterOption>();
+
+    upcomingLichDay.forEach(item => {
+      const date = parseDateSafe(item.ngay_hoc);
+      const start = getWeekStart(date);
+      const end = getWeekEnd(start);
+      const key = start.toISOString().split('T')[0];
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: `Tuần ${formatShortDate(start)} - ${formatShortDate(end)}`,
+          start,
+          end,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [upcomingLichDay]);
+
+  const filteredUpcomingLichDay = useMemo(() => {
+    return upcomingLichDay.filter(item => {
+      if (subjectFilter !== 'all' && item.ten_mon !== subjectFilter) return false;
+      if (weekFilter !== 'all') {
+        const selectedWeek = weekOptions.find(w => w.key === weekFilter);
+        if (!selectedWeek) return false;
+        const itemDate = parseDateSafe(item.ngay_hoc).getTime();
+        if (itemDate < selectedWeek.start.getTime() || itemDate > selectedWeek.end.getTime()) return false;
+      }
+      return true;
+    });
+  }, [upcomingLichDay, subjectFilter, weekFilter, weekOptions]);
+
+  const reopenSubjectOptions = useMemo(() => {
+    const names = Array.from(new Set(pastSessions.map(item => item.ten_mon).filter(Boolean)));
+    return ['all', ...names];
+  }, [pastSessions]);
+
+  const reopenWeekOptions = useMemo<WeekFilterOption[]>(() => {
+    const map = new Map<string, WeekFilterOption>();
+
+    pastSessions.forEach(item => {
+      const date = parseDateSafe(item.ngay_hoc);
+      const start = getWeekStart(date);
+      const end = getWeekEnd(start);
+      const key = start.toISOString().split('T')[0];
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          label: `Tuần ${formatShortDate(start)} - ${formatShortDate(end)}`,
+          start,
+          end,
+        });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [pastSessions]);
+
+  const filteredPastSessions = useMemo(() => {
+    return pastSessions.filter(item => {
+      if (reopenSubjectFilter !== 'all' && item.ten_mon !== reopenSubjectFilter) return false;
+      if (reopenWeekFilter !== 'all') {
+        const selectedWeek = reopenWeekOptions.find(w => w.key === reopenWeekFilter);
+        if (!selectedWeek) return false;
+        const itemDate = parseDateSafe(item.ngay_hoc).getTime();
+        if (itemDate < selectedWeek.start.getTime() || itemDate > selectedWeek.end.getTime()) return false;
+      }
+      return true;
+    });
+  }, [pastSessions, reopenSubjectFilter, reopenWeekFilter, reopenWeekOptions]);
+
+  useEffect(() => {
+    if (subjectFilter !== 'all' && !subjectOptions.includes(subjectFilter)) {
+      setSubjectFilter('all');
+    }
+  }, [subjectFilter, subjectOptions]);
+
+  useEffect(() => {
+    if (weekFilter !== 'all' && !weekOptions.some(w => w.key === weekFilter)) {
+      setWeekFilter('all');
+    }
+  }, [weekFilter, weekOptions]);
+
+  useEffect(() => {
+    if (reopenSubjectFilter !== 'all' && !reopenSubjectOptions.includes(reopenSubjectFilter)) {
+      setReopenSubjectFilter('all');
+    }
+  }, [reopenSubjectFilter, reopenSubjectOptions]);
+
+  useEffect(() => {
+    if (reopenWeekFilter !== 'all' && !reopenWeekOptions.some(w => w.key === reopenWeekFilter)) {
+      setReopenWeekFilter('all');
+    }
+  }, [reopenWeekFilter, reopenWeekOptions]);
 
   const filteredLichSu = useMemo(() => {
     return lichSuDeXuat.filter(item => {
@@ -464,14 +625,21 @@ export default function QuanLyDeXuatScreen() {
 
       {/* HIỂN THỊ HỌC KỲ HIỆN TẠI (CHỈ HIỂN THỊ 1 HỌC KỲ) */}
       <View style={styles.currentSemesterBox}>
-        <Ionicons name="school-outline" size={16} color="#FFF" />
-        <Text style={styles.currentSemesterText}>
-            Học kỳ hiện tại: <Text style={{fontWeight: 'bold'}}>{currentSemester?.name || "Đang xác định..."}</Text>
-        </Text>
+        <View style={styles.currentSemesterLeft}>
+          <Ionicons name="school-outline" size={16} color="#FFF" />
+          <Text style={styles.currentSemesterText}>
+              Học kỳ hiện tại: <Text style={{fontWeight: 'bold'}}>{currentSemester?.name || "Đang xác định..."}</Text>
+          </Text>
+        </View>
+        {(
+          <TouchableOpacity style={styles.filterToggleBtn} onPress={() => setShowFilterPanel(prev => !prev)}>
+            <Ionicons name={showFilterPanel ? "close" : "funnel-outline"} size={18} color="#FFF" />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* FILTER TAB LỊCH SỬ (Status + Date) */}
-      {activeTab === "LICH_SU" && (
+      {activeTab === "LICH_SU" && showFilterPanel && (
         <View style={{backgroundColor: '#FFF'}}>
           <View style={styles.statusFilterBar}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
@@ -499,12 +667,100 @@ export default function QuanLyDeXuatScreen() {
         </View>
       )}
 
+      {/* FILTER TAB LỊCH DẠY (Môn + Tuần) */}
+      {activeTab === "LICH_DAY" && showFilterPanel && (
+        <View style={{ backgroundColor: '#FFF' }}>
+          <View style={styles.statusFilterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+              <TouchableOpacity
+                style={[styles.statusFilterChip, subjectFilter === 'all' && styles.statusFilterActive]}
+                onPress={() => setSubjectFilter('all')}
+              >
+                <Text style={[styles.statusFilterText, subjectFilter === 'all' && { color: '#FFF' }]}>Tất cả môn</Text>
+              </TouchableOpacity>
+              {subjectOptions.filter(s => s !== 'all').map(subject => (
+                <TouchableOpacity
+                  key={subject}
+                  style={[styles.statusFilterChip, subjectFilter === subject && styles.statusFilterActive]}
+                  onPress={() => setSubjectFilter(subject)}
+                >
+                  <Text style={[styles.statusFilterText, subjectFilter === subject && { color: '#FFF' }]}>{subject}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          <View style={styles.statusFilterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+              <TouchableOpacity
+                style={[styles.statusFilterChip, weekFilter === 'all' && styles.statusFilterActive]}
+                onPress={() => setWeekFilter('all')}
+              >
+                <Text style={[styles.statusFilterText, weekFilter === 'all' && { color: '#FFF' }]}>Tất cả tuần</Text>
+              </TouchableOpacity>
+              {weekOptions.map(week => (
+                <TouchableOpacity
+                  key={week.key}
+                  style={[styles.statusFilterChip, weekFilter === week.key && styles.statusFilterActive]}
+                  onPress={() => setWeekFilter(week.key)}
+                >
+                  <Text style={[styles.statusFilterText, weekFilter === week.key && { color: '#FFF' }]}>{week.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
+      {/* FILTER TAB MỞ LẠI (Môn + Tuần) */}
+      {activeTab === "MO_LAI" && showFilterPanel && (
+        <View style={{ backgroundColor: '#FFF' }}>
+          <View style={styles.statusFilterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+              <TouchableOpacity
+                style={[styles.statusFilterChip, reopenSubjectFilter === 'all' && styles.statusFilterActive]}
+                onPress={() => setReopenSubjectFilter('all')}
+              >
+                <Text style={[styles.statusFilterText, reopenSubjectFilter === 'all' && { color: '#FFF' }]}>Tất cả môn</Text>
+              </TouchableOpacity>
+              {reopenSubjectOptions.filter(s => s !== 'all').map(subject => (
+                <TouchableOpacity
+                  key={subject}
+                  style={[styles.statusFilterChip, reopenSubjectFilter === subject && styles.statusFilterActive]}
+                  onPress={() => setReopenSubjectFilter(subject)}
+                >
+                  <Text style={[styles.statusFilterText, reopenSubjectFilter === subject && { color: '#FFF' }]}>{subject}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          <View style={styles.statusFilterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 15 }}>
+              <TouchableOpacity
+                style={[styles.statusFilterChip, reopenWeekFilter === 'all' && styles.statusFilterActive]}
+                onPress={() => setReopenWeekFilter('all')}
+              >
+                <Text style={[styles.statusFilterText, reopenWeekFilter === 'all' && { color: '#FFF' }]}>Tất cả tuần</Text>
+              </TouchableOpacity>
+              {reopenWeekOptions.map(week => (
+                <TouchableOpacity
+                  key={week.key}
+                  style={[styles.statusFilterChip, reopenWeekFilter === week.key && styles.statusFilterActive]}
+                  onPress={() => setReopenWeekFilter(week.key)}
+                >
+                  <Text style={[styles.statusFilterText, reopenWeekFilter === week.key && { color: '#FFF' }]}>{week.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      )}
+
       {/* DANH SÁCH CHÍNH */}
       {isLoading ? (
         <ActivityIndicator style={{marginTop: 50}} color={PRIMARY_COLOR} size="large" />
       ) : (
         <FlatList
-          data={activeTab === "LICH_DAY" ? upcomingLichDay : activeTab === "MO_LAI" ? pastSessions : filteredLichSu}
+          data={activeTab === "LICH_DAY" ? filteredUpcomingLichDay : activeTab === "MO_LAI" ? filteredPastSessions : filteredLichSu}
           renderItem={activeTab === "LICH_DAY" ? renderScheduleItem : activeTab === "MO_LAI" ? renderPastSessionItem : renderHistoryItem}
           keyExtractor={(item, index) => item.dexuat_id || `${item.buoi_id}-${index}`}
           contentContainerStyle={{ padding: 15, paddingBottom: 50 }}
@@ -645,8 +901,19 @@ const styles = StyleSheet.create({
   activeTabText: { color: '#FFF' },
 
   // Giao diện học kỳ duy nhất
-  currentSemesterBox: { backgroundColor: PRIMARY_COLOR, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 15 },
+  currentSemesterBox: { backgroundColor: PRIMARY_COLOR, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 15 },
+  currentSemesterLeft: { flexDirection: 'row', alignItems: 'center', flex: 1, paddingRight: 10 },
   currentSemesterText: { color: '#FFF', fontSize: 13, marginLeft: 8 },
+  filterToggleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.35)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)'
+  },
 
   // Status Filter cho tab Lịch sử
   statusFilterBar: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#EEE' },

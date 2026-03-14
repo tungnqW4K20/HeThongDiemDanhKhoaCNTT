@@ -107,13 +107,15 @@ const getLichGiangDay = async (giangvien_id, hocky_id) => {
           attributes: ['ho', 'ten', 'ma_gv']
         }
       ],
-      attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong', 'is_override'],
+      attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong', 'is_override', 'giangvien_day_thay_id'],
       order: [['ngay', 'ASC'], ['tiet_bat_dau', 'ASC']]
     });
 
     // Format lại dữ liệu đầu ra (Giữ nguyên cấu trúc của bạn)
     return lichHoc.map(buoi => {
       const lhp = buoi.LopHocPhan;
+      const isSubstitute = !!(buoi.giangvien_day_thay_id && lhp?.giangvien_id && buoi.giangvien_day_thay_id !== lhp.giangvien_id);
+      const isMySubstituteSession = isSubstitute && buoi.giangvien_day_thay_id === giangvien_id;
       return {
         buoi_id: buoi.buoi_id,
         ngay_hoc: buoi.ngay,
@@ -127,9 +129,11 @@ const getLichGiangDay = async (giangvien_id, hocky_id) => {
           ? lhp.DanhSachLopHanhChinh.map(lhc => lhc.ten_lop).join(', ') 
           : '',
         ghi_chu: buoi.ghi_chu,
-        // Giữ lại tên giảng viên dạy thay nếu mình là giảng viên chính nhưng muốn biết ai dạy (nếu có logic bổ sung)
-        // Hoặc đơn giản là hiển thị thông tin nếu mình đang dạy thay
-        gv_day_thay: buoi.GVDayThay ? `${buoi.GVDayThay.ho} ${buoi.GVDayThay.ten}` : null,
+        // Chỉ coi là dạy thay khi khác giảng viên chính của lớp học phần
+        gv_day_thay: isSubstitute && buoi.GVDayThay ? `${buoi.GVDayThay.ho} ${buoi.GVDayThay.ten}` : null,
+        giangvien_day_thay_id: buoi.giangvien_day_thay_id || null,
+        has_substitute: isSubstitute,
+        is_my_substitute_session: isMySubstituteSession,
         lophocphan_id: lhp?.lophocphan_id,
         is_override: buoi.is_override || false // Đánh dấu buổi được mở lại bởi admin
       };

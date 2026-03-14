@@ -19,6 +19,8 @@ import {
 
 import { hocKyService } from '@/services/hocKyService';
 import { phanCongService } from '@/services/phanCongService';
+import { apiClient } from '@/services/apiClient';
+import { useAuth } from '../../components/ui/AuthContext';
 
 // Kích hoạt Animation trên Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -46,6 +48,10 @@ type PhanCong = {
   trang_thai?: 'scheduled' | 'completed' | 'cancelled';
   is_override?: boolean;
   gv_day_thay?: string | null; // Tên GV dạy thay (nếu có)
+  giangvien_day_thay_id?: string | null;
+  has_substitute?: boolean;
+  is_my_substitute_session?: boolean;
+  ghi_chu?: string | null;
 };
 
 type HocKy = { id: string; name: string; };
@@ -146,6 +152,37 @@ const generateWeeks = (startStr: string, endStr: string, startWeekNum: number = 
 
 export default function LichDayChuyenNghiepScreen() {
   const router = useRouter();
+  const { user } = useAuth();
+
+  const applyApprovedProposalOverrides = useCallback((lichData: any[], deXuatData: any[]) => {
+    if (!Array.isArray(lichData) || !Array.isArray(deXuatData)) return lichData;
+
+    const approvedMap = new Map<string, any>();
+    const approvedEdits = deXuatData
+      .filter((dx: any) => dx?.loai_de_xuat !== 'mo_lai' && dx?.trang_thai === 'approved' && dx?.buoi_id)
+      .sort((a: any, b: any) => {
+        const ta = new Date(a?.updatedAt || a?.createdAt || 0).getTime();
+        const tb = new Date(b?.updatedAt || b?.createdAt || 0).getTime();
+        return tb - ta;
+      });
+
+    approvedEdits.forEach((dx: any) => {
+      if (!approvedMap.has(dx.buoi_id)) approvedMap.set(dx.buoi_id, dx);
+    });
+
+    return lichData.map((item: any) => {
+      const dx = approvedMap.get(item.buoi_id);
+      if (!dx) return item;
+
+      return {
+        ...item,
+        ngay_hoc: dx.ngay_moi || item.ngay_hoc,
+        tiet_bat_dau: dx.tiet_bat_dau_moi ?? item.tiet_bat_dau,
+        so_tiet: dx.so_tiet_moi ?? item.so_tiet,
+        phong_hoc: dx.phong_moi || item.phong_hoc,
+      };
+    });
+  }, []);
   
   const [HOC_KY, setHOC_KY] = useState<HocKy[]>([]);
   const [PHAN_CONG_DATA, setPH_CONG_DATA] = useState<PhanCong[]>([]);
@@ -198,10 +235,16 @@ export default function LichDayChuyenNghiepScreen() {
       if (!activeSemester) return;
       (async () => {
         try {
-          const res = await phanCongService.getLichGiangDay(activeSemester);
+          const [res, deXuatRes] = await Promise.all([
+            phanCongService.getLichGiangDay(activeSemester),
+            apiClient('/de-xuat/my-proposals')
+          ]);
           if (!res.success || !Array.isArray(res.data)) return;
+          const rawData = (deXuatRes?.success && Array.isArray(deXuatRes.data))
+            ? applyApprovedProposalOverrides(res.data, deXuatRes.data)
+            : res.data;
           const thuArr = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
-          const mapped: PhanCong[] = res.data.map((item: any) => {
+          const mapped: PhanCong[] = rawData.map((item: any) => {
             const ngayHoc = item.ngay_hoc || item.ngay || new Date().toISOString().split('T')[0];
             const start = getTimeByTiet(ngayHoc, item.tiet_bat_dau, true);
             const end = getTimeByTiet(ngayHoc, item.tiet_bat_dau + item.so_tiet - 1, false);
@@ -219,14 +262,18 @@ export default function LichDayChuyenNghiepScreen() {
               startDateTime: start,
               endDateTime: end,
               trang_thai: item.trang_thai || 'scheduled',
-            is_override: item.is_override || false,
-            gv_day_thay: item.gv_day_thay || null
+              is_override: item.is_override || false,
+              gv_day_thay: item.gv_day_thay || null,
+              giangvien_day_thay_id: item.giangvien_day_thay_id || null,
+              has_substitute: !!item.has_substitute,
+              is_my_substitute_session: !!item.is_my_substitute_session,
+              ghi_chu: item.ghi_chu || null
             };
           });
           setPH_CONG_DATA(mapped.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime()));
         } catch (e) { /* silent */ }
       })();
-    }, [activeSemester])
+    }, [activeSemester, applyApprovedProposalOverrides])
   );
 
   // Lấy dữ liệu lịch dạy
@@ -236,15 +283,22 @@ export default function LichDayChuyenNghiepScreen() {
       setLoading(true);
       setExpandedSubject(null);
       try {
-        const res = await phanCongService.getLichGiangDay(activeSemester);
+        const [res, deXuatRes] = await Promise.all([
+          phanCongService.getLichGiangDay(activeSemester),
+          apiClient('/de-xuat/my-proposals')
+        ]);
         // Chỉ clear data nếu server trả về lỗi thực sự (not network/abort errors)
         if (!res.success || !Array.isArray(res.data)) {
           if (res.message !== 'Lỗi kết nối máy chủ') setPH_CONG_DATA([]);
           return;
         }
 
+        const rawData = (deXuatRes?.success && Array.isArray(deXuatRes.data))
+          ? applyApprovedProposalOverrides(res.data, deXuatRes.data)
+          : res.data;
+
         const thuArr = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
-        const mapped: PhanCong[] = res.data.map((item: any) => {
+        const mapped: PhanCong[] = rawData.map((item: any) => {
           const ngayHoc = item.ngay_hoc || item.ngay || new Date().toISOString().split('T')[0];
           const start = getTimeByTiet(ngayHoc, item.tiet_bat_dau, true);
           const end = getTimeByTiet(ngayHoc, item.tiet_bat_dau + item.so_tiet - 1, false);
@@ -263,7 +317,12 @@ export default function LichDayChuyenNghiepScreen() {
             startDateTime: start,
             endDateTime: end,
             trang_thai: item.trang_thai || 'scheduled', // Lấy trạng thái từ API
-            is_override: item.is_override || false
+            is_override: item.is_override || false,
+            gv_day_thay: item.gv_day_thay || null,
+            giangvien_day_thay_id: item.giangvien_day_thay_id || null,
+            has_substitute: !!item.has_substitute,
+            is_my_substitute_session: !!item.is_my_substitute_session,
+            ghi_chu: item.ghi_chu || null
           };
         });
 
@@ -289,7 +348,7 @@ export default function LichDayChuyenNghiepScreen() {
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     })();
-  }, [activeSemester]);
+  }, [activeSemester, applyApprovedProposalOverrides]);
 
   // Logic Filter & Group
   const groupedSchedule = useMemo<SubjectGroup[]>(() => {
@@ -339,9 +398,13 @@ export default function LichDayChuyenNghiepScreen() {
     const isPast = status === 'PAST';
     // Buổi quá khứ chỉ có thể điểm danh nếu admin đã duyệt mở lại (is_override = true)
     // Buổi có GV dạy thay → GV chính không điểm danh được
-    const hasSubstitute = !!item.gv_day_thay;
-    const canAttend = !hasSubstitute && (!isPast || (item.trang_thai === 'scheduled' && item.is_override === true));
-    const isDisabled = !canAttend || item.trang_thai === 'completed' || item.trang_thai === 'cancelled';
+    const hasSubstitute = !!item.has_substitute;
+    const currentGiangVienId = user?.GiangVien?.giangvien_id;
+    const isMySubstituteById = !!(item.giangvien_day_thay_id && currentGiangVienId && item.giangvien_day_thay_id === currentGiangVienId);
+    const isMySubstituteSession = !!item.is_my_substitute_session || isMySubstituteById;
+    const blockedBySubstitute = hasSubstitute && !isMySubstituteSession;
+    const isReopenedSession = item.is_override === true && !!item.ghi_chu && item.ghi_chu.toLowerCase().includes('mở lại');
+    const isDisabled = blockedBySubstitute || item.trang_thai === 'completed' || item.trang_thai === 'cancelled';
     
     // Xác định icon và màu sắc dựa trên trạng thái điểm danh
     let iconName: any = 'ellipse-outline';
@@ -360,10 +423,14 @@ export default function LichDayChuyenNghiepScreen() {
       iconName = 'radio-button-on';
       iconColor = COLORS.success;
       statusLabel = '● Đang dạy';
-    } else if (isPast && item.is_override) {
+    } else if (isPast && isReopenedSession) {
       iconName = 'refresh-circle';
       iconColor = '#F57C00';
       statusLabel = '↺ Được mở lại';
+    } else if (isMySubstituteSession) {
+      iconName = 'swap-horizontal';
+      iconColor = '#2E7D32';
+      statusLabel = '↔ Bạn dạy thay';
     } else if (item.gv_day_thay) {
       iconName = 'swap-horizontal';
       iconColor = '#9C27B0';

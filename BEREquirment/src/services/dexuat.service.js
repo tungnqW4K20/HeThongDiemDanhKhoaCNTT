@@ -113,7 +113,6 @@ const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi) => {
             } else {
                 // Chỉnh sửa thông tin buổi học
                 const updateData = {
-                    is_override: true,
                     ngay: dx.ngay_moi || buoi.ngay,
                     phong: dx.phong_moi || buoi.phong,
                     tiet_bat_dau: dx.tiet_bat_dau_moi || buoi.tiet_bat_dau,
