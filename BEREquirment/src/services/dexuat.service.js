@@ -45,9 +45,11 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
 
       // Rule nghiệp vụ: Trùng NGÀY của chính giảng viên là chặn đề xuất.
       if (sameLecturer) {
+        const tenMonDayDu = monHoc?.ten_mon || 'môn chưa xác định';
+        const lopDayDu = tenLop || 'lớp chưa xác định';
         return {
           conflict: true,
-          message: `Giảng viên đã có lịch dạy trong ngày ${ngay} (tiết ${s_start}-${s_end}).`,
+          message: `Không thể tạo đề xuất: ngày ${ngay} giảng viên đã có lịch dạy ${tenMonDayDu} (${lopDayDu}) ở tiết ${s_start}-${s_end}. Vui lòng chọn ngày khác.`,
           detail: {
             type: 'lecturer_day',
             ngay,
@@ -66,9 +68,11 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
 
       if (isOverlappingTiet) {
           if (phong && s.phong === phong) {
+            const tenMonDayDu = monHoc?.ten_mon || 'môn chưa xác định';
+            const lopDayDu = tenLop || 'lớp chưa xác định';
             return {
               conflict: true,
-              message: `Phòng ${phong} đã bận (tiết ${s_start}-${s_end})`,
+              message: `Không thể tạo đề xuất: phòng ${phong} đã bận vào tiết ${s_start}-${s_end} cho ${tenMonDayDu} (${lopDayDu}). Vui lòng chọn phòng hoặc thời gian khác.`,
               detail: {
                 type: 'room',
                 ngay,

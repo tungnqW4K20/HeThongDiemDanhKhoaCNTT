@@ -125,6 +125,7 @@ export default function QuanLyDeXuatScreen() {
   const [reopenReason, setReopenReason] = useState(""); // Lý do mở lại
   const [conflictMessage, setConflictMessage] = useState<string>("");
   const [conflictDetail, setConflictDetail] = useState<any>(null);
+  const [reopenMessage, setReopenMessage] = useState<string>("");
   
   const [formData, setFormData] = useState({
     ngay_moi: "",
@@ -193,8 +194,6 @@ export default function QuanLyDeXuatScreen() {
     finally { setIsLoading(false); }
   };
 
-  const [approvedSubstituteBuoiIds, setApprovedSubstituteBuoiIds] = useState<Set<string>>(new Set());
-
   const fetchLichDay = async () => {
     if (!currentSemester) return;
     const [lichRes, deXuatRes] = await Promise.all([
@@ -217,7 +216,6 @@ export default function QuanLyDeXuatScreen() {
           }
         });
       }
-      setApprovedSubstituteBuoiIds(substitutedIds);
     }
   };
 
@@ -408,6 +406,28 @@ export default function QuanLyDeXuatScreen() {
     return giangViens.find((gv: any) => gv.giangvien_id === formData.giangvien_day_thay_moi_id) || null;
   }, [formData.giangvien_day_thay_moi_id, giangViens]);
 
+  const conflictSpecificMessage = useMemo(() => {
+    if (!conflictDetail) return conflictMessage;
+
+    const tenMon = conflictDetail.ten_mon || 'N/A';
+    const maMon = conflictDetail.ma_mon || 'N/A';
+    const tenLop = conflictDetail.ten_lop || 'N/A';
+    const ngay = conflictDetail.ngay || 'N/A';
+    const tiet = conflictDetail.tiet_trung || 'N/A';
+    const phong = conflictDetail.phong || 'N/A';
+    const gv = conflictDetail.giang_vien || 'N/A';
+
+    if (conflictDetail.type === 'lecturer_day') {
+      return `Không thể tạo đề xuất vì giảng viên đã có lịch trong ngày ${ngay}.\nMôn: ${maMon} - ${tenMon}\nLớp: ${tenLop}\nTiết: ${tiet}\nPhòng: ${phong}\nGiảng viên: ${gv}`;
+    }
+
+    if (conflictDetail.type === 'room') {
+      return `Không thể tạo đề xuất vì phòng bị trùng lịch.\nNgày: ${ngay}\nTiết: ${tiet}\nPhòng: ${phong}\nMôn: ${maMon} - ${tenMon}\nLớp: ${tenLop}`;
+    }
+
+    return conflictMessage;
+  }, [conflictDetail, conflictMessage]);
+
   // -----------------------------------------------------------------
   // 4. HANDLERS
   // -----------------------------------------------------------------
@@ -430,6 +450,7 @@ export default function QuanLyDeXuatScreen() {
   const handleOpenReopenRequest = (item: any) => {
     setSelectedBuoi(item);
     setReopenReason("");
+    setReopenMessage("");
     setReopenModalVisible(true);
   };
 
@@ -439,6 +460,7 @@ export default function QuanLyDeXuatScreen() {
     }
     
     setSubmitting(true);
+    setReopenMessage("");
     try {
       const res = await apiClient(`/de-xuat/gui-de-xuat/${selectedBuoi.buoi_id}`, {
         method: 'POST',
@@ -454,11 +476,11 @@ export default function QuanLyDeXuatScreen() {
         setReopenReason("");
         onRefresh();
       } else {
-        Alert.alert("Lỗi", res.message || "Gửi thất bại.");
+        setReopenMessage(res.message || "Gửi thất bại.");
       }
     } catch (error) {
       console.error(error);
-      Alert.alert("Lỗi", "Không thể kết nối server.");
+      setReopenMessage("Không thể kết nối server.");
     } finally {
       setSubmitting(false);
     }
@@ -486,12 +508,8 @@ export default function QuanLyDeXuatScreen() {
         setModalVisible(false);
         onRefresh();
       } else {
-        if (res.details) {
-          setConflictMessage(res.message || 'Phát hiện trùng lịch.');
-          setConflictDetail(res.details);
-        } else {
-          Alert.alert("Lỗi", res.message || "Gửi thất bại.");
-        }
+        setConflictMessage(res.message || 'Gửi thất bại.');
+        setConflictDetail(res.details || null);
       }
     } catch (error) { 
       console.error(error);
@@ -825,7 +843,7 @@ export default function QuanLyDeXuatScreen() {
                     <Ionicons name="warning-outline" size={16} color="#C62828" />
                     <Text style={styles.conflictTitle}>Phát hiện trùng lịch</Text>
                   </View>
-                  <Text style={styles.conflictMessage}>{conflictMessage}</Text>
+                  <Text style={styles.conflictMessage}>{conflictSpecificMessage}</Text>
                   {!!conflictDetail && (
                     <View style={{ marginTop: 6 }}>
                       <Text style={styles.conflictDetail}>Ngày: {conflictDetail.ngay || 'N/A'}</Text>
@@ -836,6 +854,7 @@ export default function QuanLyDeXuatScreen() {
                       <Text style={styles.conflictDetail}>GV: {conflictDetail.giang_vien || 'N/A'} ({conflictDetail.ma_gv || 'N/A'})</Text>
                       {!!conflictDetail.sdt && <Text style={styles.conflictDetail}>SĐT GV: {conflictDetail.sdt}</Text>}
                       {!!conflictDetail.email && <Text style={styles.conflictDetail}>Email GV: {conflictDetail.email}</Text>}
+                      <Text style={styles.conflictAdvice}>Gợi ý: Chọn ngày dạy khác để gửi lại đề xuất.</Text>
                     </View>
                   )}
                 </View>
@@ -913,6 +932,13 @@ export default function QuanLyDeXuatScreen() {
                   onChangeText={setReopenReason}
                 />
               </View>
+
+              {!!reopenMessage && (
+                <View style={styles.inlineMessageBox}>
+                  <Ionicons name="alert-circle-outline" size={16} color="#C62828" />
+                  <Text style={styles.inlineMessageText}>{reopenMessage}</Text>
+                </View>
+              )}
 
               <TouchableOpacity 
                 style={[styles.saveButton, { backgroundColor: '#F57C00' }]} 
@@ -1038,6 +1064,24 @@ const styles = StyleSheet.create({
   conflictTitle: { marginLeft: 6, fontSize: 13, fontWeight: '800', color: '#B91C1C' },
   conflictMessage: { fontSize: 13, color: '#7F1D1D', fontWeight: '600' },
   conflictDetail: { fontSize: 12, color: '#7F1D1D', marginTop: 2 },
+  conflictAdvice: { fontSize: 12, color: '#991B1B', marginTop: 8, fontStyle: 'italic' },
+  inlineMessageBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#F8B4B4',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12
+  },
+  inlineMessageText: {
+    marginLeft: 8,
+    flex: 1,
+    fontSize: 13,
+    color: '#7F1D1D',
+    fontWeight: '600'
+  },
   
   // Styles cho modal đề xuất mở lại
   sessionInfoBox: { 
