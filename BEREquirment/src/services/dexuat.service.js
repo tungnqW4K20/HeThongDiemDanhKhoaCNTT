@@ -43,15 +43,15 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
       const gv = lopHocPhan?.GiangVien;
       const tenLop = (lopHocPhan?.DanhSachLopHanhChinh || []).map(l => l.ten_lop).join(', ');
 
-      // Rule nghiệp vụ: Trùng NGÀY của chính giảng viên là chặn đề xuất.
-      if (sameLecturer) {
+      // Rule nghiệp vụ: Giảng viên bị trùng CA/TIẾT thì chặn đề xuất.
+      if (sameLecturer && isOverlappingTiet) {
         const tenMonDayDu = monHoc?.ten_mon || 'môn chưa xác định';
         const lopDayDu = tenLop || 'lớp chưa xác định';
         return {
           conflict: true,
-          message: `Không thể tạo đề xuất: ngày ${ngay} giảng viên đã có lịch dạy ${tenMonDayDu} (${lopDayDu}) ở tiết ${s_start}-${s_end}. Vui lòng chọn ngày khác.`,
+          message: `Không thể tạo đề xuất: giảng viên đã có lịch dạy ${tenMonDayDu} (${lopDayDu}) vào tiết ${s_start}-${s_end} ngày ${ngay}.`,
           detail: {
-            type: 'lecturer_day',
+            type: 'lecturer_period',
             ngay,
             tiet_trung: `${s_start}-${s_end}`,
             phong: s.phong || null,

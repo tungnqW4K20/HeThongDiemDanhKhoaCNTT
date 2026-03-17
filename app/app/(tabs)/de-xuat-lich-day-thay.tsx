@@ -417,8 +417,8 @@ export default function QuanLyDeXuatScreen() {
     const phong = conflictDetail.phong || 'N/A';
     const gv = conflictDetail.giang_vien || 'N/A';
 
-    if (conflictDetail.type === 'lecturer_day') {
-      return `Không thể tạo đề xuất vì giảng viên đã có lịch trong ngày ${ngay}.\nMôn: ${maMon} - ${tenMon}\nLớp: ${tenLop}\nTiết: ${tiet}\nPhòng: ${phong}\nGiảng viên: ${gv}`;
+    if (conflictDetail.type === 'lecturer_period') {
+      return `Không thể tạo đề xuất vì giảng viên bị trùng ca/tiết.\nNgày: ${ngay}\nTiết trùng: ${tiet}\nMôn: ${maMon} - ${tenMon}\nLớp: ${tenLop}\nPhòng: ${phong}\nGiảng viên: ${gv}`;
     }
 
     if (conflictDetail.type === 'room') {
