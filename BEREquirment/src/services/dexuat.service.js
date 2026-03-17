@@ -35,13 +35,36 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
         const s_start = s.tiet_bat_dau;
         const s_end = s.tiet_bat_dau + s.so_tiet - 1;
         const s_gv = s.giangvien_day_thay_id || s.LopHocPhan.giangvien_id;
+      const sameLecturer = giangvien_id && s_gv === giangvien_id;
+      const isOverlappingTiet = tietBD <= s_end && s_start <= tietKT;
 
-        if (tietBD <= s_end && s_start <= tietKT) {
-          const lopHocPhan = s.LopHocPhan;
-          const monHoc = lopHocPhan?.MonHoc;
-          const gv = lopHocPhan?.GiangVien;
-          const tenLop = (lopHocPhan?.DanhSachLopHanhChinh || []).map(l => l.ten_lop).join(', ');
+      const lopHocPhan = s.LopHocPhan;
+      const monHoc = lopHocPhan?.MonHoc;
+      const gv = lopHocPhan?.GiangVien;
+      const tenLop = (lopHocPhan?.DanhSachLopHanhChinh || []).map(l => l.ten_lop).join(', ');
 
+      // Rule nghiệp vụ: Trùng NGÀY của chính giảng viên là chặn đề xuất.
+      if (sameLecturer) {
+        return {
+          conflict: true,
+          message: `Giảng viên đã có lịch dạy trong ngày ${ngay} (tiết ${s_start}-${s_end}).`,
+          detail: {
+            type: 'lecturer_day',
+            ngay,
+            tiet_trung: `${s_start}-${s_end}`,
+            phong: s.phong || null,
+            ten_mon: monHoc?.ten_mon || 'N/A',
+            ma_mon: monHoc?.ma_mon || 'N/A',
+            ten_lop: tenLop || 'N/A',
+            giang_vien: gv ? `${gv.ho} ${gv.ten}` : 'N/A',
+            ma_gv: gv?.ma_gv || 'N/A',
+            email: gv?.email || null,
+            sdt: gv?.sdt || null
+          }
+        };
+      }
+
+      if (isOverlappingTiet) {
           if (phong && s.phong === phong) {
             return {
               conflict: true,
@@ -51,25 +74,6 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
                 ngay,
                 tiet_trung: `${s_start}-${s_end}`,
                 phong: s.phong,
-                ten_mon: monHoc?.ten_mon || 'N/A',
-                ma_mon: monHoc?.ma_mon || 'N/A',
-                ten_lop: tenLop || 'N/A',
-                giang_vien: gv ? `${gv.ho} ${gv.ten}` : 'N/A',
-                ma_gv: gv?.ma_gv || 'N/A',
-                email: gv?.email || null,
-                sdt: gv?.sdt || null
-              }
-            };
-          }
-          if (giangvien_id && s_gv === giangvien_id) {
-            return {
-              conflict: true,
-              message: `Giảng viên bận dạy lớp khác (tiết ${s_start}-${s_end})`,
-              detail: {
-                type: 'lecturer',
-                ngay,
-                tiet_trung: `${s_start}-${s_end}`,
-                phong: s.phong || null,
                 ten_mon: monHoc?.ten_mon || 'N/A',
                 ma_mon: monHoc?.ma_mon || 'N/A',
                 ten_lop: tenLop || 'N/A',
@@ -91,6 +95,21 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
     if (!buoi) throw new Error("Buổi học không tồn tại.");
     if (buoi.LopHocPhan.giangvien_id !== user_gv_id) throw new Error("Bạn chỉ được phép đề xuất cho buổi dạy của mình.");
 
+  const loaiDeXuat = data.loai_de_xuat || 'chinh_sua';
+  const pendingProposal = await DeXuatChinhSua.findOne({
+    where: {
+      buoi_id,
+      nguoi_de_xuat_id: user_gv_id,
+      loai_de_xuat: loaiDeXuat,
+      trang_thai: 'pending'
+    }
+  });
+  if (pendingProposal) {
+    const err = new Error('Buổi học này đã có đề xuất đang chờ duyệt. Vui lòng chờ phản hồi từ admin.');
+    err.statusCode = 409;
+    throw err;
+  }
+
     const check = await checkConflict({
         ngay: data.ngay_moi || buoi.ngay,
         tietBD: data.tiet_bat_dau_moi || buoi.tiet_bat_dau,
@@ -109,7 +128,7 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
     return await DeXuatChinhSua.create({
         buoi_id, 
         nguoi_de_xuat_id: user_gv_id,
-        loai_de_xuat: data.loai_de_xuat || 'chinh_sua',
+      loai_de_xuat: loaiDeXuat,
         ngay_moi: data.ngay_moi, 
         tiet_bat_dau_moi: data.tiet_bat_dau_moi,
         so_tiet_moi: data.so_tiet_moi, 
