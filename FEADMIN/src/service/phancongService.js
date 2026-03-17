@@ -4,6 +4,9 @@ const phanCongService = {
   create(data) {
     return axiosClient.post('/phan-cong-auto/create', data);
   },
+  delete(buoiId) {
+    return axiosClient.delete(`/phan-cong-auto/buoi-hoc/${buoiId}/force`);
+  },
   getAll(params) {
     return axiosClient.get('/phan-cong/all', { params });
   },

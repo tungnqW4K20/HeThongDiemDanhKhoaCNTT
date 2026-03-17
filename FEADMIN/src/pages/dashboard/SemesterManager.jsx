@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import SemesterToolbar from '../../components/semester/SemesterToolbar';
 import SemesterTable from '../../components/semester/SemesterTable';
 import SemesterModal from '../../components/semester/SemesterModal';
+import SchoolYearModal from '../../components/semester/SchoolYearModal';
 import hocKyService from '../../service/hockyService';
 
 const SemesterManagerPage = () => {
@@ -10,6 +11,7 @@ const SemesterManagerPage = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [modalState, setModalState] = useState({ isOpen: false, data: null });
+  const [schoolYearModalOpen, setSchoolYearModalOpen] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -56,6 +58,7 @@ const SemesterManagerPage = () => {
         searchTerm={searchTerm} 
         setSearchTerm={setSearchTerm} 
         onAddClick={() => setModalState({ isOpen: true, data: null })}
+        onAddSchoolYearClick={() => setSchoolYearModalOpen(true)}
       />
 
       <SemesterTable 
@@ -69,6 +72,13 @@ const SemesterManagerPage = () => {
         <SemesterModal 
           initialData={modalState.data}
           onClose={() => setModalState({ isOpen: false, data: null })}
+          onSuccess={fetchData}
+        />
+      )}
+
+      {schoolYearModalOpen && (
+        <SchoolYearModal
+          onClose={() => setSchoolYearModalOpen(false)}
           onSuccess={fetchData}
         />
       )}

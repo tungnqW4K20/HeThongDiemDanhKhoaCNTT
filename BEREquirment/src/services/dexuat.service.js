@@ -14,7 +14,21 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
             trangthai: { [Op.ne]: 'cancelled' },
             ...(ignore_buoi_id && { buoi_id: { [Op.ne]: ignore_buoi_id } })
         },
-        include: [{ model: LopHocPhan, as: 'LopHocPhan', attributes: ['giangvien_id'] }]
+    include: [{
+      model: LopHocPhan,
+      as: 'LopHocPhan',
+      attributes: ['giangvien_id'],
+      include: [
+        { model: GiangVien, attributes: ['ma_gv', 'ho', 'ten', 'email', 'sdt'] },
+        { model: MonHoc, attributes: ['ma_mon', 'ten_mon'] },
+        {
+          model: LopHanhChinh,
+          as: 'DanhSachLopHanhChinh',
+          attributes: ['ten_lop'],
+          through: { attributes: [] }
+        }
+      ]
+    }]
     });
 
     for (const s of sessions) {
@@ -23,8 +37,49 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
         const s_gv = s.giangvien_day_thay_id || s.LopHocPhan.giangvien_id;
 
         if (tietBD <= s_end && s_start <= tietKT) {
-            if (phong && s.phong === phong) return { conflict: true, message: `Phòng ${phong} đã bận (tiết ${s_start}-${s_end})` };
-            if (giangvien_id && s_gv === giangvien_id) return { conflict: true, message: `Giảng viên bận dạy lớp khác (tiết ${s_start}-${s_end})` };
+          const lopHocPhan = s.LopHocPhan;
+          const monHoc = lopHocPhan?.MonHoc;
+          const gv = lopHocPhan?.GiangVien;
+          const tenLop = (lopHocPhan?.DanhSachLopHanhChinh || []).map(l => l.ten_lop).join(', ');
+
+          if (phong && s.phong === phong) {
+            return {
+              conflict: true,
+              message: `Phòng ${phong} đã bận (tiết ${s_start}-${s_end})`,
+              detail: {
+                type: 'room',
+                ngay,
+                tiet_trung: `${s_start}-${s_end}`,
+                phong: s.phong,
+                ten_mon: monHoc?.ten_mon || 'N/A',
+                ma_mon: monHoc?.ma_mon || 'N/A',
+                ten_lop: tenLop || 'N/A',
+                giang_vien: gv ? `${gv.ho} ${gv.ten}` : 'N/A',
+                ma_gv: gv?.ma_gv || 'N/A',
+                email: gv?.email || null,
+                sdt: gv?.sdt || null
+              }
+            };
+          }
+          if (giangvien_id && s_gv === giangvien_id) {
+            return {
+              conflict: true,
+              message: `Giảng viên bận dạy lớp khác (tiết ${s_start}-${s_end})`,
+              detail: {
+                type: 'lecturer',
+                ngay,
+                tiet_trung: `${s_start}-${s_end}`,
+                phong: s.phong || null,
+                ten_mon: monHoc?.ten_mon || 'N/A',
+                ma_mon: monHoc?.ma_mon || 'N/A',
+                ten_lop: tenLop || 'N/A',
+                giang_vien: gv ? `${gv.ho} ${gv.ten}` : 'N/A',
+                ma_gv: gv?.ma_gv || 'N/A',
+                email: gv?.email || null,
+                sdt: gv?.sdt || null
+              }
+            };
+          }
         }
     }
     return { conflict: false };
@@ -44,7 +99,12 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
         giangvien_id: data.giangvien_day_thay_moi_id || buoi.giangvien_day_thay_id || user_gv_id,
         ignore_buoi_id: buoi_id
     });
-    if (check.conflict) { const err = new Error(check.message); err.statusCode = 409; throw err; }
+    if (check.conflict) {
+      const err = new Error(check.message);
+      err.statusCode = 409;
+      err.details = check.detail || null;
+      throw err;
+    }
 
     return await DeXuatChinhSua.create({
         buoi_id, 

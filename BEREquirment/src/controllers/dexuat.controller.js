@@ -5,7 +5,13 @@ const createProposal = async (req, res) => {
     try {
         const result = await deXuatService.guiDeXuat(req.params.buoi_id, req.body, req.user.giangvien_id);
         res.status(201).json({ success: true, data: result });
-    } catch (error) { res.status(error.statusCode || 500).json({ success: false, message: error.message }); }
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message,
+            details: error.details || null
+        });
+    }
 };
 
 const getPendingProposals = async (req, res) => {

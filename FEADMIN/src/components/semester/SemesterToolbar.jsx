@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, Plus, Filter } from 'lucide-react';
 
-const SemesterToolbar = ({ searchTerm, setSearchTerm, onAddClick }) => {
+const SemesterToolbar = ({ searchTerm, setSearchTerm, onAddClick, onAddSchoolYearClick }) => {
   return (
     <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row gap-4 items-center">
       <div className="relative flex-1 w-full">
@@ -19,6 +19,13 @@ const SemesterToolbar = ({ searchTerm, setSearchTerm, onAddClick }) => {
         <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors">
           <Filter size={18} />
           <span>Lọc</span>
+        </button>
+        <button
+          onClick={onAddSchoolYearClick}
+          className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-semibold transition-all shadow-md active:scale-95"
+        >
+          <Plus size={20} />
+          <span className="whitespace-nowrap">Thêm năm học</span>
         </button>
         <button 
           onClick={onAddClick}

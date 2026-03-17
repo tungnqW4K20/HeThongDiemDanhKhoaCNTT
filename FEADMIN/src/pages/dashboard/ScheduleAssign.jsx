@@ -250,16 +250,25 @@ export default function AssignmentPage() {
                 const updatedList = await phanCongService.getAll({ hocky_id: currentSemesterId });
                 setAssignments(updatedList.data || []);
                 setIsFormModalOpen(false);
+                return;
             }
-        } catch (error) { alert("Lỗi lưu phân công"); } 
+            alert(res.message || 'Không thể tạo lịch dạy.');
+        } catch (error) {
+            alert(error?.response?.data?.message || "Lỗi lưu phân công");
+        } 
         finally { setIsLoading(false); }
     };
 
     const handleConfirmDelete = async () => {
         if (!currentAssignment) return;
         try {
-            await phanCongService.delete(currentAssignment.buoi_id);
+            const res = await phanCongService.delete(currentAssignment.buoi_id);
             setAssignments(prev => prev.filter(a => a.buoi_id !== currentAssignment.buoi_id));
+            if (!res?.success) {
+                alert(res?.message || 'Xóa buổi học chưa thành công hoàn toàn.');
+            }
+        } catch (error) {
+            alert(error?.response?.data?.message || 'Xóa buổi học thất bại.');
         } finally {
             setIsDeleteModalOpen(false);
             setCurrentAssignment(null);
@@ -293,7 +302,7 @@ export default function AssignmentPage() {
         <div className="min-h-screen bg-[#F0F2F5] p-6 md:p-8 font-sans text-slate-900">
             {/* Loading Overlay */}
             {(isLoading || importLoading) && (
-                <div className="fixed inset-0 z-[60] bg-black/20 flex items-center justify-center backdrop-blur-[1px]">
+                <div className="fixed inset-0 z-60 bg-black/20 flex items-center justify-center backdrop-blur-[1px]">
                     <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-4">
                         <Loader2 className="animate-spin text-[#3B5998]" size={24} />
                         <span className="text-sm font-semibold">Đang xử lý dữ liệu...</span>
@@ -360,12 +369,12 @@ export default function AssignmentPage() {
                                         <Upload size={18} /> Import Excel
                                     </button>
                                     
-                                    {/* <button 
+                                    <button 
                                         onClick={handleAddNew} 
                                         className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
                                     >
-                                        <Plus size={20} /> Tạo buổi học
-                                    </button> */}
+                                        <Plus size={20} /> Thêm lịch dạy
+                                    </button>
                                 </div>
                             </div>
 

@@ -123,6 +123,8 @@ export default function QuanLyDeXuatScreen() {
   const [selectedBuoi, setSelectedBuoi] = useState<any>(null);
   const [searchGV, setSearchGV] = useState("");
   const [reopenReason, setReopenReason] = useState(""); // Lý do mở lại
+  const [conflictMessage, setConflictMessage] = useState<string>("");
+  const [conflictDetail, setConflictDetail] = useState<any>(null);
   
   const [formData, setFormData] = useState({
     ngay_moi: "",
@@ -401,6 +403,11 @@ export default function QuanLyDeXuatScreen() {
     );
   }, [searchGV, giangViens]);
 
+  const selectedGVContact = useMemo(() => {
+    if (!formData.giangvien_day_thay_moi_id) return null;
+    return giangViens.find((gv: any) => gv.giangvien_id === formData.giangvien_day_thay_moi_id) || null;
+  }, [formData.giangvien_day_thay_moi_id, giangViens]);
+
   // -----------------------------------------------------------------
   // 4. HANDLERS
   // -----------------------------------------------------------------
@@ -415,6 +422,8 @@ export default function QuanLyDeXuatScreen() {
       ten_giangvien_thay_moi: "Chọn giảng viên dạy thay (nếu có)...",
       ly_do: "",
     });
+    setConflictMessage("");
+    setConflictDetail(null);
     setModalVisible(true);
   };
 
@@ -458,6 +467,8 @@ export default function QuanLyDeXuatScreen() {
   const handleSubmit = async () => {
     if (!formData.ly_do) return Alert.alert("Thiếu thông tin", "Vui lòng nhập lý do đề xuất.");
     setSubmitting(true);
+    setConflictMessage("");
+    setConflictDetail(null);
     try {
       const res = await apiClient(`/de-xuat/gui-de-xuat/${selectedBuoi.buoi_id}`, {
         method: 'POST',
@@ -474,7 +485,14 @@ export default function QuanLyDeXuatScreen() {
         Alert.alert("Thành công", "Đề xuất của bạn đã được gửi.");
         setModalVisible(false);
         onRefresh();
-      } else { Alert.alert("Lỗi", res.message || "Gửi thất bại."); }
+      } else {
+        if (res.details) {
+          setConflictMessage(res.message || 'Phát hiện trùng lịch.');
+          setConflictDetail(res.details);
+        } else {
+          Alert.alert("Lỗi", res.message || "Gửi thất bại.");
+        }
+      }
     } catch (error) { 
       console.error(error);
       Alert.alert("Lỗi", "Không thể kết nối server."); 
@@ -793,7 +811,35 @@ export default function QuanLyDeXuatScreen() {
               </View>
               <View style={styles.inputGroup}><Text style={styles.inputLabel}>Phòng học mới</Text><TextInput style={styles.input} value={formData.phong_moi} onChangeText={t => setFormData({...formData, phong_moi: t})}/></View>
               <View style={styles.inputGroup}><Text style={styles.inputLabel}>Giảng viên dạy thay (Nếu có)</Text><TouchableOpacity style={styles.pickerTrigger} onPress={() => setGVModalVisible(true)}><Text numberOfLines={1} style={{color: formData.giangvien_day_thay_moi_id ? '#333' : '#999', flex: 1}}>{formData.ten_giangvien_thay_moi}</Text><Ionicons name="chevron-down" size={20} color="#666" /></TouchableOpacity></View>
+              {selectedGVContact && (
+                <View style={styles.contactBox}>
+                  <Text style={styles.contactLabel}>Liên hệ giảng viên thay:</Text>
+                  <Text style={styles.contactValue}>SĐT: {selectedGVContact.sdt || 'Chưa cập nhật'}</Text>
+                  <Text style={styles.contactValue}>Email: {selectedGVContact.email || 'Chưa cập nhật'}</Text>
+                </View>
+              )}
               <View style={styles.inputGroup}><Text style={styles.inputLabel}>Lý do thay đổi *</Text><TextInput style={[styles.input, { height: 80, textAlignVertical: 'top' }]} multiline placeholder="Ghi cụ thể lý do..." value={formData.ly_do} onChangeText={t => setFormData({...formData, ly_do: t})}/></View>
+              {!!conflictMessage && (
+                <View style={styles.conflictBox}>
+                  <View style={styles.conflictTitleRow}>
+                    <Ionicons name="warning-outline" size={16} color="#C62828" />
+                    <Text style={styles.conflictTitle}>Phát hiện trùng lịch</Text>
+                  </View>
+                  <Text style={styles.conflictMessage}>{conflictMessage}</Text>
+                  {!!conflictDetail && (
+                    <View style={{ marginTop: 6 }}>
+                      <Text style={styles.conflictDetail}>Ngày: {conflictDetail.ngay || 'N/A'}</Text>
+                      <Text style={styles.conflictDetail}>Tiết trùng: {conflictDetail.tiet_trung || 'N/A'}</Text>
+                      <Text style={styles.conflictDetail}>Môn: {conflictDetail.ma_mon} - {conflictDetail.ten_mon}</Text>
+                      <Text style={styles.conflictDetail}>Lớp: {conflictDetail.ten_lop || 'N/A'}</Text>
+                      {!!conflictDetail.phong && <Text style={styles.conflictDetail}>Phòng: {conflictDetail.phong}</Text>}
+                      <Text style={styles.conflictDetail}>GV: {conflictDetail.giang_vien || 'N/A'} ({conflictDetail.ma_gv || 'N/A'})</Text>
+                      {!!conflictDetail.sdt && <Text style={styles.conflictDetail}>SĐT GV: {conflictDetail.sdt}</Text>}
+                      {!!conflictDetail.email && <Text style={styles.conflictDetail}>Email GV: {conflictDetail.email}</Text>}
+                    </View>
+                  )}
+                </View>
+              )}
               <TouchableOpacity style={styles.saveButton} onPress={handleSubmit} disabled={submitting}>{submitting ? <ActivityIndicator color="#FFF"/> : <Text style={styles.saveButtonText}>Gửi yêu cầu phê duyệt</Text>}</TouchableOpacity>
               <View style={{height: 50}} />
             </ScrollView>
@@ -809,6 +855,7 @@ export default function QuanLyDeXuatScreen() {
             <FlatList data={filteredGV} keyExtractor={item => item.giangvien_id} renderItem={({item}) => (
               <TouchableOpacity style={styles.gvItem} onPress={() => { setFormData({...formData, giangvien_day_thay_moi_id: item.giangvien_id, ten_giangvien_thay_moi: `${item.ho} ${item.ten}` }); setGVModalVisible(false); }}>
                 <Text style={styles.gvName}>{item.ho} {item.ten}</Text><Text style={styles.gvCode}>Mã GV: {item.ma_gv}</Text>
+                <Text style={styles.gvContact}>SĐT: {item.sdt || 'Chưa có'} | Email: {item.email || 'Chưa có'}</Text>
               </TouchableOpacity>
             )} />
             <TouchableOpacity style={styles.closeGVBtn} onPress={() => setGVModalVisible(false)}><Text style={{color: '#FFF', fontWeight: 'bold'}}>Hủy bỏ</Text></TouchableOpacity>
@@ -967,7 +1014,30 @@ const styles = StyleSheet.create({
   gvItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' },
   gvName: { fontSize: 15, fontWeight: 'bold' },
   gvCode: { fontSize: 12, color: '#888' },
+  gvContact: { fontSize: 12, color: '#666', marginTop: 2 },
   closeGVBtn: { backgroundColor: '#999', padding: 12, borderRadius: 10, alignItems: 'center', marginTop: 10 },
+  contactBox: {
+    backgroundColor: '#F4F7FF',
+    borderWidth: 1,
+    borderColor: '#DDE6FF',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12
+  },
+  contactLabel: { fontSize: 11, fontWeight: '700', color: PRIMARY_COLOR, marginBottom: 4 },
+  contactValue: { fontSize: 13, color: '#334155' },
+  conflictBox: {
+    backgroundColor: '#FFF5F5',
+    borderWidth: 1,
+    borderColor: '#F8B4B4',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12
+  },
+  conflictTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  conflictTitle: { marginLeft: 6, fontSize: 13, fontWeight: '800', color: '#B91C1C' },
+  conflictMessage: { fontSize: 13, color: '#7F1D1D', fontWeight: '600' },
+  conflictDetail: { fontSize: 12, color: '#7F1D1D', marginTop: 2 },
   
   // Styles cho modal đề xuất mở lại
   sessionInfoBox: { 
