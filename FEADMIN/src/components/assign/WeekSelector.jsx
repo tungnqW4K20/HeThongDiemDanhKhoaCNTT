@@ -1,7 +1,15 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
-const WeekSelector = ({ weeks = [], selectedWeekId, onChange }) => {
+const WeekSelector = ({
+    weeks = [],
+    selectedWeekId,
+    onChange,
+    onPrev,
+    onNext,
+    canGoPrev,
+    canGoNext
+}) => {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef(null);
 
@@ -21,13 +29,24 @@ const WeekSelector = ({ weeks = [], selectedWeekId, onChange }) => {
 
   // Xử lý nút Previous
   const handlePrev = () => {
-    if (currentIdx > 0) onChange(weeks[currentIdx - 1].id);
+        if (onPrev) {
+            onPrev();
+            return;
+        }
+        if (currentIdx > 0) onChange(weeks[currentIdx - 1].id);
   };
 
   // Xử lý nút Next
   const handleNext = () => {
-    if (currentIdx < weeks.length - 1) onChange(weeks[currentIdx + 1].id);
+        if (onNext) {
+            onNext();
+            return;
+        }
+        if (currentIdx < weeks.length - 1) onChange(weeks[currentIdx + 1].id);
   };
+
+    const prevDisabled = typeof canGoPrev === 'boolean' ? !canGoPrev : currentIdx <= 0;
+    const nextDisabled = typeof canGoNext === 'boolean' ? !canGoNext : currentIdx >= weeks.length - 1;
 
   if (weeks.length === 0) return null;
 
@@ -36,7 +55,7 @@ const WeekSelector = ({ weeks = [], selectedWeekId, onChange }) => {
         {/* Nút lùi tuần */}
         <button 
             onClick={handlePrev}
-            disabled={currentIdx <= 0}
+            disabled={prevDisabled}
             className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-[#3B5998] hover:border-[#3B5998] disabled:opacity-50 disabled:hover:border-gray-200 disabled:cursor-not-allowed transition-all shadow-sm"
         >
             <ChevronLeft size={18} />
@@ -97,7 +116,7 @@ const WeekSelector = ({ weeks = [], selectedWeekId, onChange }) => {
         {/* Nút tiến tuần */}
         <button 
             onClick={handleNext}
-            disabled={currentIdx >= weeks.length - 1}
+            disabled={nextDisabled}
             className="p-2.5 bg-white border border-gray-200 rounded-lg text-gray-500 hover:text-[#3B5998] hover:border-[#3B5998] disabled:opacity-50 disabled:hover:border-gray-200 disabled:cursor-not-allowed transition-all shadow-sm"
         >
             <ChevronRight size={18} />

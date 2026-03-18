@@ -93,6 +93,7 @@ export default function AssignmentPage() {
     const [assignments, setAssignments] = useState([]); 
     const [weeks, setWeeks] = useState([]); 
     const [selectedWeek, setSelectedWeek] = useState(1);
+    const [pendingWeekSelection, setPendingWeekSelection] = useState(null);
 
     // --- STATE UI & MODAL ---
     const [searchTerm, setSearchTerm] = useState('');
@@ -146,11 +147,97 @@ export default function AssignmentPage() {
         const weeksOfSem = generateSemesterWeeks(currentSem.ngay_monday_tuan_1, currentSem.ngay_ketthuc, tuanBatDau);
         setWeeks(weeksOfSem);
 
+        // Nếu có tuần chờ chọn (do bấm qua tuần ở kỳ khác), ưu tiên áp dụng trước.
+        if (pendingWeekSelection !== null) {
+            const hasPendingWeek = weeksOfSem.some(w => w.id === pendingWeekSelection);
+            if (hasPendingWeek) {
+                setSelectedWeek(pendingWeekSelection);
+                setPendingWeekSelection(null);
+                return;
+            }
+            setPendingWeekSelection(null);
+        }
+
         // Auto-chọn tuần hiện tại nếu đang trong học kỳ này
         const now = new Date();
         const currentWeek = weeksOfSem.find(w => now >= w.startDate && now <= w.endDate);
         setSelectedWeek(currentWeek ? currentWeek.id : (weeksOfSem[0]?.id ?? tuanBatDau));
-    }, [currentSemesterId, semesters]);
+    }, [currentSemesterId, semesters, pendingWeekSelection]);
+
+    const currentSemester = useMemo(
+        () => semesters.find(s => s.hocky_id === currentSemesterId) || null,
+        [semesters, currentSemesterId]
+    );
+
+    const sameSchoolYearSemesters = useMemo(() => {
+        if (!currentSemester) return [];
+
+        const currentNamHocId = currentSemester.namhoc_id || currentSemester.NamHoc?.namhoc_id;
+        return semesters
+            .filter((s) => (s.namhoc_id || s.NamHoc?.namhoc_id) === currentNamHocId)
+            .sort((a, b) => new Date(a.ngay_batdau) - new Date(b.ngay_batdau));
+    }, [semesters, currentSemester]);
+
+    const currentSemesterIndexInYear = useMemo(
+        () => sameSchoolYearSemesters.findIndex(s => s.hocky_id === currentSemesterId),
+        [sameSchoolYearSemesters, currentSemesterId]
+    );
+
+    const canGoPrevWeek = useMemo(() => {
+        const currentIdx = weeks.findIndex(w => w.id === selectedWeek);
+        const hasPrevInSemester = currentIdx > 0;
+        const hasPrevSemester = currentSemesterIndexInYear > 0;
+        return hasPrevInSemester || hasPrevSemester;
+    }, [weeks, selectedWeek, currentSemesterIndexInYear]);
+
+    const canGoNextWeek = useMemo(() => {
+        const currentIdx = weeks.findIndex(w => w.id === selectedWeek);
+        const hasNextInSemester = currentIdx >= 0 && currentIdx < weeks.length - 1;
+        const hasNextSemester =
+            currentSemesterIndexInYear >= 0 &&
+            currentSemesterIndexInYear < sameSchoolYearSemesters.length - 1;
+        return hasNextInSemester || hasNextSemester;
+    }, [weeks, selectedWeek, currentSemesterIndexInYear, sameSchoolYearSemesters.length]);
+
+    const handleWeekPrev = () => {
+        const currentIdx = weeks.findIndex(w => w.id === selectedWeek);
+        if (currentIdx > 0) {
+            setSelectedWeek(weeks[currentIdx - 1].id);
+            return;
+        }
+
+        if (currentSemesterIndexInYear > 0) {
+            const prevSemester = sameSchoolYearSemesters[currentSemesterIndexInYear - 1];
+            const prevWeeks = generateSemesterWeeks(
+                prevSemester.ngay_monday_tuan_1,
+                prevSemester.ngay_ketthuc,
+                prevSemester.tuan_bat_dau_co_lich || 1
+            );
+            const targetWeekId = prevWeeks[prevWeeks.length - 1]?.id;
+            if (targetWeekId != null) setPendingWeekSelection(targetWeekId);
+            setCurrentSemesterId(prevSemester.hocky_id);
+        }
+    };
+
+    const handleWeekNext = () => {
+        const currentIdx = weeks.findIndex(w => w.id === selectedWeek);
+        if (currentIdx >= 0 && currentIdx < weeks.length - 1) {
+            setSelectedWeek(weeks[currentIdx + 1].id);
+            return;
+        }
+
+        if (currentSemesterIndexInYear >= 0 && currentSemesterIndexInYear < sameSchoolYearSemesters.length - 1) {
+            const nextSemester = sameSchoolYearSemesters[currentSemesterIndexInYear + 1];
+            const nextWeeks = generateSemesterWeeks(
+                nextSemester.ngay_monday_tuan_1,
+                nextSemester.ngay_ketthuc,
+                nextSemester.tuan_bat_dau_co_lich || 1
+            );
+            const targetWeekId = nextWeeks[0]?.id;
+            if (targetWeekId != null) setPendingWeekSelection(targetWeekId);
+            setCurrentSemesterId(nextSemester.hocky_id);
+        }
+    };
 
     // --- 3. FETCH DỮ LIỆU PHÂN CÔNG ---
     // useEffect(() => {
@@ -337,6 +424,10 @@ export default function AssignmentPage() {
                                     weeks={weeks}
                                     selectedWeekId={selectedWeek}
                                     onChange={setSelectedWeek}
+                                    onPrev={handleWeekPrev}
+                                    onNext={handleWeekNext}
+                                    canGoPrev={canGoPrevWeek}
+                                    canGoNext={canGoNextWeek}
                                 />
                             </div>
                         </div>

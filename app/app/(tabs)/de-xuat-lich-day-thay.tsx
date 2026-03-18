@@ -20,6 +20,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../../components/ui/AuthContext";
 
 // =================================================================
 // CONSTANTS & HELPERS
@@ -91,6 +92,7 @@ const formatShortDate = (date: Date): string => {
 };
 
 export default function QuanLyDeXuatScreen() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"LICH_DAY" | "MO_LAI" | "LICH_SU">("LICH_DAY");
   
   // State lưu duy nhất học kỳ hiện tại
@@ -406,6 +408,30 @@ export default function QuanLyDeXuatScreen() {
     return giangViens.find((gv: any) => gv.giangvien_id === formData.giangvien_day_thay_moi_id) || null;
   }, [formData.giangvien_day_thay_moi_id, giangViens]);
 
+  const isSubmitEnabled = useMemo(() => {
+    const dateText = String(formData.ngay_moi || '').trim();
+    const tietText = String(formData.tiet_bat_dau_moi || '').trim();
+    const soTietText = String(formData.so_tiet_moi || '').trim();
+    const phongText = String(formData.phong_moi || '').trim();
+    const lyDoText = String(formData.ly_do || '').trim();
+    const gvThayId = String(formData.giangvien_day_thay_moi_id || '').trim();
+
+    const isDateFormatValid = /^\d{4}-\d{2}-\d{2}$/.test(dateText);
+    const tiet = Number(tietText);
+    const soTiet = Number(soTietText);
+    const isTietValid = Number.isInteger(tiet) && tiet > 0;
+    const isSoTietValid = Number.isInteger(soTiet) && soTiet > 0;
+
+    return (
+      isDateFormatValid &&
+      isTietValid &&
+      isSoTietValid &&
+      !!phongText &&
+      !!gvThayId &&
+      !!lyDoText
+    );
+  }, [formData]);
+
   const conflictSpecificMessage = useMemo(() => {
     if (!conflictDetail) return conflictMessage;
 
@@ -423,6 +449,14 @@ export default function QuanLyDeXuatScreen() {
 
     if (conflictDetail.type === 'room') {
       return `Không thể tạo đề xuất vì phòng bị trùng lịch.\nNgày: ${ngay}\nTiết: ${tiet}\nPhòng: ${phong}\nMôn: ${maMon} - ${tenMon}\nLớp: ${tenLop}`;
+    }
+
+    if (conflictDetail.type === 'pending_proposal') {
+      return `Buổi học này đã có đề xuất đang chờ duyệt của ${gv} (${conflictDetail.ma_gv || 'N/A'}). Vui lòng chờ admin xử lý hoặc cập nhật lại từ lịch sử đề xuất.`;
+    }
+
+    if (conflictDetail.type === 'no_change') {
+      return `Đề xuất chưa có thay đổi so với lịch hiện tại. Vui lòng đổi ít nhất một thông tin (ngày, tiết, phòng hoặc giảng viên dạy thay) trước khi gửi.`;
     }
 
     return conflictMessage;
@@ -487,7 +521,38 @@ export default function QuanLyDeXuatScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.ly_do) return Alert.alert("Thiếu thông tin", "Vui lòng nhập lý do đề xuất.");
+    if (!selectedBuoi) return;
+
+    if (!isSubmitEnabled) {
+      return Alert.alert(
+        "Thiếu thông tin",
+        "Vui lòng nhập đầy đủ: ngày dạy mới, tiết bắt đầu, số tiết, phòng học mới, giảng viên dạy thay và lý do thay đổi."
+      );
+    }
+
+    const mainGVId = user?.GiangVien?.giangvien_id || null;
+    const selectedGVThay = formData.giangvien_day_thay_moi_id || null;
+    const normalizedSelectedGVThay = selectedGVThay === mainGVId ? null : selectedGVThay;
+    const currentGVThay = selectedBuoi.giangvien_day_thay_id || null;
+
+    const hasNoChange =
+      String(formData.ngay_moi || '') === String(selectedBuoi.ngay_hoc || '') &&
+      Number(formData.tiet_bat_dau_moi || 0) === Number(selectedBuoi.tiet_bat_dau || 0) &&
+      Number(formData.so_tiet_moi || 0) === Number(selectedBuoi.so_tiet || 0) &&
+      String(formData.phong_moi || '') === String(selectedBuoi.phong_hoc || '') &&
+      normalizedSelectedGVThay === currentGVThay;
+
+    if (hasNoChange) {
+      setConflictMessage('Đề xuất chưa có thay đổi so với lịch hiện tại.');
+      setConflictDetail({
+        type: 'no_change',
+        ngay: selectedBuoi.ngay_hoc || 'N/A',
+        tiet_trung: `${selectedBuoi.tiet_bat_dau || 'N/A'}-${(Number(selectedBuoi.tiet_bat_dau || 0) + Number(selectedBuoi.so_tiet || 0) - 1) || 'N/A'}`,
+        phong: selectedBuoi.phong_hoc || 'N/A'
+      });
+      return;
+    }
+
     setSubmitting(true);
     setConflictMessage("");
     setConflictDetail(null);
@@ -499,7 +564,7 @@ export default function QuanLyDeXuatScreen() {
           tiet_bat_dau_moi: parseInt(formData.tiet_bat_dau_moi),
           so_tiet_moi: parseInt(formData.so_tiet_moi),
           phong_moi: formData.phong_moi,
-          giangvien_day_thay_moi_id: formData.giangvien_day_thay_moi_id || null,
+          giangvien_day_thay_moi_id: selectedGVThay,
           ly_do: formData.ly_do
         }
       });
@@ -828,7 +893,7 @@ export default function QuanLyDeXuatScreen() {
                 <View style={{flex: 1}}><Text style={styles.inputLabel}>Số tiết</Text><TextInput style={styles.input} keyboardType="numeric" value={formData.so_tiet_moi} onChangeText={t => setFormData({...formData, so_tiet_moi: t})}/></View>
               </View>
               <View style={styles.inputGroup}><Text style={styles.inputLabel}>Phòng học mới</Text><TextInput style={styles.input} value={formData.phong_moi} onChangeText={t => setFormData({...formData, phong_moi: t})}/></View>
-              <View style={styles.inputGroup}><Text style={styles.inputLabel}>Giảng viên dạy thay (Nếu có)</Text><TouchableOpacity style={styles.pickerTrigger} onPress={() => setGVModalVisible(true)}><Text numberOfLines={1} style={{color: formData.giangvien_day_thay_moi_id ? '#333' : '#999', flex: 1}}>{formData.ten_giangvien_thay_moi}</Text><Ionicons name="chevron-down" size={20} color="#666" /></TouchableOpacity></View>
+              <View style={styles.inputGroup}><Text style={styles.inputLabel}>Giảng viên dạy thay *</Text><TouchableOpacity style={styles.pickerTrigger} onPress={() => setGVModalVisible(true)}><Text numberOfLines={1} style={{color: formData.giangvien_day_thay_moi_id ? '#333' : '#999', flex: 1}}>{formData.ten_giangvien_thay_moi}</Text><Ionicons name="chevron-down" size={20} color="#666" /></TouchableOpacity></View>
               {selectedGVContact && (
                 <View style={styles.contactBox}>
                   <Text style={styles.contactLabel}>Liên hệ giảng viên thay:</Text>
@@ -844,22 +909,23 @@ export default function QuanLyDeXuatScreen() {
                     <Text style={styles.conflictTitle}>Phát hiện trùng lịch</Text>
                   </View>
                   <Text style={styles.conflictMessage}>{conflictSpecificMessage}</Text>
-                  {!!conflictDetail && (
+                  {!!conflictDetail && conflictDetail.type !== 'no_change' && (
                     <View style={{ marginTop: 6 }}>
-                      <Text style={styles.conflictDetail}>Ngày: {conflictDetail.ngay || 'N/A'}</Text>
-                      <Text style={styles.conflictDetail}>Tiết trùng: {conflictDetail.tiet_trung || 'N/A'}</Text>
-                      <Text style={styles.conflictDetail}>Môn: {conflictDetail.ma_mon} - {conflictDetail.ten_mon}</Text>
-                      <Text style={styles.conflictDetail}>Lớp: {conflictDetail.ten_lop || 'N/A'}</Text>
-                      {!!conflictDetail.phong && <Text style={styles.conflictDetail}>Phòng: {conflictDetail.phong}</Text>}
-                      <Text style={styles.conflictDetail}>GV: {conflictDetail.giang_vien || 'N/A'} ({conflictDetail.ma_gv || 'N/A'})</Text>
-                      {!!conflictDetail.sdt && <Text style={styles.conflictDetail}>SĐT GV: {conflictDetail.sdt}</Text>}
-                      {!!conflictDetail.email && <Text style={styles.conflictDetail}>Email GV: {conflictDetail.email}</Text>}
+                      {conflictDetail.type === 'pending_proposal' && (
+                        <>
+                          <Text style={styles.conflictDetail}><Text style={styles.conflictDetailLabel}>Môn/Lớp:</Text> {conflictDetail.ten_mon || 'N/A'} / {conflictDetail.ten_lop || 'N/A'}</Text>
+                          <Text style={styles.conflictDetail}><Text style={styles.conflictDetailLabel}>Tiết nào:</Text> {conflictDetail.tiet_trung || 'N/A'}</Text>
+                          <Text style={styles.conflictDetail}><Text style={styles.conflictDetailLabel}>Ngày dạy:</Text> {conflictDetail.ngay || 'N/A'}</Text>
+                        </>
+                      )}
+                      <Text style={styles.conflictDetail}><Text style={styles.conflictDetailLabel}>SĐT liên hệ:</Text> {conflictDetail.sdt || 'Chưa cập nhật'}</Text>
+                      <Text style={styles.conflictDetail}><Text style={styles.conflictDetailLabel}>Email liên hệ:</Text> {conflictDetail.email || 'Chưa cập nhật'}</Text>
                       <Text style={styles.conflictAdvice}>Gợi ý: Chọn ngày dạy khác để gửi lại đề xuất.</Text>
                     </View>
                   )}
                 </View>
               )}
-              <TouchableOpacity style={styles.saveButton} onPress={handleSubmit} disabled={submitting}>{submitting ? <ActivityIndicator color="#FFF"/> : <Text style={styles.saveButtonText}>Gửi yêu cầu phê duyệt</Text>}</TouchableOpacity>
+              <TouchableOpacity style={[styles.saveButton, (!isSubmitEnabled || submitting) && styles.saveButtonDisabled]} onPress={handleSubmit} disabled={!isSubmitEnabled || submitting}>{submitting ? <ActivityIndicator color="#FFF"/> : <Text style={styles.saveButtonText}>Gửi yêu cầu phê duyệt</Text>}</TouchableOpacity>
               <View style={{height: 50}} />
             </ScrollView>
           </View>
@@ -1032,6 +1098,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   pickerTrigger: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#F9FAFB', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', padding: 12 },
   saveButton: { backgroundColor: PRIMARY_COLOR, height: 50, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 10 },
+  saveButtonDisabled: { backgroundColor: '#9CA3AF' },
   saveButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' },
   gvModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   gvModalContent: { backgroundColor: '#FFF', width: '90%', height: '70%', borderRadius: 15, padding: 15 },
@@ -1063,6 +1130,7 @@ const styles = StyleSheet.create({
   conflictTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   conflictTitle: { marginLeft: 6, fontSize: 13, fontWeight: '800', color: '#B91C1C' },
   conflictMessage: { fontSize: 13, color: '#7F1D1D', fontWeight: '600' },
+  conflictDetailLabel: { fontWeight: '800', color: '#7F1D1D' },
   conflictDetail: { fontSize: 12, color: '#7F1D1D', marginTop: 2 },
   conflictAdvice: { fontSize: 12, color: '#991B1B', marginTop: 8, fontStyle: 'italic' },
   inlineMessageBox: {

@@ -52,6 +52,7 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
           message: `Không thể tạo đề xuất: giảng viên đã có lịch dạy ${tenMonDayDu} (${lopDayDu}) vào tiết ${s_start}-${s_end} ngày ${ngay}.`,
           detail: {
             type: 'lecturer_period',
+            buoi_id: s.buoi_id,
             ngay,
             tiet_trung: `${s_start}-${s_end}`,
             phong: s.phong || null,
@@ -75,6 +76,7 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
               message: `Không thể tạo đề xuất: phòng ${phong} đã bận vào tiết ${s_start}-${s_end} cho ${tenMonDayDu} (${lopDayDu}). Vui lòng chọn phòng hoặc thời gian khác.`,
               detail: {
                 type: 'room',
+                buoi_id: s.buoi_id,
                 ngay,
                 tiet_trung: `${s_start}-${s_end}`,
                 phong: s.phong,
@@ -95,22 +97,136 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
 
 // --- GIẢNG VIÊN GỬI ĐỀ XUẤT ---
 const guiDeXuat = async (buoi_id, data, user_gv_id) => {
-    const buoi = await BuoiHoc.findByPk(buoi_id, { include: [{ model: LopHocPhan, as: 'LopHocPhan' }] });
+    const buoi = await BuoiHoc.findByPk(buoi_id, {
+      include: [{
+        model: LopHocPhan,
+        as: 'LopHocPhan',
+        include: [
+          { model: MonHoc, attributes: ['ma_mon', 'ten_mon'] },
+          {
+            model: LopHanhChinh,
+            as: 'DanhSachLopHanhChinh',
+            attributes: ['ten_lop'],
+            through: { attributes: [] }
+          }
+        ]
+      }]
+    });
     if (!buoi) throw new Error("Buổi học không tồn tại.");
     if (buoi.LopHocPhan.giangvien_id !== user_gv_id) throw new Error("Bạn chỉ được phép đề xuất cho buổi dạy của mình.");
 
   const loaiDeXuat = data.loai_de_xuat || 'chinh_sua';
+
+  // Chặn gửi đề xuất chỉnh sửa nếu không có thay đổi thực tế.
+  if (loaiDeXuat === 'chinh_sua') {
+    const giangVienChinhId = buoi.LopHocPhan.giangvien_id;
+    const currentNgay = String(buoi.ngay || '');
+    const currentTietBatDau = Number(buoi.tiet_bat_dau || 0);
+    const currentSoTiet = Number(buoi.so_tiet || 0);
+    const currentPhong = String(buoi.phong || '');
+    const currentGVDayThay = buoi.giangvien_day_thay_id || null;
+
+    const requestedGVDayThay = data.giangvien_day_thay_moi_id || null;
+    const normalizedRequestedGVDayThay = requestedGVDayThay === giangVienChinhId ? null : requestedGVDayThay;
+
+    const nextNgay = String(data.ngay_moi || buoi.ngay || '');
+    const nextTietBatDau = Number(data.tiet_bat_dau_moi || buoi.tiet_bat_dau || 0);
+    const nextSoTiet = Number(data.so_tiet_moi || buoi.so_tiet || 0);
+    const nextPhong = String(data.phong_moi || buoi.phong || '');
+    const nextGVDayThay = normalizedRequestedGVDayThay !== null
+      ? normalizedRequestedGVDayThay
+      : (buoi.giangvien_day_thay_id || null);
+
+    const hasNoChange =
+      currentNgay === nextNgay &&
+      currentTietBatDau === nextTietBatDau &&
+      currentSoTiet === nextSoTiet &&
+      currentPhong === nextPhong &&
+      currentGVDayThay === nextGVDayThay;
+
+    if (hasNoChange) {
+      const err = new Error('Đề xuất không có thay đổi so với lịch hiện tại. Vui lòng chỉnh ít nhất 1 thông tin trước khi gửi.');
+      err.statusCode = 400;
+      err.details = {
+        type: 'no_change',
+        ngay: currentNgay,
+        tiet_trung: `${currentTietBatDau}-${currentTietBatDau + currentSoTiet - 1}`,
+        phong: currentPhong || 'N/A'
+      };
+      throw err;
+    }
+  }
+
   const pendingProposal = await DeXuatChinhSua.findOne({
     where: {
       buoi_id,
       nguoi_de_xuat_id: user_gv_id,
       loai_de_xuat: loaiDeXuat,
       trang_thai: 'pending'
-    }
+    },
+    include: [
+      {
+        model: GiangVien,
+        as: 'NguoiDeXuat',
+        attributes: ['ma_gv', 'ho', 'ten', 'email', 'sdt']
+      }
+    ]
   });
   if (pendingProposal) {
-    const err = new Error('Buổi học này đã có đề xuất đang chờ duyệt. Vui lòng chờ phản hồi từ admin.');
+    if (loaiDeXuat === 'chinh_sua') {
+      const payload = {
+        ngay_moi: data.ngay_moi || buoi.ngay,
+        tiet_bat_dau_moi: data.tiet_bat_dau_moi || buoi.tiet_bat_dau,
+        so_tiet_moi: data.so_tiet_moi || buoi.so_tiet,
+        phong_moi: data.phong_moi || buoi.phong,
+        giangvien_day_thay_moi_id: data.giangvien_day_thay_moi_id || null,
+        ly_do: data.ly_do || pendingProposal.ly_do
+      };
+
+      await pendingProposal.update(payload);
+      return pendingProposal;
+    }
+
+    let gvThay = null;
+    if (pendingProposal.giangvien_day_thay_moi_id) {
+      gvThay = await GiangVien.findByPk(pendingProposal.giangvien_day_thay_moi_id, {
+        attributes: ['ma_gv', 'ho', 'ten', 'email', 'sdt']
+      });
+    }
+
+    const nguoiDeXuat = pendingProposal.NguoiDeXuat;
+    const nguoiLienQuan = gvThay || nguoiDeXuat;
+    const ngayPending = pendingProposal.ngay_moi || buoi.ngay;
+    const tietStartPending = pendingProposal.tiet_bat_dau_moi || buoi.tiet_bat_dau;
+    const soTietPending = pendingProposal.so_tiet_moi || buoi.so_tiet;
+    const tietEndPending = tietStartPending + soTietPending - 1;
+    const monHoc = buoi?.LopHocPhan?.MonHoc;
+    const tenLop = (buoi?.LopHocPhan?.DanhSachLopHanhChinh || []).map(l => l.ten_lop).join(', ');
+
+    const tenNguoi = nguoiLienQuan ? `${nguoiLienQuan.ho} ${nguoiLienQuan.ten}` : 'N/A';
+    const maNguoi = nguoiLienQuan?.ma_gv || 'N/A';
+
+    const err = new Error(
+      `Buổi học này đã có đề xuất đang chờ duyệt của ${tenNguoi} (${maNguoi}). Vui lòng chờ admin xử lý.`
+    );
     err.statusCode = 409;
+    err.details = {
+      type: 'pending_proposal',
+      dexuat_id: pendingProposal.dexuat_id,
+      buoi_id,
+      ngay: ngayPending,
+      tiet_trung: `${tietStartPending}-${tietEndPending}`,
+      phong: pendingProposal.phong_moi || buoi.phong || null,
+      ten_mon: monHoc?.ten_mon || 'N/A',
+      ma_mon: monHoc?.ma_mon || 'N/A',
+      ten_lop: tenLop || 'N/A',
+      giang_vien: tenNguoi,
+      ma_gv: maNguoi,
+      email: nguoiLienQuan?.email || null,
+      sdt: nguoiLienQuan?.sdt || null,
+      nguoi_de_xuat: nguoiDeXuat ? `${nguoiDeXuat.ho} ${nguoiDeXuat.ten}` : null,
+      ma_nguoi_de_xuat: nguoiDeXuat?.ma_gv || null
+    };
     throw err;
   }
 
@@ -137,7 +253,7 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
         tiet_bat_dau_moi: data.tiet_bat_dau_moi,
         so_tiet_moi: data.so_tiet_moi, 
         phong_moi: data.phong_moi,
-        giangvien_day_thay_moi_id: data.giangvien_day_thay_moi_id,
+        giangvien_day_thay_moi_id: data.giangvien_day_thay_moi_id || null,
         ly_do: data.ly_do
     });
 };
