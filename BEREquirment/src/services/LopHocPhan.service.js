@@ -33,34 +33,88 @@ const moment = require("moment");
 
 const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
   try {
-    return await db.DangKyHoc.findAll({
-      where: { lophocphan_id },
+    // Chuẩn hóa ngày đầu vào để so sánh chính xác (bỏ phần giờ phút giây)
+    const ngayChuan = typeof ngay === 'string' ? ngay.split('T')[0] : ngay.toISOString().split('T')[0];
+
+    const records = await db.DangKyHoc.findAll({
+      where: { lophocphan_id, trangthai: 'active' },
       include: [
         {
+          model: db.LopHocPhan,
+          include: [{
+            model: db.LopHanhChinh,
+            as: "DanhSachLopHanhChinh",
+            attributes: ["ten_lop"],
+            through: { attributes: [] }
+          }]
+        },
+        {
           model: db.SinhVien,
-          as: "SinhVien",
-          attributes: ["sinhvien_id", "ma_sv", "ten", "email", "sdt"],
+          attributes: ["sinhvien_id", "ma_sv", "ten", "email", "sdt"], 
           include: [
+            { model: db.LopHanhChinh, as: "Lop", attributes: ["ten_lop"] },
             {
               model: db.DiemDanh,
               as: "DanhSachDiemDanh",
               required: false,
-              include: [
-                {
-                  model: db.BuoiHoc,
-                  as: "BuoiHoc",
-                  where: { ngay },
-                  required: false
-                }
-              ]
+              include: [{
+                model: db.BuoiHoc,
+                as: "BuoiHoc",
+                where: { 
+                  lophocphan_id,
+                  trangthai: 'completed' // CHỈ TÍNH CÁC BUỔI ĐÃ XÁC NHẬN DẠY
+                }, 
+                attributes: ['ngay', 'buoi_id']
+              }]
             }
           ]
         }
       ],
-      order: [[db.SinhVien, "ten", "ASC"]]
+      order: [[ { model: db.SinhVien }, "ten", "ASC"]]
     });
+
+    return records.map(record => {
+      const data = record.toJSON();
+      const sv = data.SinhVien;
+      if (!sv) return null;
+
+      // validHistory: Chỉ chứa các buổi 'completed'
+      const validHistory = sv.DanhSachDiemDanh || [];
+
+      // Tính toán thống kê dựa trên các buổi ĐÃ HOÀN THÀNH
+      const vắng_kp = validHistory.filter(h => h.trangthai === 'absent').length;
+      const vắng_cp = validHistory.filter(h => h.trangthai === 'excused').length;
+      const tong_vắng = vắng_kp + vắng_cp;
+      const tong_buoi_da_hoc = validHistory.length; 
+      const tile_nghi = tong_buoi_da_hoc > 0 ? (tong_vắng / tong_buoi_da_hoc) * 100 : 0;
+
+      // Lọc lấy dữ liệu điểm danh của ngày đang chọn (ngayChuan)
+      const diemDanhHomNay = validHistory.filter(h => h.BuoiHoc && h.BuoiHoc.ngay === ngayChuan);
+
+      return {
+        ...data,
+        DanhSachLopGhep: data.LopHocPhan?.DanhSachLopHanhChinh || [],
+        SinhVien: {
+          ...sv,
+          DanhSachDiemDanh: diemDanhHomNay,
+          DiemDanhSummary: {
+            vắng_kp, vắng_cp, tong_vắng,
+            tong_buoi: tong_buoi_da_hoc,
+            tile_nghi: tile_nghi.toFixed(1),
+            canh_bao: tile_nghi >= 20
+          },
+          FullHistory: validHistory.map(h => ({
+            ngay: h.BuoiHoc?.ngay,
+            trangthai: h.trangthai,
+            ghichu: h.ghichu
+          }))
+        }
+      };
+    }).filter(item => item !== null);
+
   } catch (error) {
-    throw new Error(`Lỗi truy vấn sinh viên lớp học phần: ${error.message}`);
+    console.error("SERVICE ERROR:", error);
+    throw new Error(`Lỗi: ${error.message}`);
   }
 };
 

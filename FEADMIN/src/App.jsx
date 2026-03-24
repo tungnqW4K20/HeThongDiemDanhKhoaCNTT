@@ -17,6 +17,7 @@ import RetakeClassPage from './pages/dashboard/ReregisterCourse';
 import SemesterManagerPage from './pages/dashboard/SemesterManager';
 import KhoaManager from './pages/dashboard/KhoaManager';
 import PartClassManagerPage from './pages/dashboard/PartClassManagerPage';
+import AttendanceStats from './pages/dashboard/AttendanceStats';
 
 const StudentManager = () => <div>Đăng ký học phần Content</div>;
 const LecturerManager = () => <div>Quản lý Giảng Viên Content</div>;
@@ -36,7 +37,8 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<AdminLayout />}>
               {/* Dashboard: Admin + Lãnh đạo đều xem được */}
-              <Route index element={<Overview />} />
+              {/* <Route index element={<Overview />} /> */}
+              <Route index element={<AttendanceStats />}/>
 
               {/* Các trang chỉ dành cho Admin */}
               <Route element={<ProtectedRoute allowedRoles={['admin']} />}>

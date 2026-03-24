@@ -56,44 +56,117 @@ class DiemDanhService {
     };
   }
 
+  // static async luuDiemDanh({ lophocphan_id, ngay, nguoi_tao, danh_sach_chi_tiet }) {
+  //   const transaction = await db.sequelize.transaction();
+  //   try {
+  //     const [buoiHoc, created] = await BuoiHoc.findOrCreate({
+  //       where: { lophocphan_id, ngay },
+  //       defaults: {
+  //         nguoi_tao: nguoi_tao,
+  //         trangthai: 'completed',
+  //         batdau: new Date()
+  //       },
+  //       transaction
+  //     });
+
+  //     // Nếu BuoiHoc đã tồn tại (admin tạo khi duyệt mở lại), cần update trangthai sang 'completed'
+  //     if (!created && buoiHoc.trangthai !== 'completed') {
+  //       await buoiHoc.update({ trangthai: 'completed' }, { transaction });
+  //     }
+
+  //     const duLieuDiemDanh = danh_sach_chi_tiet.map(item => ({
+  //       buoi_id: buoiHoc.buoi_id,
+  //       sinhvien_id: item.sinhvien_id,
+  //       trangthai: item.trangthai,
+  //       ghichu: item.ghichu || null,
+  //       thoigian_danhdau: new Date()
+  //     }));
+
+  //     await DiemDanh.bulkCreate(duLieuDiemDanh, {
+  //       updateOnDuplicate: ['trangthai', 'ghichu', 'thoigian_danhdau'],
+  //       transaction
+  //     });
+
+  //     await transaction.commit();
+  //     return { message: 'Lưu điểm danh thành công', buoi_id: buoiHoc.buoi_id, success: true };
+  //   } catch (error) {
+  //     await transaction.rollback();
+  //     throw error;
+  //   }
+  // }
+
+
+
   static async luuDiemDanh({ lophocphan_id, ngay, nguoi_tao, danh_sach_chi_tiet }) {
-    const transaction = await db.sequelize.transaction();
-    try {
-      const [buoiHoc, created] = await BuoiHoc.findOrCreate({
-        where: { lophocphan_id, ngay },
-        defaults: {
-          nguoi_tao: nguoi_tao,
-          trangthai: 'completed',
-          batdau: new Date()
-        },
-        transaction
-      });
+        const transaction = await db.sequelize.transaction();
+        try {
+            const ngayChuan = typeof ngay === 'string' ? ngay.split('T')[0] : ngay.toISOString().split('T')[0];
 
-      // Nếu BuoiHoc đã tồn tại (admin tạo khi duyệt mở lại), cần update trangthai sang 'completed'
-      if (!created && buoiHoc.trangthai !== 'completed') {
-        await buoiHoc.update({ trangthai: 'completed' }, { transaction });
-      }
+            // BƯỚC 1: Tìm buổi học hiện có
+            let buoiHoc = await BuoiHoc.findOne({
+                where: { lophocphan_id, ngay: ngayChuan },
+                transaction
+            });
 
-      const duLieuDiemDanh = danh_sach_chi_tiet.map(item => ({
-        buoi_id: buoiHoc.buoi_id,
-        sinhvien_id: item.sinhvien_id,
-        trangthai: item.trangthai,
-        ghichu: item.ghichu || null,
-        thoigian_danhdau: new Date()
-      }));
+            // BƯỚC 2: Kiểm soát việc tạo buổi học mới
+            if (!buoiHoc) {
+                /**
+                 * GIẢI THÍCH: 
+                 * Nếu ngày này chưa có bản ghi BuoiHoc, nghĩa là Giảng viên đang bấm Lưu 
+                 * vào một ngày "trống" (chưa được lên lịch hoặc chưa được Admin duyệt dời sang).
+                 * Để không bị nhảy mẫu số (ví dụ từ 7 lên 8), ta có 2 hướng:
+                 */
+                
+                // Hướng 1 (Khuyên dùng): Chặn - Bắt buộc phải có đề xuất dời lịch trước
+                // throw new Error("Ngày này chưa được Admin duyệt lịch dạy. Vui lòng gửi đề xuất dời lịch hoặc dạy thay.");
 
-      await DiemDanh.bulkCreate(duLieuDiemDanh, {
-        updateOnDuplicate: ['trangthai', 'ghichu', 'thoigian_danhdau'],
-        transaction
-      });
+                // Hướng 2: Vẫn cho lưu (Dạy bù đột xuất) nhưng đánh dấu là 'is_override'
+                buoiHoc = await BuoiHoc.create({
+                    lophocphan_id,
+                    ngay: ngayChuan,
+                    nguoi_tao: nguoi_tao,
+                    trangthai: 'completed',
+                    batdau: new Date(),
+                    is_override: true // Cực kỳ quan trọng để phân biệt buổi phát sinh
+                }, { transaction });
+            } else {
+                // Nếu đã có bản ghi (Đúng lịch, hoặc đã được Admin duyệt dời lịch/mở lại)
+                // Cập nhật trạng thái về 'completed'
+                await buoiHoc.update({
+                    trangthai: 'completed',
+                    nguoi_tao: nguoi_tao,
+                    batdau: buoiHoc.batdau || new Date()
+                }, { transaction });
+            }
 
-      await transaction.commit();
-      return { message: 'Lưu điểm danh thành công', buoi_id: buoiHoc.buoi_id, success: true };
-    } catch (error) {
-      await transaction.rollback();
-      throw error;
+            // BƯỚC 3: Lưu chi tiết điểm danh cho từng sinh viên
+            const duLieuDiemDanh = danh_sach_chi_tiet.map(item => ({
+                buoi_id: buoiHoc.buoi_id,
+                sinhvien_id: item.sinhvien_id,
+                trangthai: item.trangthai,
+                ghichu: item.ghichu || null,
+                thoigian_danhdau: new Date()
+            }));
+
+            // Sử dụng bulkCreate với updateOnDuplicate để ghi đè nếu đã tồn tại (Upsert)
+            await DiemDanh.bulkCreate(duLieuDiemDanh, {
+                updateOnDuplicate: ['trangthai', 'ghichu', 'thoigian_danhdau'],
+                transaction // Luôn luôn phải có transaction ở đây
+            });
+
+            await transaction.commit();
+            return { 
+                success: true, 
+                message: 'Lưu điểm danh thành công', 
+                buoi_id: buoiHoc.buoi_id 
+            };
+
+        } catch (error) {
+            if (transaction) await transaction.rollback();
+            console.error("LUU DIEM DANH ERROR:", error);
+            throw error;
+        }
     }
-  }
 
 
 

@@ -294,42 +294,212 @@ const getDachSachDeXuat = async (status = 'pending') => {
 };
 
 // --- ADMIN PHÊ DUYỆT ---
+// const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi) => {
+//     const t = await sequelize.transaction();
+//     try {
+//         const dx = await DeXuatChinhSua.findByPk(dexuat_id, { include: [{ model: BuoiHoc, as: 'BuoiHoc' }] });
+//         if (!dx || dx.trang_thai !== 'pending') throw new Error("Đề xuất không hợp lệ.");
+
+//         if (status === 'approved') {
+//             const buoi = dx.BuoiHoc;
+
+//             if (dx.loai_de_xuat === 'mo_lai') {
+//                 // Mở lại buổi học: đặt lại trạng thái và xóa dữ liệu điểm danh cũ
+//                 await BuoiHoc.update(
+//                     { trangthai: 'scheduled', ghi_chu: `Admin mở lại: ${dx.ly_do}`, is_override: true },
+//                     { where: { buoi_id: dx.buoi_id }, transaction: t }
+//                 );
+//             } else {
+//                 // Chỉnh sửa thông tin buổi học
+//                 const updateData = {
+//                     ngay: dx.ngay_moi || buoi.ngay,
+//                     phong: dx.phong_moi || buoi.phong,
+//                     tiet_bat_dau: dx.tiet_bat_dau_moi || buoi.tiet_bat_dau,
+//                     so_tiet: dx.so_tiet_moi || buoi.so_tiet,
+//                     giangvien_day_thay_id: dx.giangvien_day_thay_moi_id || buoi.giangvien_day_thay_id,
+//                     ghi_chu: `Admin duyệt: ${dx.ly_do}`
+//                 };
+//                 await BuoiHoc.update(updateData, { where: { buoi_id: dx.buoi_id }, transaction: t });
+//             }
+//         }
+
+//         await dx.update({ trang_thai: status, nguoi_duyet_id: admin_id, phan_hoi_admin: phan_hoi }, { transaction: t });
+//         await t.commit();
+//         return { success: true };
+//     } catch (error) { await t.rollback(); throw error; }
+// };
+
+
+
+// const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi) => {
+//     const t = await sequelize.transaction();
+//     try {
+//         const dx = await DeXuatChinhSua.findByPk(dexuat_id, { include: [{ model: BuoiHoc, as: 'BuoiHoc' }] });
+//         if (!dx || dx.trang_thai !== 'pending') throw new Error("Đề xuất không hợp lệ.");
+
+//         if (status === 'approved') {
+//             const buoi = dx.BuoiHoc;
+//             const ngayMoi = dx.ngay_moi || buoi.ngay;
+
+//             // CHẶN LỖI UNIQUE: Kiểm tra ngày mới có bị trùng lịch cũ không
+//             if (ngayMoi !== buoi.ngay) {
+//                 const checkExist = await BuoiHoc.findOne({
+//                     where: { lophocphan_id: buoi.lophocphan_id, ngay: ngayMoi, buoi_id: { [Op.ne]: buoi.buoi_id } }
+//                 });
+//                 if (checkExist) throw new Error(`Lớp này đã có lịch vào ngày ${ngayMoi}. Không thể dời trùng.`);
+//             }
+
+//             const updateData = {
+//                 ngay: ngayMoi,
+//                 phong: dx.phong_moi || buoi.phong,
+//                 tiet_bat_dau: dx.tiet_bat_dau_moi || buoi.tiet_bat_dau,
+//                 so_tiet: dx.so_tiet_moi || buoi.so_tiet,
+//                 giangvien_day_thay_id: dx.giangvien_day_thay_moi_id || buoi.giangvien_day_thay_id,
+//                 ghi_chu: `Admin duyệt: ${dx.ly_do}`,
+//                 is_override: true
+//             };
+
+//             // NẾU DỜI NGÀY: 
+//             // 1. Chuyển trạng thái về 'scheduled' để giảng viên điểm danh lại ngày mới.
+//             // 2. Xóa dữ liệu điểm danh cũ để mẫu số thống kê (tong_buoi) giảm đi 1 ngay lập tức.
+//             if (ngayMoi !== buoi.ngay) {
+//                 updateData.trangthai = 'scheduled';
+//                 await db.DiemDanh.destroy({ where: { buoi_id: buoi.buoi_id }, transaction: t });
+//             }
+
+//             await BuoiHoc.update(updateData, { where: { buoi_id: buoi.buoi_id }, transaction: t });
+//         }
+
+//         await dx.update({ trang_thai: status, nguoi_duyet_id: admin_id, phan_hoi_admin: phan_hoi }, { transaction: t });
+//         await t.commit();
+//         return { success: true };
+//     } catch (error) { await t.rollback(); throw error; }
+// };
+
+
+
+// const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi) => {
+//     const t = await sequelize.transaction();
+//     try {
+//         const dx = await DeXuatChinhSua.findByPk(dexuat_id, { include: [{ model: BuoiHoc, as: 'BuoiHoc' }] });
+//         if (!dx || dx.trang_thai !== 'pending') throw new Error("Đề xuất không hợp lệ.");
+
+//         if (status === 'approved') {
+//             const buoi = dx.BuoiHoc;
+//             const ngayMoi = dx.ngay_moi || buoi.ngay;
+
+//             // 1. CHẶN LỖI UNIQUE (Logic cũ - Giữ nguyên)
+//             if (ngayMoi !== buoi.ngay) {
+//                 const checkExist = await BuoiHoc.findOne({
+//                     where: { 
+//                         lophocphan_id: buoi.lophocphan_id, 
+//                         ngay: ngayMoi, 
+//                         buoi_id: { [Op.ne]: buoi.buoi_id } 
+//                     }
+//                 });
+//                 if (checkExist) throw new Error(`Lớp này đã có lịch vào ngày ${ngayMoi}. Không thể dời trùng.`);
+//             }
+
+//             // 2. Chuẩn bị dữ liệu cập nhật (Giữ nguyên các field cũ)
+//             const updateData = {
+//                 ngay: ngayMoi,
+//                 phong: dx.phong_moi || buoi.phong,
+//                 tiet_bat_dau: dx.tiet_bat_dau_moi || buoi.tiet_bat_dau,
+//                 so_tiet: dx.so_tiet_moi || buoi.so_tiet,
+//                 giangvien_day_thay_id: dx.giangvien_day_thay_moi_id || buoi.giangvien_day_thay_id,
+//                 ghi_chu: `Admin duyệt: ${dx.ly_do}`,
+//                 is_override: true,
+//                 // THÊM LOGIC: Luôn đưa về 'scheduled' để giảng viên có thể điểm danh lại/sửa đổi
+//                 trangthai: 'scheduled' 
+//             };
+
+//             // 3. Xử lý dữ liệu điểm danh (Logic cũ có chỉnh sửa nhẹ)
+//             if (ngayMoi !== buoi.ngay) {
+//                 // Nếu dời sang ngày khác: Xóa dữ liệu cũ vì buổi đó coi như chưa diễn ra (Logic cũ)
+//                 await db.DiemDanh.destroy({ where: { buoi_id: buoi.buoi_id }, transaction: t });
+//             } 
+//             // Lưu ý: Nếu CÙNG NGÀY, chúng ta KHÔNG xóa DiemDanh, chỉ đổi trạng thái buổi học 
+//             // để giảng viên vào sửa trên nền dữ liệu cũ.
+
+//             await BuoiHoc.update(updateData, { where: { buoi_id: buoi.buoi_id }, transaction: t });
+//         }
+
+//         // 4. Cập nhật trạng thái đề xuất (Logic cũ)
+//         await dx.update({ 
+//             trang_thai: status, 
+//             nguoi_duyet_id: admin_id, 
+//             phan_hoi_admin: phan_hoi 
+//         }, { transaction: t });
+
+//         await t.commit();
+//         return { success: true };
+//     } catch (error) { 
+//         if (t) await t.rollback(); 
+//         throw error; 
+//     }
+// };
+
 const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi) => {
     const t = await sequelize.transaction();
     try {
-        const dx = await DeXuatChinhSua.findByPk(dexuat_id, { include: [{ model: BuoiHoc, as: 'BuoiHoc' }] });
+        const dx = await DeXuatChinhSua.findByPk(dexuat_id, { 
+            include: [{ model: BuoiHoc, as: 'BuoiHoc' }] 
+        });
+        
         if (!dx || dx.trang_thai !== 'pending') throw new Error("Đề xuất không hợp lệ.");
 
         if (status === 'approved') {
             const buoi = dx.BuoiHoc;
+            const ngayMoi = dx.ngay_moi || buoi.ngay;
 
-            if (dx.loai_de_xuat === 'mo_lai') {
-                // Mở lại buổi học: đặt lại trạng thái và xóa dữ liệu điểm danh cũ
-                await BuoiHoc.update(
-                    { trangthai: 'scheduled', ghi_chu: `Admin mở lại: ${dx.ly_do}`, is_override: true },
-                    { where: { buoi_id: dx.buoi_id }, transaction: t }
-                );
-            } else {
-                // Chỉnh sửa thông tin buổi học
-                const updateData = {
-                    ngay: dx.ngay_moi || buoi.ngay,
-                    phong: dx.phong_moi || buoi.phong,
-                    tiet_bat_dau: dx.tiet_bat_dau_moi || buoi.tiet_bat_dau,
-                    so_tiet: dx.so_tiet_moi || buoi.so_tiet,
-                    giangvien_day_thay_id: dx.giangvien_day_thay_moi_id || buoi.giangvien_day_thay_id,
-                    ghi_chu: `Admin duyệt: ${dx.ly_do}`
-                };
-                await BuoiHoc.update(updateData, { where: { buoi_id: dx.buoi_id }, transaction: t });
+            // 1. Kiểm tra trùng lịch (Giữ nguyên logic cũ)
+            if (ngayMoi !== buoi.ngay) {
+                const checkExist = await BuoiHoc.findOne({
+                    where: { 
+                        lophocphan_id: buoi.lophocphan_id, 
+                        ngay: ngayMoi, 
+                        buoi_id: { [Op.ne]: buoi.buoi_id } 
+                    }
+                });
+                if (checkExist) throw new Error(`Lớp đã có lịch vào ngày ${ngayMoi}.`);
             }
+
+            // 2. Chuẩn bị dữ liệu cập nhật
+            const updateData = {
+                ngay: ngayMoi,
+                phong: dx.phong_moi || buoi.phong,
+                tiet_bat_dau: dx.tiet_bat_dau_moi || buoi.tiet_bat_dau,
+                so_tiet: dx.so_tiet_moi || buoi.so_tiet,
+                // Logic dạy thay: Nếu đề xuất có GV dạy thay mới thì lấy, ko thì giữ nguyên GV cũ của buổi đó
+                giangvien_day_thay_id: dx.giangvien_day_thay_moi_id !== undefined ? dx.giangvien_day_thay_moi_id : buoi.giangvien_day_thay_id,
+                ghi_chu: `Admin duyệt: ${dx.ly_do}`,
+                is_override: true,
+                trangthai: 'scheduled' // Luôn mở lại để GV (chính hoặc dạy thay) vào điểm danh
+            };
+
+            // 3. Xử lý điểm danh khi dời ngày
+            if (ngayMoi !== buoi.ngay) {
+                // Xóa điểm danh cũ vì đây là buổi học ở thời điểm mới, GV dạy thay mới cần điểm danh từ đầu
+                await db.DiemDanh.destroy({ where: { buoi_id: buoi.buoi_id }, transaction: t });
+            }
+
+            await BuoiHoc.update(updateData, { where: { buoi_id: buoi.buoi_id }, transaction: t });
         }
 
-        await dx.update({ trang_thai: status, nguoi_duyet_id: admin_id, phan_hoi_admin: phan_hoi }, { transaction: t });
+        // 4. Cập nhật trạng thái đề xuất
+        await dx.update({ 
+            trang_thai: status, 
+            nguoi_duyet_id: admin_id, 
+            phan_hoi_admin: phan_hoi 
+        }, { transaction: t });
+
         await t.commit();
         return { success: true };
-    } catch (error) { await t.rollback(); throw error; }
+    } catch (error) { 
+        if (t) await t.rollback(); 
+        throw error; 
+    }
 };
-
-
 
 const getDanhSachDeXuatCuaGiangVien = async (giangvien_id) => {
   const list = await DeXuatChinhSua.findAll({
