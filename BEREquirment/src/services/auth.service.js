@@ -233,7 +233,14 @@ const loginAdmin = async ({ username, password }) => {
   if (!username || !password) {
     throw new Error('Vui lòng nhập username và mật khẩu.');
   }
-  const account = await TaiKhoan.findOne({ where: { username } });
+  const account = await TaiKhoan.findOne({ 
+    where: { username },
+    include: [{
+      model: db.GiangVien,
+      as: 'GiangVien', // Alias này phải khớp với model TaiKhoan đã định nghĩa
+      attributes: ['khoa_id']
+    }]
+  });
   if (!account) {
     throw new Error('Username hoặc mật khẩu không chính xác.');
   }
@@ -249,7 +256,8 @@ const loginAdmin = async ({ username, password }) => {
   const payload = {
     id: account.taikhoan_id,      
     username: account.username,
-    role: account.vaitro  // 'admin' hoặc 'lanhdao'                
+    role: account.vaitro,
+    khoa_id: account.vaitro === 'lanhdao' ? account.GiangVien?.khoa_id : null
   };
 
   console.log("👉 Payload login admin:", payload); 

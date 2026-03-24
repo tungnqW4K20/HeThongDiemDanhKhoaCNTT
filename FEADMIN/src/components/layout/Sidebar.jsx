@@ -36,9 +36,14 @@ const Sidebar = () => {
     { path: '/part-class', label: 'Quản lý lớp học phần', icon: ListTree },
   ];
 
-  // Menu giới hạn cho Lãnh đạo — chỉ xem thống kê
   const lanhDaoMenuItems = [
     { path: '/', label: 'Thống kê điểm danh', icon: LayoutDashboard },
+    { path: '/lecturers', label: 'Quản lý giảng viên', icon: GraduationCap }, // Lãnh đạo xem GV khoa mình
+    // { path: '/classes', label: 'Quản lý lớp hành chính', icon: Layers },
+    // { path: '/subjects', label: 'Quản lý môn học', icon: BookOpenCheck },
+    { path: '/schedule', label: 'Phân công lịch dạy', icon: CalendarDays },
+    { path: '/part-class', label: 'Quản lý lớp học phần', icon: ListTree },
+    // Không thêm /semester và /department vì đây là quyền tối cao của Admin
   ];
 
   const menuItems = isLanhDao ? lanhDaoMenuItems : adminMenuItems;

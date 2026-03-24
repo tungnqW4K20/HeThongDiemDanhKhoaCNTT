@@ -177,46 +177,45 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
 //         throw error;
 //     }
 // };
-const getAllLopHocPhan = async (query) => {
+const getAllLopHocPhan = async (query, target_khoa_id = null) => {
     try {
         const { hocky_id } = query;
         
+        // Điều kiện cho bảng Môn Học
+        let monHocWhere = {};
+        if (target_khoa_id) {
+            monHocWhere.khoa_id = target_khoa_id;
+        }
+
         const data = await db.LopHocPhan.findAll({
             where: { hocky_id },
-            // 1. Chỉ lấy ID và Tên của Lớp học phần
             attributes: ['lophocphan_id', 'ten_lophocphan'], 
             include: [
                 {
-                    // 2. Lấy Môn học (ID + Tên + Mã)
                     model: db.MonHoc,
-                    attributes: ['monhoc_id', 'ten_mon', 'ma_mon'],
+                    attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
+                    where: monHocWhere, // Lọc lớp học phần theo khoa của môn học
+                    required: true // Bắt buộc phải thỏa mãn điều kiện khoa
                 },
                 {
-                    // 3. Lấy Giảng viên (ID + Tên + SĐT)
                     model: db.GiangVien,
                     attributes: ['giangvien_id', 'ho', 'ten', 'sdt'],
                 },
                 {
-                    // 4. Lấy danh sách các Lớp hành chính học chung (Xử lý lớp ghép)
                     model: db.LopHanhChinh,
-                    as: 'DanhSachLopHanhChinh', // Phải khớp 100% với alias trong models/LopHocPhan.js
+                    as: 'DanhSachLopHanhChinh',
                     attributes: ['lop_hanhchinh_id', 'ten_lop'],
-                    through: { attributes: [] } // Loại bỏ dữ liệu thừa từ bảng trung gian LHP_LHC
+                    through: { attributes: [] }
                 },
                 {
-                    // 5. Lấy thông tin học kỳ để hiển thị tiêu đề
                     model: db.HocKy,
                     attributes: ['hocky_id', 'ten_hocky']
                 }
             ],
-            // Sắp xếp theo tên môn học cho dễ nhìn
             order: [[{ model: db.MonHoc }, 'ten_mon', 'ASC']]
         });
 
-        return {
-            success: true,
-            data: data
-        };
+        return { success: true, data: data };
     } catch (error) {
         console.error('Service Error:', error);
         throw error;

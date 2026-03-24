@@ -41,7 +41,7 @@ function App() {
               <Route index element={<AttendanceStats />}/>
 
               {/* Các trang chỉ dành cho Admin */}
-              <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+              <Route element={<ProtectedRoute allowedRoles={['admin', 'lanhdao']} />}>
                 <Route path="/classes" element={<ClassManagerPage />} />
                 <Route path="/lecturers" element={<LecturerManagerPage />} />
                 <Route path="/subjects" element={<SubjectManagerPage />} />

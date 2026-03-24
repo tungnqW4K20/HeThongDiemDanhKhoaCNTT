@@ -147,11 +147,16 @@ const getAllAssignments = async (req, res) => {
   try {
     const { hocky_id, keyword } = req.query;
 
+    const { role, khoa_id } = req.user; 
+
     if (!hocky_id) {
       return res.status(400).json({ success: false, message: "Vui lòng cung cấp hocky_id" });
     }
 
-    const rows = await phanCongService.getAllByHocKy(hocky_id, keyword || '');
+     // Truyền thêm khoa_id xuống service nếu là lãnh đạo
+    const target_khoa_id = role === 'lanhdao' ? khoa_id : null;
+
+    const rows = await phanCongService.getAllByHocKy(hocky_id, keyword || '', target_khoa_id);
 
     // Làm phẳng dữ liệu với kiểm tra an toàn
     const formattedData = rows.map(buoi => {

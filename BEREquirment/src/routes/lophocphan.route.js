@@ -3,10 +3,11 @@ const router = express.Router();
 const lopHocPhanController = require("../controllers/lophocphan.controller");
 const multer = require("multer");
 const upload = multer({ storage: multer.memoryStorage() });
+const { authenticateToken, authorizeRole } = require('../middlewares/auth.middleware');
 
 router.get("/:lophocphan_id/sinhvien", lopHocPhanController.getStudentsByLopHocPhan);
 
-router.get("/", lopHocPhanController.getAll);
+router.get("/", authenticateToken, authorizeRole(['admin', 'lanhdao']), lopHocPhanController.getAll);
 router.get("/lop-hoc-lai", lopHocPhanController.layDanhSachLopHocLai);
 router.get('/lop-hoc-lai/:lophocphan_id/sinhvien', lopHocPhanController.laySinhVienLopHocLai);
 

@@ -89,7 +89,9 @@ const handleGetGiangVienByMaKhoa = async (req, res) => {
 
 const getAllGiangVien = async (req, res) => {
     try {
-        const response = await giangVienService.getAllGiangVienService();
+         const { role, khoa_id } = req.user;
+        const targetKhoaId = role === 'lanhdao' ? khoa_id : null;
+        const response = await giangVienService.getAllGiangVienService(targetKhoaId);
         return res.status(200).json(response);
     } catch (error) {
         console.error(error);

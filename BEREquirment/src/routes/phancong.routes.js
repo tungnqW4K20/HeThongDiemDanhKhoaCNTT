@@ -17,9 +17,9 @@ router.get(
     phanCongController.getLichHomNay
 );// lấy lịch dạy hôm nay ngày mai của giảng viên 
 
-router.get('/all',authenticateToken, authorizeRole('admin'), phanCongController.getAllAssignments);
-router.get('/all/lich-day',authenticateToken, authorizeRole('admin'), phanCongController.getLichChiTietHocKy);
-router.post('/import',authenticateToken, authorizeRole('admin'), upload.single('file'), phanCongController.importSchedule);
+router.get('/all',authenticateToken, authorizeRole(['admin', 'lanhdao']), phanCongController.getAllAssignments);
+router.get('/all/lich-day',authenticateToken, authorizeRole(['admin', 'lanhdao']), phanCongController.getLichChiTietHocKy);
+router.post('/import',authenticateToken, authorizeRole(['admin', 'lanhdao']), upload.single('file'), phanCongController.importSchedule);
 
 
 router.get(

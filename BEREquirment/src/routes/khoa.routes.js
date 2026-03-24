@@ -4,7 +4,7 @@ const khoaController = require('../controllers/khoa.controller');
 const { authenticateToken, authorizeRole } = require('../middlewares/auth.middleware');
 
 
-router.get('/get-all-khoa', khoaController.handleGetAllKhoa);
+router.get('/get-all-khoa',authenticateToken, authorizeRole(['admin', 'lanhdao']),  khoaController.handleGetAllKhoa);
 
 router.get('/get-detail-khoa', khoaController.handleGetKhoaById);
 

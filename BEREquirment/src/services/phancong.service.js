@@ -405,8 +405,14 @@ const getLichTuanNay = async (giangvien_id, startDate, endDate) => {
 //   }
 // };
 
-const getAllByHocKy = async (hocky_id, keyword = '') => {
+const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null) => {
   try {
+    // Điều kiện lọc cho bảng Môn Học
+    let monHocWhere = {};
+    if (target_khoa_id) {
+      monHocWhere.khoa_id = target_khoa_id;
+    }
+
     const rows = await db.BuoiHoc.findAll({
       attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong'],
       include: [
@@ -414,12 +420,14 @@ const getAllByHocKy = async (hocky_id, keyword = '') => {
           model: db.LopHocPhan,
           as: 'LopHocPhan',
           where: { hocky_id },
-          required: true, // Bắt buộc phải có LHP mới lấy BuoiHoc (Chống lỗi undefined)
+          required: true, 
           attributes: ['lophocphan_id', 'ten_lophocphan', 'thu', 'phong', 'loai_hoc_phan', 'monhoc_id', 'giangvien_id', 'hocky_id'],
           include: [
             {
               model: db.MonHoc,
-              attributes: ['monhoc_id', 'ten_mon', 'ma_mon']
+              attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
+              where: monHocWhere, // LỌC KHOA TẠI ĐÂY
+              required: target_khoa_id ? true : false // Nếu là lãnh đạo, bắt buộc phải thỏa mãn điều kiện khoa
             },
             {
               model: db.GiangVien,
@@ -439,7 +447,6 @@ const getAllByHocKy = async (hocky_id, keyword = '') => {
           attributes: ['ho', 'ten']
         }
       ],
-      // Lọc theo từ khóa (Môn học hoặc Giảng viên)
       where: keyword ? {
         [Op.or]: [
           { '$LopHocPhan.MonHoc.ten_mon$': { [Op.like]: `%${keyword}%` } },
@@ -447,10 +454,7 @@ const getAllByHocKy = async (hocky_id, keyword = '') => {
           { ghi_chu: { [Op.like]: `%${keyword}%` } }
         ]
       } : {},
-      order: [
-        ['ngay', 'ASC'],
-        ['tiet_bat_dau', 'ASC']
-      ]
+      order: [['ngay', 'ASC'], ['tiet_bat_dau', 'ASC']]
     });
 
     return rows;

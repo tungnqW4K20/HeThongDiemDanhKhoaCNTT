@@ -67,44 +67,33 @@ const getGiangVienByMaKhoa = async (maKhoa) => {
     }
 };
 
-
-
-const getAllGiangVienService = async () => {
+const getAllGiangVienService = async (target_khoa_id = null) => {
     try {
+        let whereCondition = { isDeleted: false };
+        
+        // Nếu có truyền khoa_id (từ lãnh đạo), thêm vào điều kiện lọc
+        if (target_khoa_id) {
+            whereCondition.khoa_id = target_khoa_id;
+        }
+
         const data = await db.GiangVien.findAll({
-            attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten', 'email', 'sdt'],
-            where: {
-                isDeleted: false
-            },
+            attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten', 'email', 'sdt', 'khoa_id'],
+            where: whereCondition,
             include: [
                 {
                     model: db.Khoa,
                     as: 'Khoa', 
                     attributes: ['ten_khoa', 'ma_khoa']
-                },
-                {
-                    model: db.TaiKhoan,
-                    as: 'TaiKhoan',
-                    attributes: ['taikhoan_id', 'username'],
-                    required: false
                 }
             ],
             raw: false, 
             nest: true  
         });
 
-        return {
-            errCode: 0,
-            message: 'OK',
-            data: data
-        };
-
+        return { errCode: 0, message: 'OK', data: data };
     } catch (error) {
         console.error("Service Error:", error);
-        return {
-            errCode: 1,
-            message: 'Lỗi truy vấn cơ sở dữ liệu'
-        };
+        return { errCode: 1, message: 'Lỗi truy vấn cơ sở dữ liệu' };
     }
 }
 
