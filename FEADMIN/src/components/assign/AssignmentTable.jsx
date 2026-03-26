@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit2, Trash2, BookOpen, Users, MapPin, Clock } from 'lucide-react';
+import { Edit2, Trash2, BookOpen, Users, MapPin, Clock, Eye } from 'lucide-react';
 
 // Giờ bắt đầu của từng tiết: tiết 1 = 7:00, tiết 1-4 = 7:00-11:00
 const TIET_START = {
@@ -25,7 +25,7 @@ const thuTrongTuan = [
   'Thứ bảy',
 ];
 
-const AssignmentTable = ({ assignments, onEdit, onDelete }) => {
+const AssignmentTable = ({ assignments, onEdit, onDelete, onViewAttendance, canViewAttendance = false }) => {
     console.log("assignments", assignments)
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -79,10 +79,22 @@ const AssignmentTable = ({ assignments, onEdit, onDelete }) => {
                             {/* Cột Lịch/Phòng */}
                             <td className="px-6 py-4">
                                 <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
-                                        <Clock size={14} className="text-[#3B5998]" />
-                                        {item.tiet_hien_thi}
-                                    </div>
+                                                                        {canViewAttendance && onViewAttendance ? (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => onViewAttendance(item)}
+                                                                                className="w-fit flex items-center gap-1.5 text-sm font-semibold text-[#3B5998] hover:text-[#2e4676] hover:underline transition-colors"
+                                                                                title="Xem quá trình điểm danh sinh viên"
+                                                                            >
+                                                                                <Clock size={14} className="text-[#3B5998]" />
+                                                                                {item.tiet_hien_thi}
+                                                                            </button>
+                                                                        ) : (
+                                                                            <div className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
+                                                                                <Clock size={14} className="text-[#3B5998]" />
+                                                                                {item.tiet_hien_thi}
+                                                                            </div>
+                                                                        )}
                                     {item.tiet_bat_dau && item.so_tiet && (
                                         <div className="text-xs text-[#3B5998] font-medium">
                                             {tietToTime(item.tiet_bat_dau, item.so_tiet)}
@@ -92,6 +104,15 @@ const AssignmentTable = ({ assignments, onEdit, onDelete }) => {
                                         <MapPin size={14} />
                                         <span>Phòng: {item.phong}</span>
                                     </div>
+                                                                        {canViewAttendance && onViewAttendance && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => onViewAttendance(item)}
+                                                                                className="mt-1 w-fit inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                                                                            >
+                                                                                <Eye size={12} /> Xem điểm danh
+                                                                            </button>
+                                                                        )}
                                 </div>
                             </td>
 

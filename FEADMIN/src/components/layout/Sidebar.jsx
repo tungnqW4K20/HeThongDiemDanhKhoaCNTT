@@ -23,6 +23,8 @@ const Sidebar = () => {
   const { logout, user } = useAuth();
   const location = useLocation();
   const isLanhDao = user?.vaitro === 'lanhdao';
+  const isTruongBoMon = user?.vaitro === 'truongbomon';
+  const isQuanLyTheoDonVi = isLanhDao || isTruongBoMon;
 
   // Menu đầy đủ cho Admin
   const adminMenuItems = [
@@ -46,7 +48,7 @@ const Sidebar = () => {
     // Không thêm /semester và /department vì đây là quyền tối cao của Admin
   ];
 
-  const menuItems = isLanhDao ? lanhDaoMenuItems : adminMenuItems;
+  const menuItems = isQuanLyTheoDonVi ? lanhDaoMenuItems : adminMenuItems;
 
   return (
     // Background đổi sang màu chủ đạo #3B5998
@@ -115,8 +117,8 @@ const Sidebar = () => {
             {user && (
               <p className="text-[11px] text-white mt-1 font-bold">
                 {user.username} 
-                <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] uppercase font-bold ${isLanhDao ? 'bg-yellow-400/20 text-yellow-300' : 'bg-green-400/20 text-green-300'}`}>
-                  {isLanhDao ? 'Lãnh đạo' : 'Admin'}
+                <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] uppercase font-bold ${isQuanLyTheoDonVi ? 'bg-yellow-400/20 text-yellow-300' : 'bg-green-400/20 text-green-300'}`}>
+                  {isLanhDao ? 'Lãnh đạo' : isTruongBoMon ? 'Trưởng bộ môn' : 'Admin'}
                 </span>
               </p>
             )}

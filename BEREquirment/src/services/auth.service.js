@@ -244,7 +244,7 @@ const loginAdmin = async ({ username, password }) => {
   if (!account) {
     throw new Error('Username hoặc mật khẩu không chính xác.');
   }
-  if (!['admin', 'lanhdao'].includes(account.vaitro)) {
+  if (!['admin', 'lanhdao', 'truongbomon'].includes(account.vaitro)) {
     throw new Error('Tài khoản này không có quyền đăng nhập vào hệ thống quản trị.');
   }
 
@@ -253,11 +253,39 @@ const loginAdmin = async ({ username, password }) => {
     throw new Error('Username hoặc mật khẩu không chính xác.');
   }
 
+  let truongBoMon = null;
+  if (account.vaitro === 'truongbomon' && account.ref_id) {
+    const lopPhuTrach = await db.LopHanhChinh.findOne({
+      where: {
+        giangvien_id: account.ref_id,
+        chuyennganh_id: { [db.Sequelize.Op.ne]: null }
+      },
+      attributes: ['chuyennganh_id', 'khoa_id']
+    });
+
+    if (lopPhuTrach) {
+      truongBoMon = {
+        chuyennganh_id: lopPhuTrach.chuyennganh_id,
+        khoa_id: lopPhuTrach.khoa_id
+      };
+    }
+  }
+
+  if (account.vaitro === 'truongbomon' && !truongBoMon) {
+    throw new Error('Tài khoản trưởng bộ môn chưa được gán bộ môn (chuyên ngành).');
+  }
+
   const payload = {
     id: account.taikhoan_id,      
     username: account.username,
     role: account.vaitro,
-    khoa_id: account.vaitro === 'lanhdao' ? account.GiangVien?.khoa_id : null
+    khoa_id:
+      account.vaitro === 'lanhdao'
+        ? account.GiangVien?.khoa_id
+        : account.vaitro === 'truongbomon'
+          ? (truongBoMon?.khoa_id || null)
+          : null,
+    chuyennganh_id: account.vaitro === 'truongbomon' ? (truongBoMon?.chuyennganh_id || null) : null
   };
 
   console.log("👉 Payload login admin:", payload); 
@@ -300,8 +328,8 @@ const registerAdmin = async ({ username, password, secretKey, vaitro = 'admin' }
   const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
   // Validate vaitro
-  if (!['admin', 'lanhdao'].includes(vaitro)) {
-    throw new Error("Vai trò không hợp lệ. Chỉ chấp nhận 'admin' hoặc 'lanhdao'.");
+  if (!['admin', 'lanhdao', 'truongbomon'].includes(vaitro)) {
+    throw new Error("Vai trò không hợp lệ. Chỉ chấp nhận 'admin', 'lanhdao' hoặc 'truongbomon'.");
   }
 
   // 5. Tạo Admin/Lãnh đạo

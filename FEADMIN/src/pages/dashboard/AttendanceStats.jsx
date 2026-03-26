@@ -74,6 +74,13 @@ const AttendanceStats = () => {
   // Tính toán chiều cao biểu đồ động (45px mỗi hàng)
   const dynamicHeight = Math.max(processedData.length * 45, 400);
 
+  const lopHanhChinhDisplay = Array.isArray(selectedClass?.lop_hanh_chinh)
+    ? selectedClass.lop_hanh_chinh.join(', ')
+    : 'Chưa có dữ liệu';
+  const danhSachSinhVien = Array.isArray(selectedClass?.danh_sach_sinh_vien)
+    ? selectedClass.danh_sach_sinh_vien
+    : [];
+
   if (loading && !selectedClass && semesters.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px]">
@@ -114,7 +121,7 @@ const AttendanceStats = () => {
                     </div>
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
                         <div className="p-3 bg-white rounded-xl text-emerald-600 shadow-sm"><Users size={24}/></div>
-                        <div><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lớp hành chính</p><p className="text-sm font-black truncate w-32" title={selectedClass.lop_han_chinh.join(', ')}>{selectedClass.lop_han_chinh.join(', ')}</p></div>
+                      <div><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lớp hành chính</p><p className="text-sm font-black truncate w-32" title={lopHanhChinhDisplay}>{lopHanhChinhDisplay}</p></div>
                     </div>
                 </div>
             </div>
@@ -125,7 +132,7 @@ const AttendanceStats = () => {
                         <tr>
                             <th className="px-6 py-4 sticky left-0 bg-slate-50 z-20 border-r w-64 font-black text-slate-600">Sinh viên</th>
                             <th className="px-4 py-4 text-center border-r w-24 font-black text-slate-600">% Vắng</th>
-                            {selectedClass.danh_sach_sinh_vien[0]?.history.map((h, i) => (
+                            {danhSachSinhVien[0]?.history?.map((h, i) => (
                                 <th key={i} className="px-3 py-4 text-center text-[10px] font-mono border-r min-w-[85px] text-slate-400 uppercase">
                                     {new Date(h.ngay).toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'})}
                                 </th>
@@ -133,14 +140,14 @@ const AttendanceStats = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {selectedClass.danh_sach_sinh_vien.map(sv => (
+                          {danhSachSinhVien.map(sv => (
                             <tr key={sv.sinhvien_id} className={`group hover:bg-slate-50 transition-colors ${sv.canh_bao ? 'bg-red-50/30' : ''}`}>
                                 <td className={`px-6 py-4 sticky left-0 z-10 border-r shadow-sm font-medium ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white group-hover:bg-slate-50 text-slate-700'}`}>
                                     <div className="font-bold">{sv.ten_sv}</div>
                                     <div className="text-[10px] opacity-60 font-mono italic">{sv.ma_sv}</div>
                                 </td>
                                 <td className={`px-4 py-4 text-center font-black border-r ${sv.canh_bao ? 'text-red-600 animate-pulse' : 'text-slate-600'}`}>{sv.ti_le_vang}%</td>
-                                {sv.history.map((h, i) => (
+                              {sv.history?.map((h, i) => (
                                     <td key={i} className="px-3 py-4 text-center border-r last:border-0">
                                         {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto border-2 border-white shadow-sm" />}

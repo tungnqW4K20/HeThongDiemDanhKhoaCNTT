@@ -11,6 +11,16 @@ const AdminLayout = () => {
     const [scrolled, setScrolled] = useState(false);
     const [unreadCount, setUnreadCount] = useState(3); // Giả lập số thông báo
 
+    const displayName = user?.name || user?.username || 'Người dùng';
+    const displayInitial = displayName.charAt(0).toUpperCase();
+    const roleLabelMap = {
+        admin: 'Quản trị viên',
+        lanhdao: 'Lãnh đạo',
+        truongbomon: 'Trưởng bộ môn',
+        giangvien: 'Giảng viên'
+    };
+    const roleLabel = roleLabelMap[user?.vaitro] || 'Người dùng hệ thống';
+
     // Xử lý hiệu ứng đổ bóng khi cuộn trang
     useEffect(() => {
         const handleScroll = () => {
@@ -84,17 +94,17 @@ const AdminLayout = () => {
                         <button className="flex items-center gap-3 p-1.5 pr-4 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 rounded-2xl transition-all group active:scale-[0.98]">
                             <div className="relative">
                                 <div className="w-10 h-10 rounded-[14px] bg-gradient-to-tr from-[#3B5998] to-[#6A89CC] flex items-center justify-center text-white font-black text-sm shadow-lg shadow-blue-200 ring-2 ring-white">
-                                    {user?.name?.charAt(0) || 'A'}
+                                    {displayInitial}
                                 </div>
                                 <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-white rounded-full"></div>
                             </div>
                             
                             <div className="hidden lg:flex flex-col items-start">
                                 <span className="text-sm font-black text-slate-700 leading-none">
-                                    {user?.name || 'Administrator'}
+                                    {displayName}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">
-                                    Quản trị viên
+                                    {roleLabel}
                                 </span>
                             </div>
 

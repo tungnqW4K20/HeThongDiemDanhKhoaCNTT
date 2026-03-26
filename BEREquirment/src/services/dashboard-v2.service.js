@@ -32,7 +32,11 @@ const getSemesters = async () => {
 /**
  * Thống kê tổng quát tỷ lệ vắng theo từng lớp học phần
  */
-const getOverallAttendance = async (hocky_id) => {
+const getOverallAttendance = async (hocky_id, scope = {}) => {
+    if (scope.role === 'truongbomon' && !scope.chuyennganh_id) {
+        return { success: true, data: [] };
+    }
+
     // Nếu không có hocky_id, tìm mặc định
     let targetId = hocky_id;
     if (!targetId) {
@@ -42,10 +46,27 @@ const getOverallAttendance = async (hocky_id) => {
 
     if (!targetId) return { success: true, data: [] };
 
+    const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
+    const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
+
     const data = await db.LopHocPhan.findAll({
         where: { hocky_id: targetId },
         attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'loai_hoc_phan'],
         include: [
+            {
+                model: db.MonHoc,
+                attributes: ['monhoc_id', 'khoa_id'],
+                where: targetKhoaId ? { khoa_id: targetKhoaId } : undefined,
+                required: !!targetKhoaId
+            },
+            {
+                model: db.LopHanhChinh,
+                as: 'DanhSachLopHanhChinh',
+                attributes: ['lop_hanhchinh_id', 'chuyennganh_id'],
+                through: { attributes: [] },
+                where: targetChuyenNganhId ? { chuyennganh_id: targetChuyenNganhId } : undefined,
+                required: !!targetChuyenNganhId
+            },
             {
                 model: db.GiangVien,
                 attributes: ['ho', 'ten']
@@ -92,10 +113,24 @@ const getOverallAttendance = async (hocky_id) => {
 /**
  * Chi tiết điểm danh sinh viên & Thông tin bổ trợ (GV, Lớp hành chính)
  */
-const getClassDetailAttendance = async (lophocphan_id) => {
-    const lhp = await db.LopHocPhan.findByPk(lophocphan_id, {
+const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
+    if (scope.role === 'truongbomon' && !scope.chuyennganh_id) {
+        throw new Error('Tài khoản trưởng bộ môn chưa được gán bộ môn để truy cập dữ liệu');
+    }
+
+    const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
+    const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
+
+    const lhp = await db.LopHocPhan.findOne({
+        where: { lophocphan_id },
         attributes: ['lophocphan_id', 'ten_lophocphan', 'tuan_hoc', 'loai_hoc_phan', 'ma_lop'],
         include: [
+            {
+                model: db.MonHoc,
+                attributes: ['monhoc_id', 'khoa_id'],
+                where: targetKhoaId ? { khoa_id: targetKhoaId } : undefined,
+                required: !!targetKhoaId
+            },
             {
                 model: db.GiangVien,
                 attributes: ['ho', 'ten', 'ma_gv']
@@ -104,12 +139,14 @@ const getClassDetailAttendance = async (lophocphan_id) => {
                 model: db.LopHanhChinh,
                 as: 'DanhSachLopHanhChinh',
                 attributes: ['ten_lop'],
-                through: { attributes: [] }
+                through: { attributes: [] },
+                where: targetChuyenNganhId ? { chuyennganh_id: targetChuyenNganhId } : undefined,
+                required: !!targetChuyenNganhId
             }
         ]
     });
 
-    if (!lhp) throw new Error("Lớp học phần không tồn tại");
+    if (!lhp) throw new Error("Lớp học phần không tồn tại hoặc bạn không có quyền truy cập");
 
     const tongSoBuoiKeHoach = lhp.tuan_hoc ? (Array.isArray(lhp.tuan_hoc) ? lhp.tuan_hoc.length : JSON.parse(lhp.tuan_hoc).length) : 0;
 

@@ -8,6 +8,8 @@
     "dev": "nodemon src/index.js",
     "seed:admin": "node src/seeders/seed-admin.js",
     "seed:data": "node src/seeders/seed-data.js",
+    "seed:attendance": "node src/seeders/seed-attendance.js",
+    "seed:truongbomon": "node src/seeders/seed-truongbomon.js",
     "seed:conflict": "node src/seeders/seed-dexuat-conflict.js",
     "seed:gv001-lich": "node src/seeders/seed-gv001-lich.js"
   },

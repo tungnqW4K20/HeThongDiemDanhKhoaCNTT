@@ -44,7 +44,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
   const handleDownloadTemplate = () => {
     const templateHeader = [
         "Tuần", "Thứ", "Tiết bắt đầu", "Số tiết", "Tên phòng", "Mã lớp", 
-        "Tên học phần", "Mã GV", "Họ và tên GV", "", "Họ và tên GV dạy thay", "", 
+        "Tên học phần", "Khoa", "Bộ môn", "Mã GV", "Họ và tên GV", "", "Họ và tên GV dạy thay", "", 
         "Sĩ số", "Đợt", "Điện thoại GV", "T/ chất", "Thời gian"
     ];
     const ws = XLSX.utils.aoa_to_sheet([templateHeader]);
@@ -193,7 +193,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
         {/* Footer */}
         <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center px-8">
             <span className="text-[10px] text-gray-400 font-bold italic max-w-[200px]">
-                * Lưu ý: Hệ thống sẽ tự động đồng bộ SDT giảng viên và số tiết.
+              * Có thể thêm cột Khoa và Bộ môn trong file để import scope quản lý.
             </span>
             <div className="flex gap-3">
                 <button onClick={onClose} className="px-6 py-3 text-gray-500 font-bold text-sm hover:text-slate-800 transition-colors">

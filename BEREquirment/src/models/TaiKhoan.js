@@ -34,7 +34,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false
       },
       vaitro: {
-        type: DataTypes.ENUM('admin', 'giangvien', 'lanhdao'),
+        type: DataTypes.ENUM('admin', 'giangvien', 'lanhdao', 'truongbomon'),
         allowNull: false
       },
       ref_id: {

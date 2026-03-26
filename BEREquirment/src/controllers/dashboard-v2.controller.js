@@ -13,7 +13,12 @@ const getSemesters = async (req, res) => {
 const getOverallAttendance = async (req, res) => {
     try {
         const { hocky_id } = req.query;
-        const result = await dashboardService.getOverallAttendance(hocky_id);
+        const { role, khoa_id, chuyennganh_id } = req.user || {};
+        const result = await dashboardService.getOverallAttendance(hocky_id, {
+            role,
+            khoa_id,
+            chuyennganh_id
+        });
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -23,7 +28,12 @@ const getOverallAttendance = async (req, res) => {
 const getClassDetailAttendance = async (req, res) => {
     try {
         const { lophocphan_id } = req.params;
-        const result = await dashboardService.getClassDetailAttendance(lophocphan_id);
+        const { role, khoa_id, chuyennganh_id } = req.user || {};
+        const result = await dashboardService.getClassDetailAttendance(lophocphan_id, {
+            role,
+            khoa_id,
+            chuyennganh_id
+        });
         res.status(200).json(result);
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

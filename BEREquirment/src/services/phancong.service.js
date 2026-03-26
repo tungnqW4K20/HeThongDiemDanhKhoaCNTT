@@ -405,7 +405,7 @@ const getLichTuanNay = async (giangvien_id, startDate, endDate) => {
 //   }
 // };
 
-const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null) => {
+const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, target_chuyennganh_id = null) => {
   try {
     // Điều kiện lọc cho bảng Môn Học
     let monHocWhere = {};
@@ -437,7 +437,9 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null) => {
               model: db.LopHanhChinh,
               as: 'DanhSachLopHanhChinh',
               attributes: ['lop_hanhchinh_id', 'ten_lop'],
-              through: { attributes: [] }
+              through: { attributes: [] },
+              where: target_chuyennganh_id ? { chuyennganh_id: target_chuyennganh_id } : undefined,
+              required: !!target_chuyennganh_id
             }
           ]
         },
@@ -767,7 +769,9 @@ const importScheduleExcel = async (buffer, hockyData) => {
     soTiet: header.findIndex((c, idx) => (c.includes("TIET") && !c.includes("BAT DAU")) || c === "SO TIET"),
     phong: f("PHONG"), maLop: f("MA LOP"), hocPhan: f("HOC PHAN"),
     maGV: f("MA GV"), tenGV: f("HO VA TEN GV"), gvThay: f("DAY THAY"),
-    sdtGV: f("DIEN THOAI"), chat: f("CHAT")
+    sdtGV: f("DIEN THOAI"), chat: f("CHAT"),
+    khoa: f("KHOA"),
+    boMon: f("BO MON")
   };
 
   const t = await db.sequelize.transaction();
@@ -786,22 +790,93 @@ const importScheduleExcel = async (buffer, hockyData) => {
         });
       }
     let monCount = await MonHoc.count({ transaction: t });
+    let chuyenNganhCount = await db.ChuyenNganh.count({ transaction: t });
     const dataRows = allRows.slice(headerRowIndex + 1);
     const mapMonHoc = new Map(), mapGiangVien = new Map(), mapLopHC = new Map();
+    const mapKhoa = new Map();
+    const mapBoMonByKhoa = new Map();
+    const mapBoMonGlobal = new Map();
+
+    const normalizeLookup = (val) => removeAccents(cleanStr(val).toUpperCase());
+
+    const allKhoa = await db.Khoa.findAll({
+      attributes: ['khoa_id', 'ma_khoa', 'ten_khoa'],
+      transaction: t
+    });
+    allKhoa.forEach((k) => {
+      const ma = normalizeLookup(k.ma_khoa);
+      const ten = normalizeLookup(k.ten_khoa);
+      if (ma) mapKhoa.set(ma, k.khoa_id);
+      if (ten) mapKhoa.set(ten, k.khoa_id);
+    });
+
+    const allBoMon = await db.ChuyenNganh.findAll({
+      attributes: ['chuyennganh_id', 'khoa_id', 'ma_chuyennganh', 'ten_chuyennganh'],
+      transaction: t
+    });
+    allBoMon.forEach((bm) => {
+      const ma = normalizeLookup(bm.ma_chuyennganh);
+      const ten = normalizeLookup(bm.ten_chuyennganh);
+      if (ma) {
+        mapBoMonByKhoa.set(`${bm.khoa_id}__${ma}`, bm.chuyennganh_id);
+        if (!mapBoMonGlobal.has(ma)) mapBoMonGlobal.set(ma, bm.chuyennganh_id);
+      }
+      if (ten) {
+        mapBoMonByKhoa.set(`${bm.khoa_id}__${ten}`, bm.chuyennganh_id);
+        if (!mapBoMonGlobal.has(ten)) mapBoMonGlobal.set(ten, bm.chuyennganh_id);
+      }
+    });
 
     // --- BƯỚC 1: ĐỒNG BỘ DANH MỤC (Môn, GV, Lớp HC) - CHỐNG TRÙNG DB ---
     for (const row of dataRows) {
       const tenMon = cleanStr(row[col.hocPhan]);
       const rawMaLopStr = cleanStr(row[col.maLop]);
+      const khoaRaw = col.khoa >= 0 ? cleanStr(row[col.khoa]) : '';
+      const boMonRaw = col.boMon >= 0 ? cleanStr(row[col.boMon]) : '';
+      const khoaId = khoaRaw ? (mapKhoa.get(normalizeLookup(khoaRaw)) || null) : null;
+
+      let boMonId = null;
+      if (boMonRaw) {
+        const normalizedBoMon = normalizeLookup(boMonRaw);
+        if (khoaId) {
+          boMonId = mapBoMonByKhoa.get(`${khoaId}__${normalizedBoMon}`) || null;
+        }
+        if (!boMonId) {
+          boMonId = mapBoMonGlobal.get(normalizedBoMon) || null;
+        }
+
+        if (!boMonId && khoaId) {
+          const [createdBoMon] = await db.ChuyenNganh.findOrCreate({
+            where: {
+              khoa_id: khoaId,
+              ten_chuyennganh: boMonRaw
+            },
+            defaults: {
+              ma_chuyennganh: `BM${String(++chuyenNganhCount).padStart(4, '0')}`,
+              mota: 'Tạo tự động từ import lịch dạy'
+            },
+            transaction: t
+          });
+          boMonId = createdBoMon.chuyennganh_id;
+          mapBoMonByKhoa.set(`${khoaId}__${normalizedBoMon}`, boMonId);
+          if (!mapBoMonGlobal.has(normalizedBoMon)) {
+            mapBoMonGlobal.set(normalizedBoMon, boMonId);
+          }
+        }
+      }
+
       if (tenMon.length < 2 || !rawMaLopStr) continue;
 
       // Môn học (Unique by Name)
       if (!mapMonHoc.has(tenMon)) {
         const [mon] = await MonHoc.findOrCreate({
           where: { ten_mon: tenMon },
-          defaults: { ma_mon: `M${String(++monCount).padStart(3, '0')}`, sotinchi: 3 },
+          defaults: { ma_mon: `M${String(++monCount).padStart(3, '0')}`, sotinchi: 3, khoa_id: khoaId },
           transaction: t
         });
+        if (khoaId && !mon.khoa_id) {
+          await mon.update({ khoa_id: khoaId }, { transaction: t });
+        }
         mapMonHoc.set(tenMon, mon.monhoc_id);
       }
 
@@ -825,7 +900,23 @@ const importScheduleExcel = async (buffer, hockyData) => {
       const listLopInRow = rawMaLopStr.split(/\s+/);
       for (const name of listLopInRow) {
         if (!mapLopHC.has(name)) {
-          const [lhc] = await LopHanhChinh.findOrCreate({ where: { ten_lop: name }, defaults: { nien_khoa: dayjs().year() }, transaction: t });
+          const [lhc] = await LopHanhChinh.findOrCreate({
+            where: { ten_lop: name },
+            defaults: {
+              nien_khoa: dayjs().year(),
+              khoa_id: khoaId,
+              chuyennganh_id: boMonId
+            },
+            transaction: t
+          });
+
+          const patchPayload = {};
+          if (khoaId && !lhc.khoa_id) patchPayload.khoa_id = khoaId;
+          if (boMonId && !lhc.chuyennganh_id) patchPayload.chuyennganh_id = boMonId;
+          if (Object.keys(patchPayload).length > 0) {
+            await lhc.update(patchPayload, { transaction: t });
+          }
+
           mapLopHC.set(name, lhc.lop_hanhchinh_id);
         }
       }
