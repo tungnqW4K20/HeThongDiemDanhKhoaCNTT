@@ -51,7 +51,12 @@ const getOverallAttendance = async (hocky_id, scope = {}) => {
 
     const monHocWhere = {};
     if (targetKhoaId) monHocWhere.khoa_id = targetKhoaId;
-    if (targetChuyenNganhId) monHocWhere.chuyennganh_id = targetChuyenNganhId;
+    if (targetChuyenNganhId) {
+        monHocWhere[Op.or] = [
+            { bomon_id: targetChuyenNganhId },
+            { chuyennganh_id: targetChuyenNganhId }
+        ];
+    }
 
     const data = await db.LopHocPhan.findAll({
         where: { hocky_id: targetId },
@@ -59,7 +64,7 @@ const getOverallAttendance = async (hocky_id, scope = {}) => {
         include: [
             {
                 model: db.MonHoc,
-                attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id'],
+                attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
                 where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
                 required: Object.keys(monHocWhere).length > 0
             },
@@ -126,7 +131,12 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
 
     const monHocWhere = {};
     if (targetKhoaId) monHocWhere.khoa_id = targetKhoaId;
-    if (targetChuyenNganhId) monHocWhere.chuyennganh_id = targetChuyenNganhId;
+    if (targetChuyenNganhId) {
+        monHocWhere[Op.or] = [
+            { bomon_id: targetChuyenNganhId },
+            { chuyennganh_id: targetChuyenNganhId }
+        ];
+    }
 
     const lhp = await db.LopHocPhan.findOne({
         where: { lophocphan_id },
@@ -134,7 +144,7 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
         include: [
             {
                 model: db.MonHoc,
-                attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id'],
+                attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
                 where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
                 required: Object.keys(monHocWhere).length > 0
             },

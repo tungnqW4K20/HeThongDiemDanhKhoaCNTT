@@ -1,6 +1,33 @@
 const db = require('../models'); 
 const { Op } = require('sequelize');
 
+const normalizeBoMonPayload = async (payload = {}) => {
+    const normalized = { ...payload };
+    const boMonId = payload.bomon_id || payload.chuyennganh_id || null;
+
+    if (!boMonId) {
+        return normalized;
+    }
+
+    const boMon = await db.BoMon.findOne({
+        where: { bomon_id: boMonId, isDeleted: false },
+        attributes: ['bomon_id', 'khoa_id']
+    });
+
+    if (!boMon) {
+        throw new Error('Bộ môn không tồn tại hoặc đã bị xóa');
+    }
+
+    normalized.bomon_id = boMon.bomon_id;
+    // Giữ tương thích tạm thời với các logic cũ đang đọc chuyennganh_id.
+    normalized.chuyennganh_id = boMon.bomon_id;
+    if (!normalized.khoa_id) {
+        normalized.khoa_id = boMon.khoa_id;
+    }
+
+    return normalized;
+};
+
 const getAllMonHoc = async (query) => {
     try {
         const whereClause = { isDeleted: false };
@@ -20,9 +47,15 @@ const getAllMonHoc = async (query) => {
                     attributes: ['ten_khoa', 'ma_khoa']
                 },
                 {
-                    model: db.ChuyenNganh,
+                    model: db.BoMon,
                     as: 'BoMon',
-                    attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'khoa_id', 'truong_bomon_id']
+                    attributes: [
+                        'bomon_id',
+                        ['bomon_id', 'chuyennganh_id'],
+                        ['ma_bomon', 'ma_chuyennganh'],
+                        ['ten_bomon', 'ten_chuyennganh'],
+                        'khoa_id'
+                    ]
                 }
             ],
             order: [['ten_mon', 'ASC']]
@@ -40,9 +73,15 @@ const getMonHocById = async (id) => {
             include: [
                 { model: db.Khoa, as: 'Khoa', attributes: ['ten_khoa'] },
                 {
-                    model: db.ChuyenNganh,
+                    model: db.BoMon,
                     as: 'BoMon',
-                    attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'khoa_id', 'truong_bomon_id']
+                    attributes: [
+                        'bomon_id',
+                        ['bomon_id', 'chuyennganh_id'],
+                        ['ma_bomon', 'ma_chuyennganh'],
+                        ['ten_bomon', 'ten_chuyennganh'],
+                        'khoa_id'
+                    ]
                 }
             ]
         });
@@ -58,9 +97,11 @@ const getMonHocById = async (id) => {
 
 const createMonHoc = async (payload) => {
     try {
+        const normalizedPayload = await normalizeBoMonPayload(payload);
+
         const existing = await db.MonHoc.findOne({
             where: { 
-                ma_mon: payload.ma_mon,
+                ma_mon: normalizedPayload.ma_mon,
                 isDeleted: false 
             }
         });
@@ -70,12 +111,15 @@ const createMonHoc = async (payload) => {
         }
 
         const newMonHoc = await db.MonHoc.create({
-            ...payload,
+            ...normalizedPayload,
             isDeleted: false
         });
 
         return { success: true, data: newMonHoc, message: 'Thêm mới thành công' };
     } catch (error) {
+        if (error.message === 'Bộ môn không tồn tại hoặc đã bị xóa') {
+            return { success: false, message: error.message };
+        }
         if (error.name === 'SequelizeUniqueConstraintError') {
              return { success: false, message: 'Mã môn học đã tồn tại trong hệ thống (bao gồm cả dữ liệu cũ).' };
         }
@@ -90,10 +134,12 @@ const updateMonHoc = async (id, payload) => {
             return { success: false, message: 'Không tìm thấy môn học' };
         }
 
-        if (payload.ma_mon && payload.ma_mon !== monHoc.ma_mon) {
+        const normalizedPayload = await normalizeBoMonPayload(payload);
+
+        if (normalizedPayload.ma_mon && normalizedPayload.ma_mon !== monHoc.ma_mon) {
             const checkDuplicate = await db.MonHoc.findOne({
                 where: { 
-                    ma_mon: payload.ma_mon, 
+                    ma_mon: normalizedPayload.ma_mon, 
                     monhoc_id: { [Op.ne]: id }, 
                     isDeleted: false
                 }
@@ -103,9 +149,12 @@ const updateMonHoc = async (id, payload) => {
             }
         }
 
-        await monHoc.update(payload);
+        await monHoc.update(normalizedPayload);
         return { success: true, data: monHoc, message: 'Cập nhật thành công' };
     } catch (error) {
+        if (error.message === 'Bộ môn không tồn tại hoặc đã bị xóa') {
+            return { success: false, message: error.message };
+        }
         throw error;
     }
 };

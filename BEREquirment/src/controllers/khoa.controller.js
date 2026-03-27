@@ -5,7 +5,7 @@ const handleGetAllKhoa = async (req, res) => {
         const { role, khoa_id } = req.user;
         let response;
         
-        if (role === 'lanhdao') {
+        if (role === 'lanhdao' || role === 'truongbomon') {
             // Lãnh đạo chỉ lấy đúng thông tin khoa mình
             response = await khoaService.getKhoaById(khoa_id);
             // Bọc lại thành mảng để đồng nhất format với GetAll

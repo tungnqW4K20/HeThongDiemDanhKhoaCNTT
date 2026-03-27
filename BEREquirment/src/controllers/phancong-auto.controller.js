@@ -25,7 +25,8 @@ const scopeCheckForMonHoc = (reqUser, monHoc) => {
     return false;
   }
 
-  if (role === 'truongbomon' && reqUser.chuyennganh_id && monHoc.chuyennganh_id !== reqUser.chuyennganh_id) {
+  const monHocBoMonId = monHoc?.bomon_id || monHoc?.chuyennganh_id;
+  if (role === 'truongbomon' && reqUser.chuyennganh_id && monHocBoMonId !== reqUser.chuyennganh_id) {
     return false;
   }
 
@@ -886,7 +887,7 @@ const taoLopHocPhanVaBuoiHoc = async (req, res) => {
 
     // 2. Lấy thông tin Môn học & Lớp hành chính để ghép tên
     const monHoc = await db.MonHoc.findByPk(monhoc_id, {
-      attributes: ['monhoc_id', 'ma_mon', 'ten_mon', 'khoa_id', 'chuyennganh_id']
+      attributes: ['monhoc_id', 'ma_mon', 'ten_mon', 'khoa_id', 'chuyennganh_id', 'bomon_id']
     });
     if (!monHoc) {
       await transaction.rollback();
@@ -1046,7 +1047,7 @@ const capNhatLichDayThuCong = async (req, res) => {
     }
 
     const monHoc = await db.MonHoc.findByPk(monhoc_id, {
-      attributes: ['monhoc_id', 'ma_mon', 'ten_mon', 'khoa_id', 'chuyennganh_id'],
+      attributes: ['monhoc_id', 'ma_mon', 'ten_mon', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
       transaction
     });
     if (!monHoc) {

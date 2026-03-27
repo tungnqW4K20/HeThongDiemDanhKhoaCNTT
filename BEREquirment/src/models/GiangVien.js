@@ -22,10 +22,6 @@ module.exports = (sequelize, DataTypes) => {
           as: "DanhSachLopChuNhiem"
       });
 
-      GiangVien.hasMany(models.ChuyenNganh, {
-        foreignKey: 'truong_bomon_id',
-        as: 'DanhSachBoMonQuanLy'
-      });
     }
   }
 

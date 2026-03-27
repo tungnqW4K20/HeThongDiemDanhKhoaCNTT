@@ -254,22 +254,21 @@ const loginAdmin = async ({ username, password }) => {
   }
 
   let truongBoMon = null;
-  if (account.vaitro === 'truongbomon' && account.ref_id) {
-    const boMonPhuTrach = await db.ChuyenNganh.findOne({
+  if (account.vaitro === 'truongbomon') {
+    const boMonPhuTrach = await db.BoMon.findOne({
       where: {
-        truong_bomon_id: account.ref_id,
+        truong_bomon_id: account.taikhoan_id,
         isDeleted: false
       },
-      attributes: ['chuyennganh_id', 'khoa_id']
+      attributes: ['bomon_id', 'khoa_id']
     });
 
     if (boMonPhuTrach) {
       truongBoMon = {
-        chuyennganh_id: boMonPhuTrach.chuyennganh_id,
+        chuyennganh_id: boMonPhuTrach.bomon_id,
         khoa_id: boMonPhuTrach.khoa_id
       };
     } else {
-      // Fallback cho dữ liệu cũ chưa gán trưởng bộ môn trực tiếp trên bảng ChuyenNganh.
       const lopPhuTrach = await db.LopHanhChinh.findOne({
         where: {
           giangvien_id: account.ref_id,
@@ -278,11 +277,31 @@ const loginAdmin = async ({ username, password }) => {
         attributes: ['chuyennganh_id', 'khoa_id']
       });
 
-      if (lopPhuTrach) {
-        truongBoMon = {
-          chuyennganh_id: lopPhuTrach.chuyennganh_id,
-          khoa_id: lopPhuTrach.khoa_id
-        };
+      if (!lopPhuTrach) {
+        const lopHocPhan = await db.LopHocPhan.findOne({
+          where: { giangvien_id: account.ref_id },
+          include: [{
+            model: db.MonHoc,
+            required: true,
+            attributes: ['bomon_id', 'khoa_id'],
+            where: { bomon_id: { [db.Sequelize.Op.ne]: null } }
+          }],
+          attributes: ['lophocphan_id']
+        });
+
+        if (lopHocPhan?.MonHoc?.bomon_id) {
+          truongBoMon = {
+            chuyennganh_id: lopHocPhan.MonHoc.bomon_id,
+            khoa_id: lopHocPhan.MonHoc.khoa_id
+          };
+        }
+      }
+
+      if (lopPhuTrach && !truongBoMon) {
+      truongBoMon = {
+        chuyennganh_id: lopPhuTrach.chuyennganh_id,
+        khoa_id: lopPhuTrach.khoa_id
+      };
       }
     }
   }

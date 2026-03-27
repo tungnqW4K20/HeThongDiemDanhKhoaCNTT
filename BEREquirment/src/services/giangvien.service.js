@@ -36,36 +36,23 @@ const getGiangVienByMaKhoa = async (maKhoa, target_chuyennganh_id = null) => {
 
         let scopedGiangVienIds = null;
         if (target_chuyennganh_id) {
-            const [lopChuNhiem, lopHocPhan, boMon] = await Promise.all([
-                db.LopHanhChinh.findAll({
+            const lopHocPhan = await db.LopHocPhan.findAll({
+                attributes: ['giangvien_id'],
+                where: { giangvien_id: { [Op.ne]: null } },
+                include: [{
+                    model: db.MonHoc,
+                    attributes: [],
+                    required: true,
                     where: {
-                        isDeleted: false,
-                        chuyennganh_id: target_chuyennganh_id,
-                        giangvien_id: { [Op.ne]: null }
-                    },
-                    attributes: ['giangvien_id']
-                }),
-                db.LopHocPhan.findAll({
-                    attributes: ['giangvien_id'],
-                    where: { giangvien_id: { [Op.ne]: null } },
-                    include: [{
-                        model: db.MonHoc,
-                        attributes: [],
-                        required: true,
-                        where: { chuyennganh_id: target_chuyennganh_id }
-                    }]
-                }),
-                db.ChuyenNganh.findByPk(target_chuyennganh_id, {
-                    attributes: ['truong_bomon_id']
-                })
-            ]);
+                        [Op.or]: [
+                            { bomon_id: target_chuyennganh_id },
+                            { chuyennganh_id: target_chuyennganh_id }
+                        ]
+                    }
+                }]
+            });
 
-            const idSet = new Set();
-            lopChuNhiem.forEach((row) => row.giangvien_id && idSet.add(row.giangvien_id));
-            lopHocPhan.forEach((row) => row.giangvien_id && idSet.add(row.giangvien_id));
-            if (boMon?.truong_bomon_id) idSet.add(boMon.truong_bomon_id);
-
-            scopedGiangVienIds = [...idSet];
+            scopedGiangVienIds = [...new Set(lopHocPhan.map((row) => row.giangvien_id).filter(Boolean))];
             if (scopedGiangVienIds.length === 0) {
                 return { errCode: 0, message: 'OK', data: [] };
             }
@@ -115,42 +102,23 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
         }
 
         if (target_chuyennganh_id) {
-            const [lopChuNhiem, lopHocPhan, boMon] = await Promise.all([
-                db.LopHanhChinh.findAll({
+            const lopHocPhan = await db.LopHocPhan.findAll({
+                attributes: ['giangvien_id'],
+                where: { giangvien_id: { [Op.ne]: null } },
+                include: [{
+                    model: db.MonHoc,
+                    attributes: [],
+                    required: true,
                     where: {
-                        isDeleted: false,
-                        chuyennganh_id: target_chuyennganh_id,
-                        giangvien_id: { [Op.ne]: null }
-                    },
-                    attributes: ['giangvien_id']
-                }),
-                db.LopHocPhan.findAll({
-                    attributes: ['giangvien_id'],
-                    where: { giangvien_id: { [Op.ne]: null } },
-                    include: [{
-                        model: db.MonHoc,
-                        attributes: [],
-                        required: true,
-                        where: { chuyennganh_id: target_chuyennganh_id }
-                    }]
-                }),
-                db.ChuyenNganh.findByPk(target_chuyennganh_id, {
-                    attributes: ['truong_bomon_id']
-                })
-            ]);
-
-            const allowedLecturerIds = new Set();
-            lopChuNhiem.forEach((item) => {
-                if (item.giangvien_id) allowedLecturerIds.add(item.giangvien_id);
+                        [Op.or]: [
+                            { bomon_id: target_chuyennganh_id },
+                            { chuyennganh_id: target_chuyennganh_id }
+                        ]
+                    }
+                }]
             });
-            lopHocPhan.forEach((item) => {
-                if (item.giangvien_id) allowedLecturerIds.add(item.giangvien_id);
-            });
-            if (boMon?.truong_bomon_id) {
-                allowedLecturerIds.add(boMon.truong_bomon_id);
-            }
 
-            const idList = [...allowedLecturerIds];
+            const idList = [...new Set(lopHocPhan.map((item) => item.giangvien_id).filter(Boolean))];
             if (idList.length === 0) {
                 return { errCode: 0, message: 'OK', data: [] };
             }

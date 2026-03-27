@@ -14,6 +14,11 @@ module.exports = (sequelize, DataTypes) => {
         constraints: false,
         as: 'GiangVien'
       });
+
+      TaiKhoan.hasMany(models.BoMon, {
+        foreignKey: 'truong_bomon_id',
+        as: 'DanhSachBoMonQuanLy'
+      });
     }
   }
 

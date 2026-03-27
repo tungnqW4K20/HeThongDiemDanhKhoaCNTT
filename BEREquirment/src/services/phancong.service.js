@@ -413,7 +413,10 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
       monHocWhere.khoa_id = target_khoa_id;
     }
     if (target_chuyennganh_id) {
-      monHocWhere.chuyennganh_id = target_chuyennganh_id;
+      monHocWhere[Op.or] = [
+        { bomon_id: target_chuyennganh_id },
+        { chuyennganh_id: target_chuyennganh_id }
+      ];
     }
 
     const rows = await db.BuoiHoc.findAll({
@@ -428,7 +431,7 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
           include: [
             {
               model: db.MonHoc,
-              attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id', 'chuyennganh_id'],
+              attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
               where: monHocWhere, // LỌC KHOA TẠI ĐÂY
               required: Object.keys(monHocWhere).length > 0
             },

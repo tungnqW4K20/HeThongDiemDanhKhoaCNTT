@@ -67,9 +67,16 @@ export default function LecturerManagerPage() {
         try {
             const res = await khoaService.getAll();
             const resData = res.data || res;
-            if (Array.isArray(resData)) setFaculties(resData);
+            if (Array.isArray(resData)) {
+                setFaculties(resData);
+            } else if (resData && Array.isArray(resData.data)) {
+                setFaculties(resData.data.filter(Boolean));
+            } else {
+                setFaculties([]);
+            }
         } catch (error) {
             console.error("Lỗi lấy danh sách khoa:", error);
+            setFaculties([]);
         }
     };
 
