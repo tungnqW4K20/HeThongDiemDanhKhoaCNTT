@@ -1,7 +1,7 @@
 'use strict';
 const db = require('../models');
 const dayjs = require('dayjs');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 const THU_LABEL_TO_INT = { Mon: 2, Tue: 3, Wed: 4, Thu: 5, Fri: 6, Sat: 7, Sun: 8 };
 
@@ -44,7 +44,7 @@ const buildBuoiHocList = ({ lophocphan_id, ngay_batdau, thuInt, so_tuan, gio_bat
   for (let i = 0; i < so_tuan; i++) {
     const ngayHocString = currentDate.format('YYYY-MM-DD');
     list.push({
-      buoi_id: uuidv4(),
+      buoi_id: randomUUID(),
       lophocphan_id,
       ngay: ngayHocString,
       batdau: `${ngayHocString} ${gio_batdau}`,
@@ -912,7 +912,7 @@ const taoLopHocPhanVaBuoiHoc = async (req, res) => {
     const ten_lop_ghep = dsLHC.map((l) => l.ten_lop).join("_");
     const ten_lophocphan = monHoc.ten_mon || `${monHoc.ma_mon}_${ten_lop_ghep}`;
     const ma_lop = dsLHC.map((l) => l.ten_lop).join(' ');
-    const lophocphan_id = uuidv4();
+    const lophocphan_id = randomUUID();
 
     // 3. Tạo record trong bảng LopHocPhan
     await db.LopHocPhan.create({
@@ -945,7 +945,7 @@ const taoLopHocPhanVaBuoiHoc = async (req, res) => {
     });
 
     const dkList = dsSinhVien.map((sv) => ({
-      dangky_id: uuidv4(),
+      dangky_id: randomUUID(),
       sinhvien_id: sv.sinhvien_id,
       lophocphan_id,
       trangthai: 'active'
@@ -1104,7 +1104,7 @@ const capNhatLichDayThuCong = async (req, res) => {
     await db.DangKyHoc.destroy({ where: { lophocphan_id }, transaction });
     if (dsSinhVien.length > 0) {
       await db.DangKyHoc.bulkCreate(dsSinhVien.map((sv) => ({
-        dangky_id: uuidv4(),
+        dangky_id: randomUUID(),
         sinhvien_id: sv.sinhvien_id,
         lophocphan_id,
         trangthai: 'active'
@@ -1280,7 +1280,7 @@ const taoLopHocLai = async (req, res) => {
       return res.status(400).json({ success: false, message: "Lớp học lại đã tồn tại" });
     }
 
-    const lophocphan_id = uuidv4();
+    const lophocphan_id = randomUUID();
 
     // Tạo lớp học phần
     await db.LopHocPhan.create({
@@ -1311,7 +1311,7 @@ const taoLopHocLai = async (req, res) => {
     for (let i = 0; i < so_tuan; i++) {
       const ngayHoc = currentDate.format("YYYY-MM-DD");
       buoiList.push({
-        buoi_id: uuidv4(),
+        buoi_id: randomUUID(),
         lophocphan_id,
         ngay: ngayHoc,
         gio_batdau,
