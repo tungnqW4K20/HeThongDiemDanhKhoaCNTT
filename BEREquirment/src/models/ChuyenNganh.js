@@ -9,9 +9,19 @@ module.exports = (sequelize, DataTypes) => {
         as: 'Khoa'
       });
 
+      ChuyenNganh.belongsTo(models.GiangVien, {
+        foreignKey: 'truong_bomon_id',
+        as: 'TruongBoMon'
+      });
+
       ChuyenNganh.hasMany(models.LopHanhChinh, {
         foreignKey: 'chuyennganh_id',
         as: 'DanhSachLopHanhChinh'
+      });
+
+      ChuyenNganh.hasMany(models.MonHoc, {
+        foreignKey: 'chuyennganh_id',
+        as: 'DanhSachMonHoc'
       });
     }
   }
@@ -36,6 +46,11 @@ module.exports = (sequelize, DataTypes) => {
       ten_chuyennganh: {
         type: DataTypes.STRING(100),
         allowNull: false
+      },
+      truong_bomon_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'GiangVien', key: 'giangvien_id' }
       },
       mota: DataTypes.TEXT,
       isDeleted: {

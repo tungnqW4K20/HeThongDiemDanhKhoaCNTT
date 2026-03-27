@@ -340,16 +340,18 @@ export default function AssignmentPage() {
     const handleSave = async (formData) => {
         setIsLoading(true);
         try {
-            const res = await phanCongService.create(formData);
+            const res = currentAssignment?.buoi_id
+                ? await phanCongService.update(currentAssignment.buoi_id, formData)
+                : await phanCongService.create(formData);
             if (res.success) {
                 const updatedList = await phanCongService.getAll({ hocky_id: currentSemesterId });
                 setAssignments(updatedList.data || []);
                 setIsFormModalOpen(false);
                 return;
             }
-            alert(res.message || 'Không thể tạo lịch dạy.');
+            alert(res.message || (currentAssignment?.buoi_id ? 'Không thể cập nhật lịch dạy.' : 'Không thể tạo lịch dạy.'));
         } catch (error) {
-            alert(error?.response?.data?.message || "Lỗi lưu phân công");
+            alert(error?.response?.data?.message || (currentAssignment?.buoi_id ? 'Lỗi cập nhật phân công' : 'Lỗi lưu phân công'));
         } 
         finally { setIsLoading(false); }
     };

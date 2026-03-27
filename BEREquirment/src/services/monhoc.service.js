@@ -18,6 +18,11 @@ const getAllMonHoc = async (query) => {
                     model: db.Khoa,
                     as: 'Khoa',
                     attributes: ['ten_khoa', 'ma_khoa']
+                },
+                {
+                    model: db.ChuyenNganh,
+                    as: 'BoMon',
+                    attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'khoa_id', 'truong_bomon_id']
                 }
             ],
             order: [['ten_mon', 'ASC']]
@@ -32,7 +37,14 @@ const getMonHocById = async (id) => {
     try {
         const monHoc = await db.MonHoc.findOne({
             where: { monhoc_id: id, isDeleted: false },
-            include: [{ model: db.Khoa, as: 'Khoa', attributes: ['ten_khoa'] }]
+            include: [
+                { model: db.Khoa, as: 'Khoa', attributes: ['ten_khoa'] },
+                {
+                    model: db.ChuyenNganh,
+                    as: 'BoMon',
+                    attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'khoa_id', 'truong_bomon_id']
+                }
+            ]
         });
         
         if (!monHoc) {

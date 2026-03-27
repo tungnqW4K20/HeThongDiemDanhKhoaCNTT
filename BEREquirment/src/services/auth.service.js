@@ -255,19 +255,35 @@ const loginAdmin = async ({ username, password }) => {
 
   let truongBoMon = null;
   if (account.vaitro === 'truongbomon' && account.ref_id) {
-    const lopPhuTrach = await db.LopHanhChinh.findOne({
+    const boMonPhuTrach = await db.ChuyenNganh.findOne({
       where: {
-        giangvien_id: account.ref_id,
-        chuyennganh_id: { [db.Sequelize.Op.ne]: null }
+        truong_bomon_id: account.ref_id,
+        isDeleted: false
       },
       attributes: ['chuyennganh_id', 'khoa_id']
     });
 
-    if (lopPhuTrach) {
+    if (boMonPhuTrach) {
       truongBoMon = {
-        chuyennganh_id: lopPhuTrach.chuyennganh_id,
-        khoa_id: lopPhuTrach.khoa_id
+        chuyennganh_id: boMonPhuTrach.chuyennganh_id,
+        khoa_id: boMonPhuTrach.khoa_id
       };
+    } else {
+      // Fallback cho dữ liệu cũ chưa gán trưởng bộ môn trực tiếp trên bảng ChuyenNganh.
+      const lopPhuTrach = await db.LopHanhChinh.findOne({
+        where: {
+          giangvien_id: account.ref_id,
+          chuyennganh_id: { [db.Sequelize.Op.ne]: null }
+        },
+        attributes: ['chuyennganh_id', 'khoa_id']
+      });
+
+      if (lopPhuTrach) {
+        truongBoMon = {
+          chuyennganh_id: lopPhuTrach.chuyennganh_id,
+          khoa_id: lopPhuTrach.khoa_id
+        };
+      }
     }
   }
 

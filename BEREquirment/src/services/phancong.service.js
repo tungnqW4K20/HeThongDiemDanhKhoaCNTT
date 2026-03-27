@@ -412,6 +412,9 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
     if (target_khoa_id) {
       monHocWhere.khoa_id = target_khoa_id;
     }
+    if (target_chuyennganh_id) {
+      monHocWhere.chuyennganh_id = target_chuyennganh_id;
+    }
 
     const rows = await db.BuoiHoc.findAll({
       attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong'],
@@ -425,9 +428,9 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
           include: [
             {
               model: db.MonHoc,
-              attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
+              attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id', 'chuyennganh_id'],
               where: monHocWhere, // LỌC KHOA TẠI ĐÂY
-              required: target_khoa_id ? true : false // Nếu là lãnh đạo, bắt buộc phải thỏa mãn điều kiện khoa
+              required: Object.keys(monHocWhere).length > 0
             },
             {
               model: db.GiangVien,
@@ -438,8 +441,7 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
               as: 'DanhSachLopHanhChinh',
               attributes: ['lop_hanhchinh_id', 'ten_lop'],
               through: { attributes: [] },
-              where: target_chuyennganh_id ? { chuyennganh_id: target_chuyennganh_id } : undefined,
-              required: !!target_chuyennganh_id
+              required: false
             }
           ]
         },
@@ -871,12 +873,22 @@ const importScheduleExcel = async (buffer, hockyData) => {
       if (!mapMonHoc.has(tenMon)) {
         const [mon] = await MonHoc.findOrCreate({
           where: { ten_mon: tenMon },
-          defaults: { ma_mon: `M${String(++monCount).padStart(3, '0')}`, sotinchi: 3, khoa_id: khoaId },
+          defaults: {
+            ma_mon: `M${String(++monCount).padStart(3, '0')}`,
+            sotinchi: 3,
+            khoa_id: khoaId,
+            chuyennganh_id: boMonId
+          },
           transaction: t
         });
-        if (khoaId && !mon.khoa_id) {
-          await mon.update({ khoa_id: khoaId }, { transaction: t });
+
+        const patchPayload = {};
+        if (khoaId && !mon.khoa_id) patchPayload.khoa_id = khoaId;
+        if (boMonId && !mon.chuyennganh_id) patchPayload.chuyennganh_id = boMonId;
+        if (Object.keys(patchPayload).length > 0) {
+          await mon.update(patchPayload, { transaction: t });
         }
+
         mapMonHoc.set(tenMon, mon.monhoc_id);
       }
 

@@ -49,23 +49,26 @@ const getOverallAttendance = async (hocky_id, scope = {}) => {
     const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
     const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
 
+    const monHocWhere = {};
+    if (targetKhoaId) monHocWhere.khoa_id = targetKhoaId;
+    if (targetChuyenNganhId) monHocWhere.chuyennganh_id = targetChuyenNganhId;
+
     const data = await db.LopHocPhan.findAll({
         where: { hocky_id: targetId },
         attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'loai_hoc_phan'],
         include: [
             {
                 model: db.MonHoc,
-                attributes: ['monhoc_id', 'khoa_id'],
-                where: targetKhoaId ? { khoa_id: targetKhoaId } : undefined,
-                required: !!targetKhoaId
+                attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id'],
+                where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
+                required: Object.keys(monHocWhere).length > 0
             },
             {
                 model: db.LopHanhChinh,
                 as: 'DanhSachLopHanhChinh',
                 attributes: ['lop_hanhchinh_id', 'chuyennganh_id'],
                 through: { attributes: [] },
-                where: targetChuyenNganhId ? { chuyennganh_id: targetChuyenNganhId } : undefined,
-                required: !!targetChuyenNganhId
+                required: false
             },
             {
                 model: db.GiangVien,
@@ -121,15 +124,19 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
     const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
     const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
 
+    const monHocWhere = {};
+    if (targetKhoaId) monHocWhere.khoa_id = targetKhoaId;
+    if (targetChuyenNganhId) monHocWhere.chuyennganh_id = targetChuyenNganhId;
+
     const lhp = await db.LopHocPhan.findOne({
         where: { lophocphan_id },
         attributes: ['lophocphan_id', 'ten_lophocphan', 'tuan_hoc', 'loai_hoc_phan', 'ma_lop'],
         include: [
             {
                 model: db.MonHoc,
-                attributes: ['monhoc_id', 'khoa_id'],
-                where: targetKhoaId ? { khoa_id: targetKhoaId } : undefined,
-                required: !!targetKhoaId
+                attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id'],
+                where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
+                required: Object.keys(monHocWhere).length > 0
             },
             {
                 model: db.GiangVien,
@@ -140,8 +147,7 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
                 as: 'DanhSachLopHanhChinh',
                 attributes: ['ten_lop'],
                 through: { attributes: [] },
-                where: targetChuyenNganhId ? { chuyennganh_id: targetChuyenNganhId } : undefined,
-                required: !!targetChuyenNganhId
+                required: false
             }
         ]
     });

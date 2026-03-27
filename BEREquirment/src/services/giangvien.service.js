@@ -1,5 +1,5 @@
 'use strict';
-const { where } = require('sequelize');
+const { Op } = require('sequelize');
 const db = require('../models');
 
 const getPhanCongTheoHocKy = async (giangvien_id, hocky_id) => {
@@ -28,16 +28,54 @@ const getPhanCongTheoHocKy = async (giangvien_id, hocky_id) => {
 };
 
 
-const getGiangVienByMaKhoa = async (maKhoa) => {
+const getGiangVienByMaKhoa = async (maKhoa, target_chuyennganh_id = null) => {
     try {
         if (!maKhoa) {
             return { errCode: 1, message: 'Vui lòng cung cấp mã khoa (ma_khoa)!' };
         }
 
+        let scopedGiangVienIds = null;
+        if (target_chuyennganh_id) {
+            const [lopChuNhiem, lopHocPhan, boMon] = await Promise.all([
+                db.LopHanhChinh.findAll({
+                    where: {
+                        isDeleted: false,
+                        chuyennganh_id: target_chuyennganh_id,
+                        giangvien_id: { [Op.ne]: null }
+                    },
+                    attributes: ['giangvien_id']
+                }),
+                db.LopHocPhan.findAll({
+                    attributes: ['giangvien_id'],
+                    where: { giangvien_id: { [Op.ne]: null } },
+                    include: [{
+                        model: db.MonHoc,
+                        attributes: [],
+                        required: true,
+                        where: { chuyennganh_id: target_chuyennganh_id }
+                    }]
+                }),
+                db.ChuyenNganh.findByPk(target_chuyennganh_id, {
+                    attributes: ['truong_bomon_id']
+                })
+            ]);
+
+            const idSet = new Set();
+            lopChuNhiem.forEach((row) => row.giangvien_id && idSet.add(row.giangvien_id));
+            lopHocPhan.forEach((row) => row.giangvien_id && idSet.add(row.giangvien_id));
+            if (boMon?.truong_bomon_id) idSet.add(boMon.truong_bomon_id);
+
+            scopedGiangVienIds = [...idSet];
+            if (scopedGiangVienIds.length === 0) {
+                return { errCode: 0, message: 'OK', data: [] };
+            }
+        }
+
         const data = await db.GiangVien.findAll({
             // 1. Chỉ lấy giảng viên chưa bị xóa
             where: { 
-                isDeleted: false 
+                isDeleted: false,
+                ...(scopedGiangVienIds ? { giangvien_id: { [Op.in]: scopedGiangVienIds } } : {})
             },
             attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten', 'email', 'sdt'], // Chỉ lấy các trường cần thiết
             include: [
@@ -67,13 +105,57 @@ const getGiangVienByMaKhoa = async (maKhoa) => {
     }
 };
 
-const getAllGiangVienService = async (target_khoa_id = null) => {
+const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_id = null) => {
     try {
         let whereCondition = { isDeleted: false };
         
-        // Nếu có truyền khoa_id (từ lãnh đạo), thêm vào điều kiện lọc
+        // Nếu có truyền khoa_id (từ lãnh đạo/trưởng bộ môn), thêm vào điều kiện lọc
         if (target_khoa_id) {
             whereCondition.khoa_id = target_khoa_id;
+        }
+
+        if (target_chuyennganh_id) {
+            const [lopChuNhiem, lopHocPhan, boMon] = await Promise.all([
+                db.LopHanhChinh.findAll({
+                    where: {
+                        isDeleted: false,
+                        chuyennganh_id: target_chuyennganh_id,
+                        giangvien_id: { [Op.ne]: null }
+                    },
+                    attributes: ['giangvien_id']
+                }),
+                db.LopHocPhan.findAll({
+                    attributes: ['giangvien_id'],
+                    where: { giangvien_id: { [Op.ne]: null } },
+                    include: [{
+                        model: db.MonHoc,
+                        attributes: [],
+                        required: true,
+                        where: { chuyennganh_id: target_chuyennganh_id }
+                    }]
+                }),
+                db.ChuyenNganh.findByPk(target_chuyennganh_id, {
+                    attributes: ['truong_bomon_id']
+                })
+            ]);
+
+            const allowedLecturerIds = new Set();
+            lopChuNhiem.forEach((item) => {
+                if (item.giangvien_id) allowedLecturerIds.add(item.giangvien_id);
+            });
+            lopHocPhan.forEach((item) => {
+                if (item.giangvien_id) allowedLecturerIds.add(item.giangvien_id);
+            });
+            if (boMon?.truong_bomon_id) {
+                allowedLecturerIds.add(boMon.truong_bomon_id);
+            }
+
+            const idList = [...allowedLecturerIds];
+            if (idList.length === 0) {
+                return { errCode: 0, message: 'OK', data: [] };
+            }
+
+            whereCondition.giangvien_id = { [Op.in]: idList };
         }
 
         const data = await db.GiangVien.findAll({

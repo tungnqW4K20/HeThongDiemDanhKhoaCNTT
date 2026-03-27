@@ -66,6 +66,7 @@ const handleGetGiangVienByMaKhoa = async (req, res) => {
     try {
         // Lấy ma_khoa từ query string (?ma_khoa=CNTT)
         let maKhoa = req.query.ma_khoa;
+        const { role, chuyennganh_id } = req.user || {};
 
         if (!maKhoa) {
             return res.status(400).json({
@@ -74,7 +75,10 @@ const handleGetGiangVienByMaKhoa = async (req, res) => {
             });
         }
 
-        let response = await giangVienService.getGiangVienByMaKhoa(maKhoa);
+        let response = await giangVienService.getGiangVienByMaKhoa(
+            maKhoa,
+            role === 'truongbomon' ? chuyennganh_id : null
+        );
         return res.status(200).json(response);
     } catch (e) {
         console.log(e);
@@ -89,9 +93,10 @@ const handleGetGiangVienByMaKhoa = async (req, res) => {
 
 const getAllGiangVien = async (req, res) => {
     try {
-         const { role, khoa_id } = req.user;
-        const targetKhoaId = role === 'lanhdao' ? khoa_id : null;
-        const response = await giangVienService.getAllGiangVienService(targetKhoaId);
+         const { role, khoa_id, chuyennganh_id } = req.user;
+        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
+        const targetChuyenNganhId = role === 'truongbomon' ? chuyennganh_id : null;
+        const response = await giangVienService.getAllGiangVienService(targetKhoaId, targetChuyenNganhId);
         return res.status(200).json(response);
     } catch (error) {
         console.error(error);

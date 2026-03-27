@@ -12,6 +12,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'khoa_id',
         as: 'Khoa'
       });
+      MonHoc.belongsTo(models.ChuyenNganh, {
+        foreignKey: 'chuyennganh_id',
+        as: 'BoMon'
+      });
     }
   }
 
@@ -25,6 +29,11 @@ module.exports = (sequelize, DataTypes) => {
       khoa_id: {
         type: DataTypes.UUID,
         allowNull: true
+      },
+      chuyennganh_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'ChuyenNganh', key: 'chuyennganh_id' }
       },
       ma_mon: {
         type: DataTypes.STRING(20),

@@ -12,7 +12,7 @@ const router = express.Router();
 router.get('/',authenticateToken, giangVienController.getAllGiangVien);
 
 // router.get('/:giangvien_id/lich-giang-day', giangVienController.getLichGiangDay);
-router.get('/get-gv-by-khoa',authenticateToken, authorizeRole(['admin', 'lanhdao']), giangVienController.handleGetGiangVienByMaKhoa);
+router.get('/get-gv-by-khoa',authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), giangVienController.handleGetGiangVienByMaKhoa);
 
 
 router.get('/profile',authenticateToken, authorizeRole('giangvien'), giangVienController.getProfile);
