@@ -40,4 +40,23 @@ const getClassDetailAttendance = async (req, res) => {
     }
 };
 
-module.exports = { getSemesters, getOverallAttendance, getClassDetailAttendance };
+const getDailyAttendanceReport = async (req, res) => {
+    try {
+        const { hocky_id, ngay, bomon_id } = req.query;
+        const { role, khoa_id, chuyennganh_id } = req.user || {};
+        const result = await dashboardService.getDailyAttendanceReport({
+            hocky_id,
+            ngay,
+            bomon_id
+        }, {
+            role,
+            khoa_id,
+            chuyennganh_id
+        });
+        res.status(200).json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+module.exports = { getSemesters, getOverallAttendance, getClassDetailAttendance, getDailyAttendanceReport };

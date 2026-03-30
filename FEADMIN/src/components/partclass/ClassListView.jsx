@@ -10,10 +10,13 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading }) => {
   console.log("+++++++++++=")
   // 1. Logic lọc dữ liệu theo Search Term
   const filteredData = useMemo(() => {
+    const keyword = searchTerm.toLowerCase();
     return data.filter(item => 
-      item.subjectName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      item.teacherName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.adminClasses.some(lop => lop.toLowerCase().includes(searchTerm.toLowerCase()))
+      item.subjectName.toLowerCase().includes(keyword) || 
+      item.teacherName.toLowerCase().includes(keyword) ||
+      item.adminClasses.some(lop => lop.toLowerCase().includes(keyword)) ||
+      (item.facultyName || '').toLowerCase().includes(keyword) ||
+      (item.departmentName || '').toLowerCase().includes(keyword)
     );
   }, [data, searchTerm]);
 
@@ -45,7 +48,7 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading }) => {
               type="text" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm tên môn, giảng viên, lớp HC..." 
+              placeholder="Tìm môn, giảng viên, lớp HC, khoa, bộ môn..." 
               className="pl-10 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 w-full"
             />
           </div>

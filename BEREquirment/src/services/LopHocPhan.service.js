@@ -195,7 +195,19 @@ const getAllLopHocPhan = async (query, target_khoa_id = null) => {
                     model: db.MonHoc,
                     attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
                     where: monHocWhere, // Lọc lớp học phần theo khoa của môn học
-                    required: true // Bắt buộc phải thỏa mãn điều kiện khoa
+                  required: true, // Bắt buộc phải thỏa mãn điều kiện khoa
+                  include: [
+                    {
+                      model: db.Khoa,
+                      as: 'Khoa',
+                      attributes: ['khoa_id', 'ten_khoa']
+                    },
+                    {
+                      model: db.BoMon,
+                      as: 'BoMon',
+                      attributes: ['bomon_id', 'ten_bomon']
+                    }
+                  ]
                 },
                 {
                     model: db.GiangVien,

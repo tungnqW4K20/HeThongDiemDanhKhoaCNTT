@@ -181,7 +181,7 @@ StudentCard.displayName = 'StudentCard';
 
 // --- MAIN SCREEN COMPONENT ---
 export default function ChiTietLop() {
-  const { lop_id, ten_lop, lop_hanhchinh_id, ngay_hoc } = useLocalSearchParams();
+  const { lop_id, ten_lop, lop_hanhchinh_id, ngay_hoc, giang_vien } = useLocalSearchParams();
   const { user } = useAuth(); 
   const router = useRouter();
   
@@ -250,6 +250,18 @@ export default function ChiTietLop() {
     const ten = user.ten || user.GiangVien?.ten || "";
     return `${ho} ${ten}`.trim() || user.username || "Giảng viên";
   }, [user]);
+
+  const displayedLecturer = useMemo(() => {
+    if (typeof giang_vien === 'string' && giang_vien.trim()) return giang_vien;
+    return lecturerName;
+  }, [giang_vien, lecturerName]);
+
+  const displayedDate = useMemo(() => {
+    const rawDate = (typeof ngay_hoc === 'string' && ngay_hoc) ? ngay_hoc : new Date().toISOString().split('T')[0];
+    const parsed = new Date(rawDate);
+    if (Number.isNaN(parsed.getTime())) return rawDate;
+    return parsed.toLocaleDateString('vi-VN');
+  }, [ngay_hoc]);
 
   const filteredStudents = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -385,6 +397,23 @@ export default function ChiTietLop() {
         <View style={styles.headerContainer}>
             <Text style={styles.title}>Điểm danh</Text>
             <Text style={styles.subtitle}>{ten_lop}</Text>
+          <View style={styles.metaCard}>
+            <View style={styles.metaRow}>
+              <Ionicons name="person-outline" size={14} color="#475569" />
+              <Text style={styles.metaLabel}>Giảng viên:</Text>
+              <Text style={styles.metaValue} numberOfLines={1}>{displayedLecturer}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Ionicons name="calendar-outline" size={14} color="#475569" />
+              <Text style={styles.metaLabel}>Ngày học:</Text>
+              <Text style={styles.metaValue}>{displayedDate}</Text>
+            </View>
+            <View style={styles.metaRow}>
+              <Ionicons name="people-outline" size={14} color="#475569" />
+              <Text style={styles.metaLabel}>Lớp HC:</Text>
+              <Text style={styles.metaValueMulti}>{administrativeClasses}</Text>
+            </View>
+          </View>
             <View style={styles.actionRow}>
                 <TouchableOpacity style={styles.exportBtn} onPress={handleExportCurrentExcel}>
                     <Ionicons name="document-text-outline" size={18} color="#28A745" />
@@ -464,6 +493,11 @@ const styles = StyleSheet.create({
   headerContainer: { paddingHorizontal: 20, paddingTop: 10 },
   title: { fontSize: 32, fontWeight: "bold", color: "#1C1C1E" },
   subtitle: { fontSize: 16, color: "#8A8A8E", marginTop: 4 },
+  metaCard: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  metaRow: { flexDirection: 'row', alignItems: 'center' },
+  metaLabel: { marginLeft: 6, fontSize: 12, color: '#64748B', fontWeight: '600' },
+  metaValue: { marginLeft: 6, flex: 1, fontSize: 12, color: '#0F172A', fontWeight: '600' },
+  metaValueMulti: { marginLeft: 6, flex: 1, fontSize: 12, color: '#0F172A', fontWeight: '600' },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   exportBtn: { backgroundColor: "#E8F5E9", padding: 8, borderRadius: 10, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: '#A7F3D0' },
   exportBtnText: { color: "#28A745", fontWeight: "600", fontSize: 13 },

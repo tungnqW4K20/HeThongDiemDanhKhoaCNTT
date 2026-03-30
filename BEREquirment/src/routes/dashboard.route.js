@@ -22,4 +22,7 @@ router.get('/ti-le-lop-hoc', authenticateToken, authorizeRole(['admin', 'lanhdao
 // 3. Lấy chi tiết lớp
 router.get('/chi-tiet-lop/:lophocphan_id', authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), dashboardv2Controller.getClassDetailAttendance);
 
+// 4. Thống kê theo ngày + cảnh báo
+router.get('/diem-danh-theo-ngay', authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), dashboardv2Controller.getDailyAttendanceReport);
+
 module.exports = router;

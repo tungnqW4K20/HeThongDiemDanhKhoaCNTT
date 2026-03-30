@@ -85,12 +85,20 @@ export default function LecturerManagerPage() {
         return lecturers.filter(gv => {
             const searchLower = searchTerm.toLowerCase();
             const khoaName = gv.Khoa ? gv.Khoa.ten_khoa : '';
+            const boMonName =
+                gv.BoMon?.ten_bomon ||
+                gv.ChuyenNganh?.ten_chuyen_nganh ||
+                gv.bomon?.ten_bomon ||
+                gv.ten_bomon ||
+                '';
 
             const matchesSearch = 
                 (gv.ten && gv.ten.toLowerCase().includes(searchLower)) || 
                 (gv.ho && gv.ho.toLowerCase().includes(searchLower)) ||
                 (gv.ma_gv && gv.ma_gv.toLowerCase().includes(searchLower)) ||
-                (gv.email && gv.email.toLowerCase().includes(searchLower));
+                (gv.email && gv.email.toLowerCase().includes(searchLower)) ||
+                (khoaName && khoaName.toLowerCase().includes(searchLower)) ||
+                (boMonName && boMonName.toLowerCase().includes(searchLower));
 
             const matchesFaculty = selectedFaculty === 'all' || khoaName === selectedFaculty;
 
@@ -310,7 +318,7 @@ export default function LecturerManagerPage() {
                                 <input
                                     type="text"
                                     className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm transition-all"
-                                    placeholder="Tìm tên, mã GV, email..."
+                                    placeholder="Tìm tên, mã GV, email, khoa, bộ môn..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />

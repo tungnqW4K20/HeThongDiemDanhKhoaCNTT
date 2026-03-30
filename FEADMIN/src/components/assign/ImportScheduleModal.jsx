@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, Upload, FileSpreadsheet, Download, CheckCircle, AlertCircle, Loader2, Trash2, Calendar, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import hocKyService from '../../service/hockyService';
+import khoaService from '../../service/khoaService';
 
 const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
   const [file, setFile] = useState(null);
@@ -11,6 +12,8 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
   // Lưu trữ Object học kỳ được chọn để lấy đủ thông tin ngay_batdau, ngay_ketthuc...
   const [selectedSemester, setSelectedSemester] = useState(null);
   const [semesters, setSemesters] = useState([]);
+  const [boMonOptions, setBoMonOptions] = useState([]);
+  const [selectedBoMonId, setSelectedBoMonId] = useState('');
 
   const fileInputRef = useRef(null);
 
@@ -19,10 +22,25 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
     if (isOpen) {
         const fetchHocKy = async () => {
             try {
-                const res = await hocKyService.getAll();
-                // Giả sử API trả về { success: true, data: [...] }
-                const list = res.data?.data || res.data || [];
+                const [hocKyRes, khoaRes] = await Promise.all([
+                  hocKyService.getAll(),
+                  khoaService.getAll()
+                ]);
+
+                const list = hocKyRes.data?.data || hocKyRes.data || [];
                 setSemesters(list);
+
+                const khoaList = khoaRes.data?.data || khoaRes.data || [];
+                const flattenedBoMon = khoaList.flatMap((khoa) => {
+                  const boMonList = khoa.DanhSachChuyenNganh || [];
+                  return boMonList.map((bm) => ({
+                    id: bm.chuyennganh_id,
+                    ten: bm.ten_chuyennganh,
+                    ma: bm.ma_chuyennganh,
+                    tenKhoa: khoa.ten_khoa
+                  }));
+                });
+                setBoMonOptions(flattenedBoMon);
             } catch (err) {
                 console.error("Lỗi load học kỳ", err);
             }
@@ -43,8 +61,8 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
   // Tải file mẫu khớp với cấu trúc trường (Tuần, Thứ, Tiết bắt đầu...)
   const handleDownloadTemplate = () => {
     const templateHeader = [
-        "Tuần", "Thứ", "Tiết bắt đầu", "Số tiết", "Tên phòng", "Mã lớp", 
-        "Tên học phần", "Khoa", "Bộ môn", "Mã GV", "Họ và tên GV", "", "Họ và tên GV dạy thay", "", 
+        "Tuần", "Thứ", "Tiết bắt đầu", "Số tiết", "Tên phòng", "Mã lớp",
+        "Tên học phần", "Khoa", "Bộ môn", "Mã GV", "Họ và tên GV", "Họ và tên GV dạy thay",
         "Sĩ số", "Đợt", "Điện thoại GV", "T/ chất", "Thời gian"
     ];
     const ws = XLSX.utils.aoa_to_sheet([templateHeader]);
@@ -74,7 +92,8 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
         ngay_batdau: selectedSemester.ngay_batdau,
         ngay_ketthuc: selectedSemester.ngay_ketthuc,
         ngay_monday_tuan_1: selectedSemester.ngay_monday_tuan_1,
-        semesterId:selectedSemester?.hocky_id
+      semesterId:selectedSemester?.hocky_id,
+      bomon_id: selectedBoMonId || null
     };
 
     onImport(payload);
@@ -131,6 +150,22 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
                     </div>
                 </div>
              )}
+
+               <div className="relative mt-2">
+                <select
+                  value={selectedBoMonId}
+                  onChange={(e) => setSelectedBoMonId(e.target.value)}
+                  className="w-full pl-4 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-slate-700 appearance-none focus:ring-4 focus:ring-blue-50 focus:border-[#3B5998] transition-all outline-none"
+                >
+                  <option value="">-- Import tất cả bộ môn --</option>
+                  {boMonOptions.map((bm) => (
+                    <option key={bm.id} value={bm.id}>
+                      {bm.ten} ({bm.ma || 'N/A'}) - {bm.tenKhoa}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={18}/>
+               </div>
           </div>
 
           {/* Section: Upload file */}

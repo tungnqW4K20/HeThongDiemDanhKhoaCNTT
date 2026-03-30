@@ -10,10 +10,20 @@ import {
 import dashboardService from '../../service/dashboardService';
 
 const AttendanceStats = () => {
+  const todayStr = new Date().toISOString().slice(0, 10);
   const [loading, setLoading] = useState(false);
+  const [dailyLoading, setDailyLoading] = useState(false);
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [classList, setClassList] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedBoMon, setSelectedBoMon] = useState('all');
+  const [dailyReport, setDailyReport] = useState({
+    bo_mon_options: [],
+    daily_classes: [],
+    warnings_students: [],
+    warnings_lecturers: []
+  });
   const [selectedClass, setSelectedClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('high'); // high: vắng nhiều nhất, low: ít nhất
@@ -39,6 +49,12 @@ const AttendanceStats = () => {
     }
   }, [selectedSemester]);
 
+  useEffect(() => {
+    if (selectedSemester) {
+      fetchDailyReport();
+    }
+  }, [selectedSemester, selectedDate, selectedBoMon]);
+
   const fetchStats = async (hkId) => {
     setLoading(true);
     try {
@@ -55,6 +71,27 @@ const AttendanceStats = () => {
       if (res.success) setSelectedClass(res.data);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
+  };
+
+  const fetchDailyReport = async () => {
+    setDailyLoading(true);
+    try {
+      const res = await dashboardService.getDailyAttendanceReport({
+        hocky_id: selectedSemester,
+        ngay: selectedDate,
+        bomon_id: selectedBoMon
+      });
+      if (res.success && res.data) {
+        setDailyReport(res.data);
+      } else {
+        setDailyReport({ bo_mon_options: [], daily_classes: [], warnings_students: [], warnings_lecturers: [] });
+      }
+    } catch (err) {
+      console.error('Lỗi thống kê theo ngày:', err);
+      setDailyReport({ bo_mon_options: [], daily_classes: [], warnings_students: [], warnings_lecturers: [] });
+    } finally {
+      setDailyLoading(false);
+    }
   };
 
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
@@ -80,6 +117,10 @@ const AttendanceStats = () => {
   const danhSachSinhVien = Array.isArray(selectedClass?.danh_sach_sinh_vien)
     ? selectedClass.danh_sach_sinh_vien
     : [];
+  const boMonOptions = Array.isArray(dailyReport?.bo_mon_options) ? dailyReport.bo_mon_options : [];
+  const dailyClasses = Array.isArray(dailyReport?.daily_classes) ? dailyReport.daily_classes : [];
+  const warningStudents = Array.isArray(dailyReport?.warnings_students) ? dailyReport.warnings_students : [];
+  const warningLecturers = Array.isArray(dailyReport?.warnings_lecturers) ? dailyReport.warnings_lecturers : [];
 
   if (loading && !selectedClass && semesters.length === 0) {
     return (
@@ -176,7 +217,7 @@ const AttendanceStats = () => {
                     <div>
                         <h2 className="text-2xl font-black text-slate-800 tracking-tight">Thống kê vắng học</h2>
                         <div className="flex items-center gap-3 mt-1">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar size={12}/> Học kỳ:</span>
+                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 whitespace-nowrap"><Calendar size={12}/> Học kỳ:</span>
                             <select 
                               value={selectedSemester} 
                               onChange={e => setSelectedSemester(e.target.value)} 
@@ -188,23 +229,135 @@ const AttendanceStats = () => {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3">
-                      <div className="relative">
+                  <div className="w-full flex flex-wrap items-center gap-3">
+                      <div className="relative w-full sm:w-auto">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <input
+                          type="date"
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
+                        />
+                      </div>
+                      <div className="relative w-full sm:w-auto">
+                        <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                        <select
+                          value={selectedBoMon}
+                          onChange={(e) => setSelectedBoMon(e.target.value)}
+                          className="pl-10 pr-8 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-52 transition-all cursor-pointer"
+                        >
+                          <option value="all">Tất cả bộ môn</option>
+                          {boMonOptions.map((bm) => (
+                            <option key={bm.bomon_id} value={bm.bomon_id}>
+                              {bm.ten_bomon}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="relative w-full sm:w-auto">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <input 
                           type="text" 
                           placeholder="Tìm nhanh mã/tên lớp..." 
                           value={searchTerm} 
                           onChange={e => setSearchTerm(e.target.value)}
-                          className="pl-10 pr-4 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-48 md:w-64 transition-all" 
+                          className="pl-10 pr-4 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-64 transition-all" 
                         />
                       </div>
                       <button 
                         onClick={() => setSortBy(sortBy === 'high' ? 'low' : 'high')}
-                        className="p-2 bg-slate-50 text-slate-600 rounded-xl border border-slate-100 hover:bg-white hover:text-blue-600 transition-all flex items-center gap-2 text-xs font-bold"
+                        className="p-2 bg-slate-50 text-slate-600 rounded-xl border border-slate-100 hover:bg-white hover:text-blue-600 transition-all flex items-center justify-center gap-2 text-xs font-bold whitespace-nowrap w-full sm:w-auto"
                       >
                         <SortAsc size={16} /> {sortBy === 'high' ? 'Vắng nhiều' : 'Vắng ít'}
                       </button>
+                  </div>
+                </div>
+
+                <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Lớp học phần trong ngày</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{dailyClasses.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Cảnh báo SV nghỉ quá 20%</p>
+                    <p className="text-2xl font-black text-red-600 mt-1">{warningStudents.length}</p>
+                  </div>
+                  <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">GV chưa điểm danh buổi hôm nay</p>
+                    <p className="text-2xl font-black text-amber-600 mt-1">{warningLecturers.length}</p>
+                  </div>
+                </div>
+
+                <div className="mb-6 rounded-2xl border border-slate-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                    <h4 className="text-sm font-black text-slate-700 uppercase tracking-wide">Kết quả điểm danh theo ngày</h4>
+                    {dailyLoading && <Loader2 size={16} className="animate-spin text-blue-600" />}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-white border-b border-slate-100 text-slate-500">
+                        <tr>
+                          <th className="px-4 py-3 text-left font-bold">Lớp học phần</th>
+                          <th className="px-4 py-3 text-left font-bold">Giảng viên</th>
+                          <th className="px-4 py-3 text-center font-bold">Tiết</th>
+                          <th className="px-4 py-3 text-center font-bold">Đã điểm danh</th>
+                          <th className="px-4 py-3 text-center font-bold">% Vắng buổi</th>
+                          <th className="px-4 py-3 text-center font-bold">Trạng thái</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {dailyClasses.map((row) => (
+                          <tr key={row.buoi_id}>
+                            <td className="px-4 py-3">
+                              <div className="font-bold text-slate-700">{row.ten_lop}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{row.ma_lop}</div>
+                            </td>
+                            <td className="px-4 py-3 text-slate-600">{row.giang_vien}</td>
+                            <td className="px-4 py-3 text-center text-slate-600">{row.tiet_bat_dau} - {row.so_tiet}</td>
+                            <td className="px-4 py-3 text-center font-bold text-slate-700">{row.da_diem_danh}/{row.tong_sv}</td>
+                            <td className="px-4 py-3 text-center font-bold text-red-600">{row.ti_le_vang_buoi}%</td>
+                            <td className="px-4 py-3 text-center">
+                              <span className={`px-2 py-1 rounded-full text-[10px] font-black ${row.trang_thai_diem_danh === 'Đã điểm danh' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                {row.trang_thai_diem_danh}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {dailyClasses.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-6 text-center text-slate-400">Không có lớp học phần trong ngày đã chọn.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+                  <div className="rounded-2xl border border-red-100 overflow-hidden bg-white">
+                    <div className="px-4 py-3 bg-red-50 border-b border-red-100 text-xs font-black text-red-600 uppercase tracking-wider">Cảnh báo sinh viên nghỉ quá 20%</div>
+                    <div className="max-h-56 overflow-auto divide-y divide-slate-100">
+                      {warningStudents.length > 0 ? warningStudents.map((w, idx) => (
+                        <div key={`${w.sinhvien_id}-${idx}`} className="px-4 py-3 text-xs">
+                          <p className="font-bold text-slate-700">{w.ten_sv} ({w.ma_sv})</p>
+                          <p className="text-slate-500">{w.ten_lop} - {w.ma_lop}</p>
+                          <p className="font-black text-red-600 mt-1">Tỷ lệ vắng: {w.ti_le_vang}%</p>
+                        </div>
+                      )) : <p className="px-4 py-4 text-xs text-slate-400">Chưa có cảnh báo.</p>}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-100 overflow-hidden bg-white">
+                    <div className="px-4 py-3 bg-amber-50 border-b border-amber-100 text-xs font-black text-amber-700 uppercase tracking-wider">Cảnh báo giảng viên chưa điểm danh hôm nay</div>
+                    <div className="max-h-56 overflow-auto divide-y divide-slate-100">
+                      {warningLecturers.length > 0 ? warningLecturers.map((w, idx) => (
+                        <div key={`${w.buoi_id}-${idx}`} className="px-4 py-3 text-xs">
+                          <p className="font-bold text-slate-700">{w.giang_vien}</p>
+                          <p className="text-slate-500">{w.ten_lop} - {w.ma_lop}</p>
+                          <p className="font-semibold text-amber-700 mt-1">Tiết {w.tiet_bat_dau} ({w.so_tiet} tiết) - Phòng {w.phong || 'N/A'}</p>
+                        </div>
+                      )) : <p className="px-4 py-4 text-xs text-slate-400">Không có giảng viên nào đang trễ điểm danh.</p>}
+                    </div>
                   </div>
                 </div>
 

@@ -759,28 +759,46 @@ const importScheduleExcel = async (buffer, hockyData) => {
 
   // 1. DÒ TÌM HEADER & MAPPING (CHỐNG LỆCH CỘT)
   let headerRowIndex = -1;
-  const coreKeywords = ["TUAN", "THU", "TIET", "LOP", "PHAN"];
+  const coreKeywords = ["TUAN", "THU", "TIET", "LOP"];
   for (let i = 0; i < Math.min(allRows.length, 30); i++) {
     const rowContent = allRows[i].map(cell => removeAccents(cleanStr(cell).toUpperCase())).join(" ");
-    if (coreKeywords.every(kw => rowContent.includes(kw))) { headerRowIndex = i; break; }
+    const hasCore = coreKeywords.every(kw => rowContent.includes(kw));
+    const hasSubjectColumn = rowContent.includes("HOC PHAN") || rowContent.includes("HOC P");
+    if (hasCore && hasSubjectColumn) { headerRowIndex = i; break; }
   }
   if (headerRowIndex === -1) throw new Error('Không tìm thấy dòng tiêu đề hợp lệ trong file Excel.');
 
   const header = allRows[headerRowIndex].map(c => removeAccents(cleanStr(c).toUpperCase()));
-  const f = (kw) => header.findIndex(c => c === kw || c.includes(kw));
+  const f = (kw, aliases = []) => {
+    const index = header.findIndex(c => c === kw || c.includes(kw));
+    if (index !== -1) return index;
+    for (const alias of aliases) {
+      const aliasIndex = header.findIndex(c => c === alias || c.includes(alias));
+      if (aliasIndex !== -1) return aliasIndex;
+    }
+    return -1;
+  };
 
   const col = {
     tuan: f("TUAN"), thu: f("THU"), tietBD: f("TIET BAT DAU"),
     soTiet: header.findIndex((c, idx) => (c.includes("TIET") && !c.includes("BAT DAU")) || c === "SO TIET"),
-    phong: f("PHONG"), maLop: f("MA LOP"), hocPhan: f("HOC PHAN"),
-    maGV: f("MA GV"), tenGV: f("HO VA TEN GV"), gvThay: f("DAY THAY"),
+    phong: f("PHONG"), maLop: f("MA LOP"), hocPhan: f("HOC PHAN", ["TEN HOC P", "HOC P", "TEN HOC PHAN"]),
+    maGV: f("MA GV"),
+    tenGV: f("HO VA TEN GV"),
+    gvThay: f("HO VA TEN GV DAY THAY", ["GV DAY THAY", "DAY THAY", "DAY THAY GV"]),
     sdtGV: f("DIEN THOAI"), chat: f("CHAT"),
     khoa: f("KHOA"),
     boMon: f("BO MON")
   };
 
+  const isTenGVSplitAcrossTwoCols = col.tenGV >= 0 && cleanStr(header[col.tenGV + 1]) === '';
+  const isGVThaySplitAcrossTwoCols = col.gvThay >= 0 && cleanStr(header[col.gvThay + 1]) === '';
+
   const t = await db.sequelize.transaction();
   try {
+      const targetBoMonId = cleanStr(hockyData.selected_bomon_id || '');
+      const shouldFilterByBoMon = !!targetBoMonId;
+
       // Nếu có hocky_id, dùng trực tiếp — tránh tạo học kỳ mới do tên không khớp chính xác
       let hocky;
       if (hockyData.hocky_id) {
@@ -870,6 +888,8 @@ const importScheduleExcel = async (buffer, hockyData) => {
         }
       }
 
+      if (shouldFilterByBoMon && boMonId !== targetBoMonId) continue;
+
       if (tenMon.length < 2 || !rawMaLopStr) continue;
 
       // Môn học (Unique by Name)
@@ -898,7 +918,9 @@ const importScheduleExcel = async (buffer, hockyData) => {
       // Giảng viên (Unique by ma_gv) & Đồng bộ SDT
       const maGV = cleanStr(row[col.maGV]);
       const sdt = cleanStr(row[col.sdtGV]);
-      const fullGV = `${cleanStr(row[col.tenGV])} ${cleanStr(row[col.tenGV + 1])}`.trim();
+      const fullGV = isTenGVSplitAcrossTwoCols
+        ? `${cleanStr(row[col.tenGV])} ${cleanStr(row[col.tenGV + 1])}`.trim()
+        : cleanStr(row[col.tenGV]);
       if (maGV && !mapGiangVien.has(maGV)) {
         const [gv, created] = await GiangVien.findOrCreate({
           where: { ma_gv: maGV },
@@ -942,10 +964,25 @@ const importScheduleExcel = async (buffer, hockyData) => {
     dataRows.forEach(row => {
       const tenMon = cleanStr(row[col.hocPhan]);
       const rawMaLopStr = cleanStr(row[col.maLop]);
+      const khoaRaw = col.khoa >= 0 ? cleanStr(row[col.khoa]) : '';
+      const boMonRaw = col.boMon >= 0 ? cleanStr(row[col.boMon]) : '';
       const maGV = cleanStr(row[col.maGV]);
       const thu = parseInt(row[col.thu]);
       const tietBD = parseInt(row[col.tietBD]);
       const loai = cleanStr(row[col.chat] || "LT");
+
+      const khoaId = khoaRaw ? (mapKhoa.get(normalizeLookup(khoaRaw)) || null) : null;
+      let rowBoMonId = null;
+      if (boMonRaw) {
+        const normalizedBoMon = normalizeLookup(boMonRaw);
+        if (khoaId) {
+          rowBoMonId = mapBoMonByKhoa.get(`${khoaId}__${normalizedBoMon}`) || null;
+        }
+        if (!rowBoMonId) {
+          rowBoMonId = mapBoMonGlobal.get(normalizedBoMon) || null;
+        }
+      }
+      if (shouldFilterByBoMon && rowBoMonId !== targetBoMonId) return;
 
       if (!tenMon || !rawMaLopStr || isNaN(thu) || isNaN(tietBD) || !maGV) return;
 
@@ -1026,7 +1063,9 @@ const importScheduleExcel = async (buffer, hockyData) => {
       // 3.4 Sinh Buổi học cụ thể (Sessions)
       const sessions = data.rows.map(row => {
         const date = dayjs( hockyData.ngay_monday_tuan_1).add(parseInt(row[col.tuan]) - 1, 'week').add(parseInt(row[col.thu]) - 2, 'day').format('YYYY-MM-DD');
-        const fullThay = `${cleanStr(row[col.gvThay])} ${cleanStr(row[col.gvThay + 1])}`.trim();
+        const fullThay = isGVThaySplitAcrossTwoCols
+          ? `${cleanStr(row[col.gvThay])} ${cleanStr(row[col.gvThay + 1])}`.trim()
+          : cleanStr(row[col.gvThay]);
         return {
           lophocphan_id: lhp.lophocphan_id,
           ngay: date,

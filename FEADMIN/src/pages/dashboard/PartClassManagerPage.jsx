@@ -51,6 +51,10 @@ const PartClassManagement = () => {
           // Giảng viên (Họ + Tên)
           teacherName: `${item.GiangVien?.ho || ''} ${item.GiangVien?.ten || ''}`.trim(),
           teacherPhone: item.GiangVien?.sdt || 'Chưa cập nhật',
+
+          // Khoa / Bộ môn của môn học
+          facultyName: item.MonHoc?.Khoa?.ten_khoa || '',
+          departmentName: item.MonHoc?.BoMon?.ten_bomon || '',
           
           // Lớp hành chính (Mảng tên các lớp)
           adminClasses: item.DanhSachLopHanhChinh?.map(lop => lop.ten_lop) || [],

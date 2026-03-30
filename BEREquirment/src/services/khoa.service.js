@@ -47,6 +47,11 @@ const getKhoaById = async (khoaId) => {
                     model: db.LopHanhChinh,
                     as: 'DanhSachLopHanhChinh',
                     attributes: ['lop_hanhchinh_id', 'ten_lop', 'nien_khoa']
+                },
+                {
+                    model: db.ChuyenNganh,
+                    as: 'DanhSachChuyenNganh',
+                    attributes: ['chuyennganh_id', 'ten_chuyennganh', 'ma_chuyennganh']
                 }
             ],
             raw: false,

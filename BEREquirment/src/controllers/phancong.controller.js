@@ -308,13 +308,39 @@ const importSchedule = async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ success: false, message: "Vui lòng đính kèm file Excel" });
         console.log("req.body", req.body)
-        const { ten_hocky, ngay_batdau, ngay_ketthuc, ngay_monday_tuan_1, hocky_id } = req.body;
+    const { ten_hocky, ngay_batdau, ngay_ketthuc, ngay_monday_tuan_1, hocky_id, bomon_id } = req.body;
+    const { role, khoa_id, chuyennganh_id } = req.user || {};
         if (!ten_hocky || !ngay_batdau) {
             return res.status(400).json({ success: false, message: "Tên học kỳ và Ngày bắt đầu là bắt buộc" });
         }
 
+    let targetBoMonId = bomon_id || null;
+    if (role === 'truongbomon') {
+      if (!chuyennganh_id) {
+        return res.status(403).json({ success: false, message: 'Tài khoản trưởng bộ môn chưa được gán bộ môn quản lý.' });
+      }
+      targetBoMonId = chuyennganh_id;
+    }
+
+    if (targetBoMonId) {
+      const whereBoMon = { chuyennganh_id: targetBoMonId };
+      if ((role === 'lanhdao' || role === 'truongbomon') && khoa_id) {
+        whereBoMon.khoa_id = khoa_id;
+      }
+
+      const boMon = await db.ChuyenNganh.findOne({ where: whereBoMon, attributes: ['chuyennganh_id'] });
+      if (!boMon) {
+        return res.status(400).json({ success: false, message: 'Bộ môn đã chọn không hợp lệ hoặc ngoài phạm vi quản lý.' });
+      }
+    }
+
         const result = await phanCongService.importScheduleExcel(req.file.buffer, {
-            ten_hocky, ngay_batdau, ngay_ketthuc, ngay_monday_tuan_1, hocky_id
+      ten_hocky,
+      ngay_batdau,
+      ngay_ketthuc,
+      ngay_monday_tuan_1,
+      hocky_id,
+      selected_bomon_id: targetBoMonId
         });
 
         return res.status(200).json({

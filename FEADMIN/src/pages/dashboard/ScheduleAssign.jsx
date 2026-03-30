@@ -1,6 +1,7 @@
 'use strict';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Search, Plus, Loader2, Upload, ClipboardCheck, X, AlertTriangle
 } from 'lucide-react'; 
@@ -383,6 +384,9 @@ export default function AssignmentPage() {
             formData.append('ngay_ketthuc', data.ngay_ketthuc);
             formData.append('ngay_monday_tuan_1', data.ngay_monday_tuan_1);
             formData.append('hocky_id', data.semesterId); // Gửi ID để backend dễ xử lý mapping nếu cần
+            if (data.bomon_id) {
+                formData.append('bomon_id', data.bomon_id);
+            }
 
             const res = await phanCongService.importExcel(formData);
             if (res.data?.success || res.success) {
@@ -567,8 +571,8 @@ export default function AssignmentPage() {
                         isLoading={importLoading} 
                     />
 
-                    {isAttendanceModalOpen && (
-                        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+                    {isAttendanceModalOpen && createPortal((
+                        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
                             <div className="w-full max-w-7xl max-h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
                                 <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                                     <div>
@@ -656,7 +660,7 @@ export default function AssignmentPage() {
                                 </div>
                             </div>
                         </div>
-                    )}
+                    ), document.body)}
                 </>
             )}
         </div>

@@ -44,6 +44,18 @@ const dashboardService = {
    */
   getClassDetailAttendance(lophocphan_id) {
     return axiosClient.get(`/thong-ke/chi-tiet-lop/${lophocphan_id}`);
+  },
+
+  /**
+   * Thống kê điểm danh theo ngày (có bộ lọc bộ môn, học kỳ)
+   */
+  getDailyAttendanceReport(params = {}) {
+    const query = new URLSearchParams();
+    if (params.hocky_id) query.set('hocky_id', params.hocky_id);
+    if (params.ngay) query.set('ngay', params.ngay);
+    if (params.bomon_id && params.bomon_id !== 'all') query.set('bomon_id', params.bomon_id);
+    const suffix = query.toString();
+    return axiosClient.get(`/thong-ke/diem-danh-theo-ngay${suffix ? `?${suffix}` : ''}`);
   }
 };
 
