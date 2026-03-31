@@ -54,6 +54,7 @@ const PartClassManagement = () => {
 
           // Khoa / Bộ môn của môn học
           facultyName: item.MonHoc?.Khoa?.ten_khoa || '',
+          departmentId: item.MonHoc?.BoMon?.bomon_id || item.MonHoc?.chuyennganh_id || item.MonHoc?.bomon_id || null,
           departmentName: item.MonHoc?.BoMon?.ten_bomon || '',
           
           // Lớp hành chính (Mảng tên các lớp)

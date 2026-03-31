@@ -19,6 +19,7 @@ import ImportScheduleModal from '../../components/assign/ImportScheduleModal';
 import phanCongService from '../../service/phancongService';
 import hocKyService from '../../service/hockyService'; 
 import dashboardService from '../../service/dashboardService';
+import khoaService from '../../service/khoaService';
 import { useAuth } from '../../hooks/useAuth';
 import ProposalView from '../../components/assign/ProposalView.jsx';
 
@@ -101,6 +102,8 @@ export default function AssignmentPage() {
 
     // --- STATE UI & MODAL ---
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedBoMon, setSelectedBoMon] = useState('all');
+    const [boMonOptions, setBoMonOptions] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
     const [importLoading, setImportLoading] = useState(false);
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
@@ -117,12 +120,24 @@ export default function AssignmentPage() {
     useEffect(() => {
         const fetchHocKy = async () => {
             try {
-                const res = await hocKyService.getAll();
-                const listHocKy = res.data || []; 
+                const [hocKyRes, khoaRes] = await Promise.all([
+                    hocKyService.getAll(),
+                    khoaService.getAll()
+                ]);
+                const listHocKy = hocKyRes.data || []; 
                 if (listHocKy.length > 0) {
                     setSemesters(listHocKy);
                     setCurrentSemesterId(listHocKy[0].hocky_id);
                 }
+
+                const khoaList = khoaRes.data?.data || khoaRes.data || [];
+                const flattenedBoMon = khoaList.flatMap((khoa) =>
+                    (khoa.DanhSachChuyenNganh || []).map((bm) => ({
+                        id: bm.chuyennganh_id,
+                        name: bm.ten_chuyennganh
+                    }))
+                );
+                setBoMonOptions(flattenedBoMon);
             } catch (err) {
                 console.error("Lỗi khi load danh sách học kỳ:", err);
             }
@@ -323,15 +338,20 @@ export default function AssignmentPage() {
         if (!isInSelectedWeek) return false;
 
         const searchStr = searchTerm.toLowerCase();
+        const itemBoMonId = item.bo_mon_id || item.chuyennganh_id || null;
+        const matchesBoMon = selectedBoMon === 'all' || itemBoMonId === selectedBoMon;
+
+        if (!matchesBoMon) return false;
+
         return (
             item.ten_mon?.toLowerCase().includes(searchStr) ||
             item.ten_giang_vien?.toLowerCase().includes(searchStr) ||
             item.phong?.toLowerCase().includes(searchStr) ||
             item.ma_mon?.toLowerCase().includes(searchStr) ||
-            item.cac_lop_han_chinh?.toLowerCase().includes(searchStr)
+            item.cac_lop_hanh_chinh?.toLowerCase().includes(searchStr)
         );
     });
-}, [assignments, selectedWeek, weeks, searchTerm, currentSemesterId]);
+}, [assignments, selectedWeek, weeks, searchTerm, currentSemesterId, selectedBoMon]);
 
     // --- 5. CÁC HANDLERS (Giữ nguyên toàn bộ logic cũ) ---
     const handleAddNew = () => { setCurrentAssignment(null); setIsFormModalOpen(true); };
@@ -494,15 +514,27 @@ export default function AssignmentPage() {
 
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
                             <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                <div className="relative w-full sm:w-80 group">
-                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998]" />
-                                    <input
-                                        type="text"
-                                        className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white transition-all outline-none"
-                                        placeholder="Tìm môn, giảng viên..."
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                    />
+                                <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3">
+                                    <div className="relative w-full sm:w-80 group">
+                                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998]" />
+                                        <input
+                                            type="text"
+                                            className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white transition-all outline-none"
+                                            placeholder="Tìm môn, giảng viên..."
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <select
+                                        value={selectedBoMon}
+                                        onChange={(e) => setSelectedBoMon(e.target.value)}
+                                        className="w-full sm:w-60 px-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm text-gray-700 outline-none"
+                                    >
+                                        <option value="all">Tất cả Bộ môn</option>
+                                        {boMonOptions.map((bm) => (
+                                            <option key={bm.id} value={bm.id}>{bm.name}</option>
+                                        ))}
+                                    </select>
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">

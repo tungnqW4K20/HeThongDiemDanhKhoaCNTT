@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, Filter, X, Upload } from 'lucide-react'; 
+import { Search, Plus, X, Upload } from 'lucide-react'; 
 import SubjectTable from '../../components/subjects/SubjectTable';
 import SubjectModal from '../../components/subjects/SubjectModal';
 import DeleteConfirmModal from '../../components/subjects/DeleteConfirmModal';
@@ -12,6 +12,7 @@ export default function SubjectManagerPage() {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBoMon, setSelectedBoMon] = useState('all');
   
   // State quản lý Import
   const [importLoading, setImportLoading] = useState(false);
@@ -40,7 +41,9 @@ export default function SubjectManagerPage() {
             ...sub,
             ma_khoa: sub.Khoa ? sub.Khoa.ma_khoa : '', 
             ten_khoa: sub.Khoa ? sub.Khoa.ten_khoa : '',
-            khoa_id: sub.khoa_id 
+          khoa_id: sub.khoa_id,
+          bo_mon_id: sub.BoMon?.bomon_id || sub.BoMon?.chuyennganh_id || sub.bomon_id || sub.chuyennganh_id || null,
+          ten_bo_mon: sub.BoMon?.ten_chuyennganh || sub.BoMon?.ten_bomon || ''
         }));
         setSubjects(formattedData);
       }
@@ -58,12 +61,25 @@ export default function SubjectManagerPage() {
   // --- STATS & FILTER ---
   const totalCredits = useMemo(() => subjects.reduce((acc, curr) => acc + (curr.sotinchi || 0), 0), [subjects]);
 
+  const boMonOptions = useMemo(() => {
+    const map = new Map();
+    subjects.forEach((sub) => {
+      if (sub.bo_mon_id && sub.ten_bo_mon) {
+        map.set(sub.bo_mon_id, sub.ten_bo_mon);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [subjects]);
+
   const filteredSubjects = useMemo(() => {
-    return subjects.filter(sub => 
-      (sub.ten_mon && sub.ten_mon.toLowerCase().includes(searchTerm.toLowerCase())) || 
-      (sub.ma_mon && sub.ma_mon.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [subjects, searchTerm]);
+    return subjects.filter((sub) => {
+      const matchesSearch =
+        (sub.ten_mon && sub.ten_mon.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (sub.ma_mon && sub.ma_mon.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesBoMon = selectedBoMon === 'all' || sub.bo_mon_id === selectedBoMon;
+      return matchesSearch && matchesBoMon;
+    });
+  }, [subjects, searchTerm, selectedBoMon]);
 
   // --- HANDLERS CRUD ---
   
@@ -199,9 +215,18 @@ export default function SubjectManagerPage() {
                         <Upload size={16} /> <span className="hidden sm:inline">Import Excel</span>
                     </button>
 
-                    <button className="px-3 py-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 text-sm font-medium flex items-center gap-2 transition-colors">
-                        <Filter size={16} /> <span className="hidden sm:inline">Bộ lọc</span>
-                    </button>
+                    <div className="relative">
+                      <select
+                        value={selectedBoMon}
+                        onChange={(e) => setSelectedBoMon(e.target.value)}
+                        className="px-3 py-2 border border-gray-200 rounded-lg text-gray-600 bg-white hover:bg-gray-50 text-sm font-medium transition-colors outline-none"
+                      >
+                        <option value="all">Tất cả Bộ môn</option>
+                        {boMonOptions.map((bm) => (
+                          <option key={bm.id} value={bm.id}>{bm.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
                     <button 
                         onClick={handleAddNew}

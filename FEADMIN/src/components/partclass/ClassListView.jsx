@@ -5,25 +5,39 @@ import Pagination from '../Pagination'; // Import component bạn vừa đưa
 
 const ClassListView = ({ data, onSelect, onImportClick, isLoading }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBoMon, setSelectedBoMon] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5; // Số bản ghi mỗi trang
   console.log("+++++++++++=")
+
+  const boMonOptions = useMemo(() => {
+    const map = new Map();
+    data.forEach((item) => {
+      if (item.departmentId && item.departmentName) {
+        map.set(item.departmentId, item.departmentName);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [data]);
+
   // 1. Logic lọc dữ liệu theo Search Term
   const filteredData = useMemo(() => {
     const keyword = searchTerm.toLowerCase();
-    return data.filter(item => 
-      item.subjectName.toLowerCase().includes(keyword) || 
-      item.teacherName.toLowerCase().includes(keyword) ||
-      item.adminClasses.some(lop => lop.toLowerCase().includes(keyword)) ||
-      (item.facultyName || '').toLowerCase().includes(keyword) ||
-      (item.departmentName || '').toLowerCase().includes(keyword)
-    );
-  }, [data, searchTerm]);
+    return data.filter(item => {
+      const matchesSearch =
+        item.subjectName.toLowerCase().includes(keyword) ||
+        item.teacherName.toLowerCase().includes(keyword) ||
+        item.adminClasses.some(lop => lop.toLowerCase().includes(keyword)) ||
+        (item.facultyName || '').toLowerCase().includes(keyword);
+      const matchesBoMon = selectedBoMon === 'all' || item.departmentId === selectedBoMon;
+      return matchesSearch && matchesBoMon;
+    });
+  }, [data, searchTerm, selectedBoMon]);
 
   // 2. Tự động quay về trang 1 khi tìm kiếm thay đổi
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm]);
+  }, [searchTerm, selectedBoMon]);
 
   // 3. Tính toán dữ liệu cho trang hiện tại
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
@@ -48,10 +62,20 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading }) => {
               type="text" 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm môn, giảng viên, lớp HC, khoa, bộ môn..." 
+              placeholder="Tìm môn, giảng viên, lớp HC, khoa..." 
               className="pl-10 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 w-full"
             />
           </div>
+          <select
+            value={selectedBoMon}
+            onChange={(e) => setSelectedBoMon(e.target.value)}
+            className="w-full sm:w-60 px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+          >
+            <option value="all">Tất cả Bộ môn</option>
+            {boMonOptions.map((bm) => (
+              <option key={bm.id} value={bm.id}>{bm.name}</option>
+            ))}
+          </select>
           {/* <button onClick={onImportClick} className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 text-sm font-bold rounded-lg flex items-center gap-2 shadow-md shadow-green-900/10 transition-all">
             <Upload size={16} /> Import
           </button> */}

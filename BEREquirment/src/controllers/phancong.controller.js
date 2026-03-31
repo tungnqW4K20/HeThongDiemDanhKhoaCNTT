@@ -192,6 +192,8 @@ const getAllAssignments = async (req, res) => {
 
         ten_mon: lhp.MonHoc?.ten_mon || lhp.ten_lophocphan || 'Không rõ môn',
         ma_mon: lhp.MonHoc?.ma_mon || '',
+        bo_mon_id: lhp.MonHoc?.bomon_id || lhp.MonHoc?.chuyennganh_id || null,
+        chuyennganh_id: lhp.MonHoc?.chuyennganh_id || lhp.MonHoc?.bomon_id || null,
         hinh_thuc: lhp.loai_hoc_phan || 'LT',
 
         // Ghép lớp hành chính

@@ -17,6 +17,7 @@ export default function LecturerManagerPage() {
     
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedFaculty, setSelectedFaculty] = useState('all'); 
+    const [selectedBoMon, setSelectedBoMon] = useState('all');
     const [selectedIds, setSelectedIds] = useState([]);
     
     // Modal States
@@ -81,6 +82,15 @@ export default function LecturerManagerPage() {
     };
 
     // --- FILTER LOGIC ---
+    const boMonOptions = useMemo(() => {
+        return faculties.flatMap((khoa) =>
+            (khoa.DanhSachChuyenNganh || []).map((bm) => ({
+                id: bm.chuyennganh_id,
+                name: bm.ten_chuyennganh
+            }))
+        );
+    }, [faculties]);
+
     const filteredLecturers = useMemo(() => {
         return lecturers.filter(gv => {
             const searchLower = searchTerm.toLowerCase();
@@ -97,14 +107,14 @@ export default function LecturerManagerPage() {
                 (gv.ho && gv.ho.toLowerCase().includes(searchLower)) ||
                 (gv.ma_gv && gv.ma_gv.toLowerCase().includes(searchLower)) ||
                 (gv.email && gv.email.toLowerCase().includes(searchLower)) ||
-                (khoaName && khoaName.toLowerCase().includes(searchLower)) ||
-                (boMonName && boMonName.toLowerCase().includes(searchLower));
+                (khoaName && khoaName.toLowerCase().includes(searchLower));
 
             const matchesFaculty = selectedFaculty === 'all' || khoaName === selectedFaculty;
+            const matchesBoMon = selectedBoMon === 'all' || boMonName === selectedBoMon;
 
-            return matchesSearch && matchesFaculty;
+            return matchesSearch && matchesFaculty && matchesBoMon;
         });
-    }, [lecturers, searchTerm, selectedFaculty]);
+    }, [lecturers, searchTerm, selectedFaculty, selectedBoMon]);
 
     // --- HANDLERS (CRUD) ---
     const handleAddNew = () => {
@@ -318,7 +328,7 @@ export default function LecturerManagerPage() {
                                 <input
                                     type="text"
                                     className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm transition-all"
-                                    placeholder="Tìm tên, mã GV, email, khoa, bộ môn..."
+                                    placeholder="Tìm tên, mã GV, email, khoa..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
@@ -346,6 +356,27 @@ export default function LecturerManagerPage() {
                                     {faculties.map(khoa => (
                                         <option key={khoa.khoa_id} value={khoa.ten_khoa}>
                                             {khoa.ten_khoa}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <Filter size={14} className="text-gray-400" />
+                                </div>
+                            </div>
+
+                            <div className="relative w-full sm:w-60">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Filter className="h-4 w-4 text-gray-400" />
+                                </div>
+                                <select
+                                    value={selectedBoMon}
+                                    onChange={(e) => setSelectedBoMon(e.target.value)}
+                                    className="block w-full pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
+                                >
+                                    <option value="all">Tất cả Bộ môn</option>
+                                    {boMonOptions.map((bm) => (
+                                        <option key={bm.id} value={bm.name}>
+                                            {bm.name}
                                         </option>
                                     ))}
                                 </select>
