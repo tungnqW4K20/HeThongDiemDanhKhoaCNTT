@@ -82,6 +82,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
   const handleSubmit = () => {
     if (!file) { setErrorMsg("Vui lòng chọn file Excel"); return; }
     if (!selectedSemester) { setErrorMsg("Vui lòng chọn Học kỳ"); return; }
+    if (!selectedBoMonId) { setErrorMsg("Vui lòng chọn Bộ môn để import"); return; }
 
     // MAP DỮ LIỆU SANG BACKEND
     // Backend cần: ten_hocky, ngay_batdau, ngay_ketthuc, ngay_monday_tuan_1
@@ -93,7 +94,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
         ngay_ketthuc: selectedSemester.ngay_ketthuc,
         ngay_monday_tuan_1: selectedSemester.ngay_monday_tuan_1,
       semesterId:selectedSemester?.hocky_id,
-      bomon_id: selectedBoMonId || null
+      bomon_id: selectedBoMonId
     };
 
     onImport(payload);
@@ -157,7 +158,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
                   onChange={(e) => setSelectedBoMonId(e.target.value)}
                   className="w-full pl-4 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-slate-700 appearance-none focus:ring-4 focus:ring-blue-50 focus:border-[#3B5998] transition-all outline-none"
                 >
-                  <option value="">-- Import tất cả bộ môn --</option>
+                  <option value="">-- Chọn bộ môn để import --</option>
                   {boMonOptions.map((bm) => (
                     <option key={bm.id} value={bm.id}>
                       {bm.ten} ({bm.ma || 'N/A'}) - {bm.tenKhoa}
@@ -228,7 +229,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
         {/* Footer */}
         <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-between items-center px-8">
             <span className="text-[10px] text-gray-400 font-bold italic max-w-[200px]">
-              * Có thể thêm cột Khoa và Bộ môn trong file để import scope quản lý.
+              * Hệ thống sẽ ưu tiên bộ môn bạn đã chọn khi import dữ liệu.
             </span>
             <div className="flex gap-3">
                 <button onClick={onClose} className="px-6 py-3 text-gray-500 font-bold text-sm hover:text-slate-800 transition-colors">

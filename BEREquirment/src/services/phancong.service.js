@@ -796,7 +796,8 @@ const importScheduleExcel = async (buffer, hockyData) => {
 
   const t = await db.sequelize.transaction();
   try {
-      const targetBoMonId = cleanStr(hockyData.selected_bomon_id || '');
+      const targetBoMonIdRaw = cleanStr(hockyData.selected_bomon_id || '');
+      const targetBoMonId = targetBoMonIdRaw ? Number(targetBoMonIdRaw) : null;
       const shouldFilterByBoMon = !!targetBoMonId;
 
       // Nếu có hocky_id, dùng trực tiếp — tránh tạo học kỳ mới do tên không khớp chính xác
@@ -813,7 +814,6 @@ const importScheduleExcel = async (buffer, hockyData) => {
         });
       }
     let monCount = await MonHoc.count({ transaction: t });
-    let chuyenNganhCount = await db.ChuyenNganh.count({ transaction: t });
     const dataRows = allRows.slice(headerRowIndex + 1);
     const mapMonHoc = new Map(), mapGiangVien = new Map(), mapLopHC = new Map();
     const mapKhoa = new Map();
@@ -867,25 +867,10 @@ const importScheduleExcel = async (buffer, hockyData) => {
         if (!boMonId) {
           boMonId = mapBoMonGlobal.get(normalizedBoMon) || null;
         }
+      }
 
-        if (!boMonId && khoaId) {
-          const [createdBoMon] = await db.ChuyenNganh.findOrCreate({
-            where: {
-              khoa_id: khoaId,
-              ten_chuyennganh: boMonRaw
-            },
-            defaults: {
-              ma_chuyennganh: `BM${String(++chuyenNganhCount).padStart(4, '0')}`,
-              mota: 'Tạo tự động từ import lịch dạy'
-            },
-            transaction: t
-          });
-          boMonId = createdBoMon.chuyennganh_id;
-          mapBoMonByKhoa.set(`${khoaId}__${normalizedBoMon}`, boMonId);
-          if (!mapBoMonGlobal.has(normalizedBoMon)) {
-            mapBoMonGlobal.set(normalizedBoMon, boMonId);
-          }
-        }
+      if (!boMonId && shouldFilterByBoMon) {
+        boMonId = targetBoMonId;
       }
 
       if (shouldFilterByBoMon && boMonId !== targetBoMonId) continue;
@@ -981,6 +966,10 @@ const importScheduleExcel = async (buffer, hockyData) => {
         if (!rowBoMonId) {
           rowBoMonId = mapBoMonGlobal.get(normalizedBoMon) || null;
         }
+      }
+
+      if (!rowBoMonId && shouldFilterByBoMon) {
+        rowBoMonId = targetBoMonId;
       }
       if (shouldFilterByBoMon && rowBoMonId !== targetBoMonId) return;
 

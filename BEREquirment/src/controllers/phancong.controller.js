@@ -322,6 +322,8 @@ const importSchedule = async (req, res) => {
         return res.status(403).json({ success: false, message: 'Tài khoản trưởng bộ môn chưa được gán bộ môn quản lý.' });
       }
       targetBoMonId = chuyennganh_id;
+    } else if (!targetBoMonId) {
+      return res.status(400).json({ success: false, message: 'Vui lòng chọn bộ môn để import lịch dạy.' });
     }
 
     if (targetBoMonId) {
