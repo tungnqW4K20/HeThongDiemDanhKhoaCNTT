@@ -16,6 +16,7 @@ import CourseRegistration from './pages/dashboard/ReregisterCourse';
 import RetakeClassPage from './pages/dashboard/ReregisterCourse';
 import SemesterManagerPage from './pages/dashboard/SemesterManager';
 import KhoaManager from './pages/dashboard/KhoaManager';
+import BoMonManagerPage from './pages/dashboard/BoMonManager';
 import PartClassManagerPage from './pages/dashboard/PartClassManagerPage';
 import AttendanceStats from './pages/dashboard/AttendanceStats';
 
@@ -50,6 +51,9 @@ function App() {
                 <Route path="/reregiter-course" element={<RetakeClassPage />} />
                 <Route path="/semester" element={<SemesterManagerPage />} />
                 <Route path="/department" element={<KhoaManager />} />
+                <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+                  <Route path="/bo-mon" element={<BoMonManagerPage />} />
+                </Route>
                 <Route path="/part-class" element={<PartClassManagerPage />} />
               </Route>
             </Route>

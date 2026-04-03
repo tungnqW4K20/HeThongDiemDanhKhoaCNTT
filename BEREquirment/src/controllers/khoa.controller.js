@@ -89,11 +89,89 @@ const handleDeleteKhoa = async (req, res) => {
     }
 };
 
+const handleGetAllBoMon = async (req, res) => {
+    try {
+        const response = await khoaService.getAllBoMon();
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleCreateBoMon = async (req, res) => {
+    try {
+        const response = await khoaService.createBoMon(req.body);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleUpdateBoMon = async (req, res) => {
+    try {
+        const response = await khoaService.updateBoMon(req.body);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleDeleteBoMon = async (req, res) => {
+    try {
+        if (!req.body.id) {
+            return res.status(400).json({
+                errCode: 1,
+                message: 'Missing required parameter id'
+            });
+        }
+
+        const response = await khoaService.deleteBoMon(req.body.id);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleGetTruongBoMonOptions = async (req, res) => {
+    try {
+        const khoaId = req.query.khoa_id || null;
+        const response = await khoaService.getTruongBoMonOptions(khoaId);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
 module.exports = {
     handleGetAllKhoa,
     handleGetKhoaById,
     handleCreateKhoa,
     handleUpdateKhoa,
-    handleDeleteKhoa
+    handleDeleteKhoa,
+    handleGetAllBoMon,
+    handleCreateBoMon,
+    handleUpdateBoMon,
+    handleDeleteBoMon,
+    handleGetTruongBoMonOptions
 };
 

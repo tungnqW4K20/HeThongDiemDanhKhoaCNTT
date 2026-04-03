@@ -14,4 +14,10 @@ router.put('/update-khoa',authenticateToken, authorizeRole('admin'), khoaControl
 
 router.delete('/delete-khoa',authenticateToken, authorizeRole('admin'), khoaController.handleDeleteKhoa);
 
+router.get('/get-all-bo-mon', authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), khoaController.handleGetAllBoMon);
+router.get('/get-truong-bo-mon-options', authenticateToken, authorizeRole(['admin', 'lanhdao']), khoaController.handleGetTruongBoMonOptions);
+router.post('/create-bo-mon', authenticateToken, authorizeRole('admin'), khoaController.handleCreateBoMon);
+router.put('/update-bo-mon', authenticateToken, authorizeRole('admin'), khoaController.handleUpdateBoMon);
+router.delete('/delete-bo-mon', authenticateToken, authorizeRole('admin'), khoaController.handleDeleteBoMon);
+
 module.exports = router;
