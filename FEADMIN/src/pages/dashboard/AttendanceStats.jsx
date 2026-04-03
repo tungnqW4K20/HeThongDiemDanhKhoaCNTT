@@ -122,24 +122,16 @@ const AttendanceStats = () => {
 
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
   const processedData = useMemo(() => {
-    const uniqueByClass = Array.from(
-      new Map(classList.map((item) => [item.ma_lop || item.lophocphan_id, item])).values()
-    );
-
-    let data = uniqueByClass.filter(item => 
+    let data = classList.filter(item => 
       item.ten_lop.toLowerCase().includes(searchTerm.toLowerCase()) || 
       item.ma_lop.toLowerCase().includes(searchTerm.toLowerCase())
-    ).map((item) => ({
-      ...item,
-      ten_lop_hien_thi: item.ma_lop || item.ten_lop
-    }));
+    );
 
-    const sorted = data.sort((a, b) => {
+    return data.sort((a, b) => {
       return sortBy === 'high' 
         ? b.ti_le_vang - a.ti_le_vang 
         : a.ti_le_vang - b.ti_le_vang;
     });
-    return sorted.slice(0, 40);
   }, [classList, searchTerm, sortBy]);
 
   // Tính toán chiều cao biểu đồ động (45px mỗi hàng)
@@ -482,7 +474,7 @@ const AttendanceStats = () => {
                           
                           {/* Trục Y là Tên lớp (Hiển thị nằm ngang cực rõ) */}
                           <YAxis 
-                            dataKey="ten_lop_hien_thi" 
+                            dataKey="ten_lop" 
                             type="category" 
                             width={150}
                             tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
