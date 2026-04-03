@@ -35,6 +35,8 @@ const buildMonHocScopeWhere = (scope = {}, boMonId = null) => {
     return where;
 };
 
+const hasWhereConditions = (whereObj = {}) => Reflect.ownKeys(whereObj).length > 0;
+
 /**
  * Lấy danh sách học kỳ và xác định học kỳ mặc định
  */
@@ -88,8 +90,8 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
             {
                 model: db.MonHoc,
                 attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
-                where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
-                required: Object.keys(monHocWhere).length > 0
+                where: hasWhereConditions(monHocWhere) ? monHocWhere : undefined,
+                required: hasWhereConditions(monHocWhere)
             },
             {
                 model: db.LopHanhChinh,
@@ -168,8 +170,8 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
             {
                 model: db.MonHoc,
                 attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
-                where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
-                required: Object.keys(monHocWhere).length > 0
+                where: hasWhereConditions(monHocWhere) ? monHocWhere : undefined,
+                required: hasWhereConditions(monHocWhere)
             },
             {
                 model: db.GiangVien,
@@ -287,8 +289,8 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
                     {
                         model: db.MonHoc,
                         attributes: ['monhoc_id', 'bomon_id', 'chuyennganh_id', 'khoa_id'],
-                        where: Object.keys(monHocWhere).length > 0 ? monHocWhere : undefined,
-                        required: Object.keys(monHocWhere).length > 0
+                        where: hasWhereConditions(monHocWhere) ? monHocWhere : undefined,
+                        required: hasWhereConditions(monHocWhere)
                     },
                     {
                         model: db.GiangVien,
