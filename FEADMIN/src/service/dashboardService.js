@@ -32,10 +32,13 @@ const dashboardService = {
   /**
    * Lấy tỷ lệ điểm danh của tất cả các lớp trong một học kỳ (vẽ biểu đồ cột)
    */
-  getOverallAttendance(hocky_id) {
+  getOverallAttendance(hocky_id, bomon_id) {
     let url = `/thong-ke/ti-le-lop-hoc`;
-    // Nếu có hocky_id thì gửi lên dưới dạng query string
-    if (hocky_id) url += `?hocky_id=${hocky_id}`;
+    const query = new URLSearchParams();
+    if (hocky_id) query.set('hocky_id', hocky_id);
+    if (bomon_id && bomon_id !== 'all') query.set('bomon_id', bomon_id);
+    const suffix = query.toString();
+    if (suffix) url += `?${suffix}`;
     return axiosClient.get(url);
   },
 

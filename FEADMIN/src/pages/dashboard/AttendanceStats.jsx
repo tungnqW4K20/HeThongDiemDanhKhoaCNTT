@@ -47,20 +47,20 @@ const AttendanceStats = () => {
   }, []);
 
   // 2. Lấy dữ liệu thống kê khi đổi học kỳ
+  const fetchStats = useCallback(async (hkId) => {
+    setLoading(true);
+    try {
+      const res = await dashboardService.getOverallAttendance(hkId, selectedBoMon);
+      if (res.success) setClassList(res.data);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, [selectedBoMon]);
+
   useEffect(() => {
     if (selectedSemester) {
       fetchStats(selectedSemester);
     }
-  }, [selectedSemester]);
-
-  const fetchStats = async (hkId) => {
-    setLoading(true);
-    try {
-      const res = await dashboardService.getOverallAttendance(hkId);
-      if (res.success) setClassList(res.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  };
+  }, [selectedSemester, selectedBoMon, fetchStats]);
 
   const handleViewDetail = async (lhpId) => {
     setLoading(true);
@@ -274,11 +274,15 @@ const AttendanceStats = () => {
                           className="pl-10 pr-8 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-52 transition-all cursor-pointer"
                         >
                           <option value="all">Tất cả bộ môn</option>
-                          {boMonOptions.map((bm) => (
-                            <option key={bm.bomon_id} value={bm.bomon_id}>
-                              {bm.ten_bomon}
+                          {boMonOptions.map((bm) => {
+                            const boMonId = bm.bomon_id || bm.chuyennganh_id;
+                            const boMonName = bm.ten_bomon || bm.ten_chuyennganh;
+                            return (
+                            <option key={boMonId} value={boMonId}>
+                              {boMonName}
                             </option>
-                          ))}
+                            );
+                          })}
                         </select>
                       </div>
                       <div className="relative w-full sm:w-auto">

@@ -65,7 +65,7 @@ const getSemesters = async () => {
 /**
  * Thống kê tổng quát tỷ lệ vắng theo từng lớp học phần
  */
-const getOverallAttendance = async (hocky_id, scope = {}) => {
+const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
     if (scope.role === 'truongbomon' && !scope.chuyennganh_id) {
         return { success: true, data: [] };
     }
@@ -79,17 +79,7 @@ const getOverallAttendance = async (hocky_id, scope = {}) => {
 
     if (!targetId) return { success: true, data: [] };
 
-    const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
-    const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
-
-    const monHocWhere = {};
-    if (targetKhoaId) monHocWhere.khoa_id = targetKhoaId;
-    if (targetChuyenNganhId) {
-        monHocWhere[Op.or] = [
-            { bomon_id: targetChuyenNganhId },
-            { chuyennganh_id: targetChuyenNganhId }
-        ];
-    }
+    const monHocWhere = buildMonHocScopeWhere(scope, bomon_id || null);
 
     const data = await db.LopHocPhan.findAll({
         where: { hocky_id: targetId },
