@@ -123,7 +123,7 @@ const AttendanceStats = () => {
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
   const processedData = useMemo(() => {
     const uniqueByClass = Array.from(
-      new Map(classList.map((item) => [item.lophocphan_id, item])).values()
+      new Map(classList.map((item) => [item.ma_lop || item.lophocphan_id, item])).values()
     );
 
     let data = uniqueByClass.filter(item => 
@@ -131,14 +131,15 @@ const AttendanceStats = () => {
       item.ma_lop.toLowerCase().includes(searchTerm.toLowerCase())
     ).map((item) => ({
       ...item,
-      ten_lop_hien_thi: `${item.ten_lop} (${item.ma_lop})`
+      ten_lop_hien_thi: item.ma_lop || item.ten_lop
     }));
 
-    return data.sort((a, b) => {
+    const sorted = data.sort((a, b) => {
       return sortBy === 'high' 
         ? b.ti_le_vang - a.ti_le_vang 
         : a.ti_le_vang - b.ti_le_vang;
     });
+    return sorted.slice(0, 40);
   }, [classList, searchTerm, sortBy]);
 
   // Tính toán chiều cao biểu đồ động (45px mỗi hàng)
