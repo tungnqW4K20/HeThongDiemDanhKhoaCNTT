@@ -140,7 +140,12 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
         };
     });
 
-    return { success: true, data: stats };
+    // Chống trùng lớp học phần khi query có nhiều join N-N/hasMany.
+    const uniqueStats = Array.from(
+        new Map(stats.map((item) => [item.lophocphan_id, item])).values()
+    );
+
+    return { success: true, data: uniqueStats };
 };
 
 /**

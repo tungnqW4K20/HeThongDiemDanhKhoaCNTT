@@ -122,10 +122,17 @@ const AttendanceStats = () => {
 
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
   const processedData = useMemo(() => {
-    let data = classList.filter(item => 
+    const uniqueByClass = Array.from(
+      new Map(classList.map((item) => [item.lophocphan_id, item])).values()
+    );
+
+    let data = uniqueByClass.filter(item => 
       item.ten_lop.toLowerCase().includes(searchTerm.toLowerCase()) || 
       item.ma_lop.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    ).map((item) => ({
+      ...item,
+      ten_lop_hien_thi: `${item.ten_lop} (${item.ma_lop})`
+    }));
 
     return data.sort((a, b) => {
       return sortBy === 'high' 
@@ -474,7 +481,7 @@ const AttendanceStats = () => {
                           
                           {/* Trục Y là Tên lớp (Hiển thị nằm ngang cực rõ) */}
                           <YAxis 
-                            dataKey="ten_lop" 
+                            dataKey="ten_lop_hien_thi" 
                             type="category" 
                             width={150}
                             tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }}
