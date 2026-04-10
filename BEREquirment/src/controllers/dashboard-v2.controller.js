@@ -42,12 +42,14 @@ const getClassDetailAttendance = async (req, res) => {
 
 const getDailyAttendanceReport = async (req, res) => {
     try {
-        const { hocky_id, ngay, bomon_id } = req.query;
+        const { hocky_id, ngay, bomon_id, from_ngay, to_ngay } = req.query;
         const { role, khoa_id, chuyennganh_id } = req.user || {};
         const result = await dashboardService.getDailyAttendanceReport({
             hocky_id,
             ngay,
-            bomon_id
+            bomon_id,
+            from_ngay,
+            to_ngay
         }, {
             role,
             khoa_id,

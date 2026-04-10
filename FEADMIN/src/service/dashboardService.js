@@ -56,6 +56,8 @@ const dashboardService = {
     const query = new URLSearchParams();
     if (params.hocky_id) query.set('hocky_id', params.hocky_id);
     if (params.ngay) query.set('ngay', params.ngay);
+    if (params.from_ngay) query.set('from_ngay', params.from_ngay);
+    if (params.to_ngay) query.set('to_ngay', params.to_ngay);
     if (params.bomon_id && params.bomon_id !== 'all') query.set('bomon_id', params.bomon_id);
     const suffix = query.toString();
     return axiosClient.get(`/thong-ke/diem-danh-theo-ngay${suffix ? `?${suffix}` : ''}`);

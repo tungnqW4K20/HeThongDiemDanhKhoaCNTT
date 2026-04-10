@@ -9,15 +9,56 @@ import {
 } from 'lucide-react';
 import dashboardService from '../../service/dashboardService';
 
+const toYmd = (date) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = `${d.getMonth() + 1}`.padStart(2, '0');
+  const day = `${d.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getIsoWeekString = (date) => {
+  const tmp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = tmp.getUTCDay() || 7;
+  tmp.setUTCDate(tmp.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((tmp - yearStart) / 86400000) + 1) / 7);
+  return `${tmp.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+};
+
+const getWeekRangeFromInput = (weekValue) => {
+  if (!weekValue || !weekValue.includes('-W')) return null;
+  const [yearStr, weekStr] = weekValue.split('-W');
+  const year = Number(yearStr);
+  const week = Number(weekStr);
+  if (!year || !week) return null;
+
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const weekStartUtc = new Date(jan4);
+  weekStartUtc.setUTCDate(jan4.getUTCDate() - jan4Day + 1 + (week - 1) * 7);
+
+  const weekEndUtc = new Date(weekStartUtc);
+  weekEndUtc.setUTCDate(weekStartUtc.getUTCDate() + 6);
+
+  return {
+    from: weekStartUtc.toISOString().slice(0, 10),
+    to: weekEndUtc.toISOString().slice(0, 10)
+  };
+};
+
 const AttendanceStats = () => {
   const todayStr = new Date().toISOString().slice(0, 10);
+  const currentWeekStr = getIsoWeekString(new Date());
   const [loading, setLoading] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [todayLoading, setTodayLoading] = useState(false);
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [classList, setClassList] = useState([]);
+  const [dateFilterMode, setDateFilterMode] = useState('day');
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
   const [selectedBoMon, setSelectedBoMon] = useState('all');
   const [dailyReport, setDailyReport] = useState({
     bo_mon_options: [],
@@ -31,6 +72,7 @@ const AttendanceStats = () => {
   const [selectedClass, setSelectedClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('high'); // high: vắng nhiều nhất, low: ít nhất
+  const latestStatsRequestRef = React.useRef(0);
 
   // 1. Khởi tạo lấy danh sách học kỳ
   useEffect(() => {
@@ -48,12 +90,23 @@ const AttendanceStats = () => {
 
   // 2. Lấy dữ liệu thống kê khi đổi học kỳ
   const fetchStats = useCallback(async (hkId) => {
+    const requestId = ++latestStatsRequestRef.current;
     setLoading(true);
     try {
       const res = await dashboardService.getOverallAttendance(hkId, selectedBoMon);
-      if (res.success) setClassList(res.data);
+      if (requestId !== latestStatsRequestRef.current) return;
+
+      if (res.success) {
+        setClassList(res.data || []);
+      } else {
+        setClassList([]);
+      }
     } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    finally {
+      if (requestId === latestStatsRequestRef.current) {
+        setLoading(false);
+      }
+    }
   }, [selectedBoMon]);
 
   useEffect(() => {
@@ -74,9 +127,12 @@ const AttendanceStats = () => {
   const fetchDailyReport = useCallback(async () => {
     setDailyLoading(true);
     try {
+      const weekRange = getWeekRangeFromInput(selectedWeek);
       const res = await dashboardService.getDailyAttendanceReport({
         hocky_id: selectedSemester,
-        ngay: selectedDate,
+        ngay: dateFilterMode === 'day' ? selectedDate : undefined,
+        from_ngay: dateFilterMode === 'week' ? weekRange?.from : undefined,
+        to_ngay: dateFilterMode === 'week' ? weekRange?.to : undefined,
         bomon_id: selectedBoMon
       });
       if (res.success && res.data) {
@@ -90,7 +146,7 @@ const AttendanceStats = () => {
     } finally {
       setDailyLoading(false);
     }
-  }, [selectedSemester, selectedDate, selectedBoMon]);
+  }, [selectedSemester, selectedDate, selectedWeek, dateFilterMode, selectedBoMon]);
 
   const fetchTodayReport = useCallback(async () => {
     setTodayLoading(true);
@@ -148,6 +204,9 @@ const AttendanceStats = () => {
   const todayClasses = Array.isArray(todayReport?.daily_classes) ? todayReport.daily_classes : [];
   const warningStudents = Array.isArray(dailyReport?.warnings_students) ? dailyReport.warnings_students : [];
   const warningLecturers = Array.isArray(dailyReport?.warnings_lecturers) ? dailyReport.warnings_lecturers : [];
+  const effectiveFromDate = dailyReport?.from_ngay || selectedDate;
+  const effectiveToDate = dailyReport?.to_ngay || selectedDate;
+  const showDateColumn = dateFilterMode === 'week';
 
   if (loading && !selectedClass && semesters.length === 0) {
     return (
@@ -257,15 +316,44 @@ const AttendanceStats = () => {
                   </div>
 
                   <div className="w-full flex flex-wrap items-center gap-3">
-                      <div className="relative w-full sm:w-auto">
-                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                        <input
-                          type="date"
-                          value={selectedDate}
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                          className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
-                        />
+                      <div className="flex items-center bg-slate-50 border border-slate-100 rounded-xl p-1 gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setDateFilterMode('day')}
+                          className={`px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${dateFilterMode === 'day' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                          Theo ngày
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDateFilterMode('week')}
+                          className={`px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${dateFilterMode === 'week' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                          Theo tuần
+                        </button>
                       </div>
+
+                      {dateFilterMode === 'day' ? (
+                        <div className="relative w-full sm:w-auto">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
+                          />
+                        </div>
+                      ) : (
+                        <div className="relative w-full sm:w-auto">
+                          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                          <input
+                            type="week"
+                            value={selectedWeek}
+                            onChange={(e) => setSelectedWeek(e.target.value)}
+                            className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
+                          />
+                        </div>
+                      )}
                       <div className="relative w-full sm:w-auto">
                         <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                         <select
@@ -306,7 +394,9 @@ const AttendanceStats = () => {
 
                 <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Lớp học phần trong ngày</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      {dateFilterMode === 'week' ? 'Lớp học phần trong tuần' : 'Lớp học phần trong ngày'}
+                    </p>
                     <p className="text-2xl font-black text-slate-800 mt-1">{dailyClasses.length}</p>
                   </div>
                   <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
@@ -321,13 +411,18 @@ const AttendanceStats = () => {
 
                 <div className="mb-6 rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-                    <h4 className="text-sm font-black text-slate-700 uppercase tracking-wide">Kết quả điểm danh theo ngày</h4>
+                    <h4 className="text-sm font-black text-slate-700 uppercase tracking-wide">
+                      {dateFilterMode === 'week'
+                        ? `Kết quả điểm danh theo tuần (${toYmd(effectiveFromDate)} đến ${toYmd(effectiveToDate)})`
+                        : `Kết quả điểm danh theo ngày (${toYmd(selectedDate)})`}
+                    </h4>
                     {dailyLoading && <Loader2 size={16} className="animate-spin text-blue-600" />}
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead className="bg-white border-b border-slate-100 text-slate-500">
                         <tr>
+                          {showDateColumn && <th className="px-4 py-3 text-center font-bold">Ngày</th>}
                           <th className="px-4 py-3 text-left font-bold">Lớp học phần</th>
                           <th className="px-4 py-3 text-left font-bold">Giảng viên</th>
                           <th className="px-4 py-3 text-center font-bold">Tiết</th>
@@ -340,6 +435,11 @@ const AttendanceStats = () => {
                       <tbody className="divide-y divide-slate-100">
                         {dailyClasses.map((row) => (
                           <tr key={row.buoi_id}>
+                            {showDateColumn && (
+                              <td className="px-4 py-3 text-center font-mono text-[11px] text-slate-500">
+                                {row.ngay ? new Date(row.ngay).toLocaleDateString('vi-VN') : 'N/A'}
+                              </td>
+                            )}
                             <td className="px-4 py-3">
                               <div className="font-bold text-slate-700">{row.ten_lop}</div>
                               <div className="text-[10px] text-slate-400 font-mono">{row.ma_lop}</div>
@@ -366,7 +466,9 @@ const AttendanceStats = () => {
                         ))}
                         {dailyClasses.length === 0 && (
                           <tr>
-                            <td colSpan={7} className="px-4 py-6 text-center text-slate-400">Không có lớp học phần trong ngày đã chọn.</td>
+                            <td colSpan={showDateColumn ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
+                              {dateFilterMode === 'week' ? 'Không có lớp học phần trong tuần đã chọn.' : 'Không có lớp học phần trong ngày đã chọn.'}
+                            </td>
                           </tr>
                         )}
                       </tbody>

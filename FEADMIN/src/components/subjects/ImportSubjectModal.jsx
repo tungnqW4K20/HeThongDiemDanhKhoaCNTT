@@ -13,12 +13,12 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
   // Tải file mẫu
   const handleDownloadTemplate = () => {
     // 1. Định nghĩa Header và Dữ liệu mẫu (Dạng mảng để cố định thứ tự cột)
-    const headers = [["Mã môn", "Tên môn", "Số TC", "Mã khoa"]];
+    const headers = [["Mã môn", "Tên môn", "Số TC", "Mã khoa", "Mã bộ môn"]];
     
     const data = [
-      ["INT1001", "Nhập môn Lập trình", 3, "CNTT"],
-      ["ENG1002", "Tiếng Anh cơ bản 1", 4, "CNTT"],
-      ["MATH101", "Giải tích 1", 3, "CNTT"]
+      ["INT1001", "Nhập môn Lập trình", 3, "CNTT", "KTPM"],
+      ["ENG1002", "Tiếng Anh cơ bản 1", 4, "CNTT", "HTTT"],
+      ["MATH101", "Giải tích 1", 3, "CNTT", "KHMT"]
     ];
 
     // 2. Tạo Worksheet từ mảng 2 chiều (aoa)
@@ -29,7 +29,8 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
       { wch: 15 }, // Mã môn
       { wch: 35 }, // Tên môn (rộng hơn để chứa tên môn dài)
       { wch: 10 }, // Số TC
-      { wch: 15 }  // Mã khoa
+      { wch: 15 }, // Mã khoa
+      { wch: 18 }  // Mã bộ môn
     ];
     ws['!cols'] = wscols;
 
@@ -120,7 +121,7 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
               <FileSpreadsheet size={20} className="text-green-600"/>
               Import Danh sách Môn học
             </h3>
-            <p className="text-xs text-gray-500 mt-1">Hỗ trợ định dạng .xlsx, .xls</p>
+            <p className="text-xs text-gray-500 mt-1">Hỗ trợ định dạng .xlsx, .xls (cần cột Mã bộ môn)</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors p-1 hover:bg-gray-200 rounded-full">
             <X size={20} />
@@ -138,7 +139,7 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
              <div className="flex-1">
                 <h4 className="text-sm font-bold text-[#3B5998]">Chưa có file mẫu?</h4>
                 <p className="text-xs text-gray-600 mt-1 mb-3">
-                   Tải file mẫu chuẩn để nhập liệu chính xác. Vui lòng không thay đổi tiêu đề cột.
+                   Tải file mẫu chuẩn để nhập liệu chính xác. Vui lòng không thay đổi tiêu đề cột, đặc biệt là cột Mã bộ môn.
                 </p>
                 <button 
                   onClick={handleDownloadTemplate}

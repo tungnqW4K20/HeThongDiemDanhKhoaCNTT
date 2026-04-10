@@ -30,10 +30,14 @@ const handleGetById = async (req, res) => {
 
 const handleCreate = async (req, res) => {
     try {
-        const { ma_mon, ten_mon, sotinchi, khoa_id } = req.body;
+        const { ma_mon, ten_mon, sotinchi, bomon_id, chuyennganh_id } = req.body;
         
         if (!ma_mon || !ten_mon || !sotinchi) {
             return res.status(400).json({ success: false, message: 'Vui lòng điền đủ thông tin bắt buộc' });
+        }
+
+        if (!bomon_id && !chuyennganh_id) {
+            return res.status(400).json({ success: false, message: 'Vui lòng chọn bộ môn cho môn học.' });
         }
 
         const response = await monHocService.createMonHoc(req.body);
@@ -120,8 +124,9 @@ const importMonHocExcel = async (req, res) => {
         }
 
         // 1. Lấy dữ liệu tham chiếu để Validate
-        const [allKhoa, allExistingMons] = await Promise.all([
+        const [allKhoa, allBoMon, allExistingMons] = await Promise.all([
             db.Khoa.findAll({ where: { isDeleted: false }, attributes: ['khoa_id', 'ma_khoa', 'ten_khoa'] }),
+            db.BoMon.findAll({ where: { isDeleted: false }, attributes: ['bomon_id', 'ma_bomon', 'ten_bomon', 'khoa_id'] }),
             db.MonHoc.findAll({ attributes: ['ma_mon'] })
         ]);
 
@@ -131,6 +136,16 @@ const importMonHocExcel = async (req, res) => {
             khoaMap.set(normalize(k.ma_khoa), k.khoa_id);
             // Có thể map thêm cả tên khoa nếu muốn linh hoạt
             khoaMap.set(normalize(k.ten_khoa), k.khoa_id);
+        });
+
+        const boMonMap = new Map();
+        allBoMon.forEach((bm) => {
+            const lookupValue = {
+                bomon_id: bm.bomon_id,
+                khoa_id: bm.khoa_id
+            };
+            boMonMap.set(normalize(bm.ma_bomon), lookupValue);
+            boMonMap.set(normalize(bm.ten_bomon), lookupValue);
         });
 
         const existingCodesInDB = new Set(allExistingMons.map(m => normalize(m.ma_mon)));
@@ -148,6 +163,7 @@ const importMonHocExcel = async (req, res) => {
             const tenMon = findValueInRow(row, ['tenmon', 'ten mon']);
             const soTC = findValueInRow(row, ['sotc', 'so tc', 'tinchi']);
             const maKhoaExcel = findValueInRow(row, ['makhoa', 'ma khoa', 'khoa']);
+            const maBoMonExcel = findValueInRow(row, ['mabomon', 'ma bo mon', 'bo mon', 'mabm', 'ma chuyen nganh']);
 
             // --- KIỂM TRA DỮ LIỆU ---
             
@@ -171,29 +187,47 @@ const importMonHocExcel = async (req, res) => {
             }
             codesInCurrentFile.add(normMaMon);
 
-            // D. Kiểm tra Khoa
+            // D. Kiểm tra Bộ môn
+            let boMonId = null;
             let khoaId = null;
-            if (maKhoaExcel) {
-                const normMaKhoa = normalize(maKhoaExcel);
-                khoaId = khoaMap.get(normMaKhoa);
-                if (!khoaId) {
-                    errors.push(`Dòng ${rowNum}: Mã khoa "${maKhoaExcel}" không tồn tại trên hệ thống.`);
+
+            if (maBoMonExcel) {
+                const normMaBoMon = normalize(maBoMonExcel);
+                const boMonInfo = boMonMap.get(normMaBoMon);
+                if (!boMonInfo) {
+                    errors.push(`Dòng ${rowNum}: Mã bộ môn "${maBoMonExcel}" không tồn tại trên hệ thống.`);
+                } else {
+                    boMonId = boMonInfo.bomon_id;
+                    khoaId = boMonInfo.khoa_id;
                 }
             } else {
-                errors.push(`Dòng ${rowNum}: Cột Mã khoa không được để trống.`);
+                errors.push(`Dòng ${rowNum}: Cột Mã bộ môn không được để trống.`);
+            }
+
+            // E. Nếu có cung cấp mã khoa thì kiểm tra đối chiếu với khoa của bộ môn
+            if (maKhoaExcel && khoaId) {
+                const normMaKhoa = normalize(maKhoaExcel);
+                const khoaIdInExcel = khoaMap.get(normMaKhoa);
+                if (!khoaIdInExcel) {
+                    errors.push(`Dòng ${rowNum}: Mã khoa "${maKhoaExcel}" không tồn tại trên hệ thống.`);
+                } else if (khoaIdInExcel !== khoaId) {
+                    errors.push(`Dòng ${rowNum}: Mã khoa "${maKhoaExcel}" không khớp với bộ môn đã chọn.`);
+                }
             }
 
             // Nếu dòng này đã có lỗi thì không cần chuẩn bị data insert cho dòng này nữa
             if (errors.length > 100) break; // Giới hạn báo lỗi để tránh tràn response
             if (errors.some(err => err.startsWith(`Dòng ${rowNum}`))) continue;
 
-            // E. Chuẩn bị data
+            // F. Chuẩn bị data
             listToInsert.push({
                 monhoc_id: db.Sequelize.literal('UUID()'),
                 ma_mon: cleanMaMon,
                 ten_mon: tenMon.toString().trim(),
                 sotinchi: parseInt(soTC) || 0,
                 khoa_id: khoaId,
+                bomon_id: boMonId,
+                chuyennganh_id: boMonId,
                 // mota: 'Imported via Excel',
                 isDeleted: false
             });

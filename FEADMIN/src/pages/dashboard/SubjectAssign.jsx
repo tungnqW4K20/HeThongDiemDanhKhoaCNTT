@@ -157,7 +157,13 @@ export default function SubjectManagerPage() {
       console.error("Lỗi import:", error);
       // Lấy message lỗi từ axios error object
       const errorMsg = error.response?.data?.message || error.message || "Lỗi kết nối server";
-      alert(`❌ Lỗi import: ${errorMsg}`);
+      const details = error.response?.data?.details;
+      if (Array.isArray(details) && details.length) {
+        const topErrors = details.slice(0, 10).join('\n- ');
+        alert(`❌ Lỗi import: ${errorMsg}\n\n- ${topErrors}`);
+      } else {
+        alert(`❌ Lỗi import: ${errorMsg}`);
+      }
     } finally {
       setImportLoading(false);
     }

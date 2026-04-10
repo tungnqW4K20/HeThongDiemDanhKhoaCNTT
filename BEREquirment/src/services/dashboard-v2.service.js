@@ -240,12 +240,14 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
     };
 };
 
-const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope = {}) => {
+const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, to_ngay } = {}, scope = {}) => {
     if (scope.role === 'truongbomon' && !scope.chuyennganh_id) {
         return {
             success: true,
             data: {
                 ngay: new Date().toISOString().slice(0, 10),
+                from_ngay: null,
+                to_ngay: null,
                 bo_mon_options: [],
                 daily_classes: [],
                 warnings_students: [],
@@ -254,7 +256,19 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
         };
     }
 
-    const selectedDate = ngay || new Date().toISOString().slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const hasRange = Boolean(from_ngay && to_ngay);
+    const selectedDate = ngay || today;
+    let startDate = hasRange ? from_ngay : selectedDate;
+    let endDate = hasRange ? to_ngay : selectedDate;
+
+    // Chuẩn hóa khoảng ngày để tránh input đảo ngược từ client.
+    if (startDate > endDate) {
+        const temp = startDate;
+        startDate = endDate;
+        endDate = temp;
+    }
+
     const boMonScopeWhere = { isDeleted: false };
     if (scope.role === 'truongbomon' && scope.chuyennganh_id) {
         boMonScopeWhere.bomon_id = scope.chuyennganh_id;
@@ -272,9 +286,13 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
     const lopHocPhanWhere = {};
     if (hocky_id) lopHocPhanWhere.hocky_id = hocky_id;
 
+    const buoiHocDateFilter = hasRange
+        ? { [Op.between]: [startDate, endDate] }
+        : selectedDate;
+
     const dailyBuoiHoc = await db.BuoiHoc.findAll({
         where: {
-            ngay: selectedDate,
+            ngay: buoiHocDateFilter,
             trangthai: { [Op.ne]: 'cancelled' }
         },
         attributes: ['buoi_id', 'lophocphan_id', 'ngay', 'trangthai', 'tiet_bat_dau', 'so_tiet', 'phong'],
@@ -321,6 +339,8 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
             success: true,
             data: {
                 ngay: selectedDate,
+                from_ngay: hasRange ? startDate : null,
+                to_ngay: hasRange ? endDate : null,
                 bo_mon_options: boMonOptions,
                 daily_classes: [],
                 warnings_students: [],
@@ -342,7 +362,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
         where: {
             lophocphan_id: { [Op.in]: classIds },
             trangthai: 'completed',
-            ngay: { [Op.lte]: selectedDate }
+            ngay: { [Op.lte]: endDate }
         },
         attributes: ['buoi_id', 'lophocphan_id']
     });
@@ -422,6 +442,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
                 ten_lop: lhp.ten_lophocphan,
                 ma_lop: lhp.ma_lop,
                 giang_vien: gvName,
+                ngay: buoi.ngay,
                 tiet_bat_dau: buoi.tiet_bat_dau,
                 so_tiet: buoi.so_tiet,
                 phong: buoi.phong || lhp.phong || ''
@@ -433,6 +454,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
             lophocphan_id: lhp.lophocphan_id,
             ten_lop: lhp.ten_lophocphan,
             ma_lop: lhp.ma_lop,
+            ngay: buoi.ngay,
             giang_vien: gvName,
             lop_hanh_chinh: lopHanhChinh,
             tiet_bat_dau: buoi.tiet_bat_dau,
@@ -451,8 +473,14 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id } = {}, scope
         success: true,
         data: {
             ngay: selectedDate,
+            from_ngay: hasRange ? startDate : null,
+            to_ngay: hasRange ? endDate : null,
             bo_mon_options: boMonOptions,
-            daily_classes: dailyClasses,
+            daily_classes: dailyClasses.sort((a, b) => {
+                const dateCompare = String(a.ngay || '').localeCompare(String(b.ngay || ''));
+                if (dateCompare !== 0) return dateCompare;
+                return (a.tiet_bat_dau || 0) - (b.tiet_bat_dau || 0);
+            }),
             warnings_students: warningsStudents,
             warnings_lecturers: warningsLecturers
         }
