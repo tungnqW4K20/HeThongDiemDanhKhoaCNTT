@@ -134,6 +134,15 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
                     model: db.Khoa,
                     as: 'Khoa', 
                     attributes: ['ten_khoa', 'ma_khoa']
+                },
+                {
+                    model: db.TaiKhoan,
+                    as: 'TaiKhoan',
+                    required: false,
+                    where: {
+                        vaitro: 'giangvien'
+                    },
+                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
                 }
             ],
             raw: false, 
@@ -178,7 +187,18 @@ const getGiangVienById = async (giangvien_id) => {
     try {
         const gv = await db.GiangVien.findOne({
             where: { giangvien_id: giangvien_id, isDeleted: false },
-            include: [{ model: db.Khoa, as: 'Khoa', attributes: ['khoa_id', 'ten_khoa', 'ma_khoa'] }]
+            include: [
+                { model: db.Khoa, as: 'Khoa', attributes: ['khoa_id', 'ten_khoa', 'ma_khoa'] },
+                {
+                    model: db.TaiKhoan,
+                    as: 'TaiKhoan',
+                    required: false,
+                    where: {
+                        vaitro: 'giangvien'
+                    },
+                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
+                }
+            ]
         });
 
         if (!gv) return { errCode: 2, message: 'Không tìm thấy giảng viên' };
