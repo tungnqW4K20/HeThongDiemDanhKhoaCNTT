@@ -49,7 +49,7 @@ const getStudentsByLopHocPhan = async (req, res) => {
 const getAll = async (req, res) => {
     try {
         const { hocky_id } = req.query;
-        const { role, khoa_id } = req.user;
+    const { role, khoa_id, chuyennganh_id } = req.user;
 
         // Bắt buộc phải có học kỳ mới lấy được lớp học phần
         if (!hocky_id) {
@@ -59,8 +59,9 @@ const getAll = async (req, res) => {
             });
         }
 
-        const targetKhoaId = role === 'lanhdao' ? khoa_id : null;
-        const result = await lopHocPhanService.getAllLopHocPhan(req.query, targetKhoaId);
+        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
+        const targetChuyenNganhId = role === 'truongbomon' ? chuyennganh_id : null;
+        const result = await lopHocPhanService.getAllLopHocPhan(req.query, targetKhoaId, targetChuyenNganhId);
 
         return res.status(200).json({
             success: true,

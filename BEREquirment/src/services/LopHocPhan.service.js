@@ -177,7 +177,7 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
 //         throw error;
 //     }
 // };
-const getAllLopHocPhan = async (query, target_khoa_id = null) => {
+const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh_id = null) => {
     try {
         const { hocky_id } = query;
         
@@ -185,6 +185,12 @@ const getAllLopHocPhan = async (query, target_khoa_id = null) => {
         let monHocWhere = {};
         if (target_khoa_id) {
             monHocWhere.khoa_id = target_khoa_id;
+        }
+        if (target_chuyennganh_id) {
+          monHocWhere[Op.or] = [
+            { bomon_id: target_chuyennganh_id },
+            { chuyennganh_id: target_chuyennganh_id }
+          ];
         }
 
         const data = await db.LopHocPhan.findAll({
