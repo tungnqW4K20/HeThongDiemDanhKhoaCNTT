@@ -33,6 +33,55 @@ const scopeCheckForMonHoc = (reqUser, monHoc) => {
   return true;
 };
 
+const validateScopeByMonHoc = (reqUser, monHoc) => {
+  if (!scopeCheckForMonHoc(reqUser, monHoc)) {
+    const err = new Error('Bạn không có quyền thao tác dữ liệu ngoài bộ môn quản lý.');
+    err.statusCode = 403;
+    throw err;
+  }
+};
+
+const getMonHocFromBuoiHoc = async (buoi_id) => {
+  const buoiHoc = await db.BuoiHoc.findByPk(buoi_id, {
+    attributes: ['buoi_id', 'lophocphan_id'],
+    include: [{
+      model: db.LopHocPhan,
+      as: 'LopHocPhan',
+      attributes: ['lophocphan_id', 'monhoc_id'],
+      include: [{
+        model: db.MonHoc,
+        attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id']
+      }]
+    }]
+  });
+
+  if (!buoiHoc || !buoiHoc.LopHocPhan?.MonHoc) {
+    const err = new Error('Không tìm thấy dữ liệu buổi học hoặc môn học liên quan.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return buoiHoc;
+};
+
+const getMonHocFromLopHocPhan = async (lophocphan_id) => {
+  const lopHocPhan = await db.LopHocPhan.findByPk(lophocphan_id, {
+    attributes: ['lophocphan_id', 'monhoc_id'],
+    include: [{
+      model: db.MonHoc,
+      attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id']
+    }]
+  });
+
+  if (!lopHocPhan || !lopHocPhan.MonHoc) {
+    const err = new Error('Không tìm thấy lớp học phần hoặc môn học liên quan.');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  return lopHocPhan;
+};
+
 const buildBuoiHocList = ({ lophocphan_id, ngay_batdau, thuInt, so_tuan, gio_batdau, gio_ketthuc, tiet_bat_dau, so_tiet, phong }) => {
   let currentDate = dayjs(ngay_batdau);
   const targetDay = thuIntToDayJs(thuInt);
@@ -199,6 +248,9 @@ const capNhatBuoiHoc = async (req, res) => {
     const { buoi_id } = req.params;
     const { ngay, batdau, ketthuc, trangthai, ghichu } = req.body;
 
+    const scopedBuoiHoc = await getMonHocFromBuoiHoc(buoi_id);
+    validateScopeByMonHoc(req.user, scopedBuoiHoc.LopHocPhan.MonHoc);
+
     const buoiHoc = await db.BuoiHoc.findByPk(buoi_id);
     
     if (!buoiHoc) {
@@ -225,7 +277,8 @@ const capNhatBuoiHoc = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi cập nhật buổi học:', error);
-    res.status(500).json({
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
       success: false,
       message: error.message
     });
@@ -240,6 +293,9 @@ const huyBuoiHoc = async (req, res) => {
   try {
     const { buoi_id } = req.params;
     const { ly_do } = req.body;
+
+    const scopedBuoiHoc = await getMonHocFromBuoiHoc(buoi_id);
+    validateScopeByMonHoc(req.user, scopedBuoiHoc.LopHocPhan.MonHoc);
 
     const buoiHoc = await db.BuoiHoc.findByPk(buoi_id);
     
@@ -263,7 +319,8 @@ const huyBuoiHoc = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi hủy buổi học:', error);
-    res.status(500).json({
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
       success: false,
       message: error.message
     });
@@ -277,6 +334,9 @@ const huyBuoiHoc = async (req, res) => {
 const xoaBuoiHoc = async (req, res) => {
   try {
     const { buoi_id } = req.params;
+
+    const scopedBuoiHoc = await getMonHocFromBuoiHoc(buoi_id);
+    validateScopeByMonHoc(req.user, scopedBuoiHoc.LopHocPhan.MonHoc);
 
     const buoiHoc = await db.BuoiHoc.findByPk(buoi_id);
     
@@ -300,7 +360,8 @@ const xoaBuoiHoc = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi xóa buổi học:', error);
-    res.status(500).json({
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
       success: false,
       message: error.message
     });
@@ -315,6 +376,9 @@ const layDanhSachBuoiHoc = async (req, res) => {
   try {
     const { lophocphan_id } = req.params;
     const { trangthai } = req.query; // Filter theo trạng thái
+
+    const scopedLopHocPhan = await getMonHocFromLopHocPhan(lophocphan_id);
+    validateScopeByMonHoc(req.user, scopedLopHocPhan.MonHoc);
 
     const where = { lophocphan_id };
     if (trangthai) where.trangthai = trangthai;
@@ -332,7 +396,8 @@ const layDanhSachBuoiHoc = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi lấy danh sách buổi học:', error);
-    res.status(500).json({
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
       success: false,
       message: error.message
     });
@@ -347,6 +412,9 @@ const capNhatHangLoatBuoiHoc = async (req, res) => {
   try {
     const { lophocphan_id } = req.params;
     const { buoi_ids, updates } = req.body; // buoi_ids: [], updates: { phong, trangthai, ... }
+
+    const scopedLopHocPhan = await getMonHocFromLopHocPhan(lophocphan_id);
+    validateScopeByMonHoc(req.user, scopedLopHocPhan.MonHoc);
 
     if (!buoi_ids || !Array.isArray(buoi_ids) || buoi_ids.length === 0) {
       return res.status(400).json({
@@ -373,7 +441,8 @@ const capNhatHangLoatBuoiHoc = async (req, res) => {
 
   } catch (error) {
     console.error('Lỗi cập nhật hàng loạt:', error);
-    res.status(500).json({
+    const statusCode = error.statusCode || 500;
+    res.status(statusCode).json({
       success: false,
       message: error.message
     });

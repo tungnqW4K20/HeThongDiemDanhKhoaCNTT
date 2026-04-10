@@ -471,10 +471,32 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
   }
 };
 
-const getLichChiTiet = async ({ hocky_id, page, limit, fromDate, toDate, giangvien_id }) => {
+const getLichChiTiet = async ({
+  hocky_id,
+  page,
+  limit,
+  fromDate,
+  toDate,
+  giangvien_id,
+  target_khoa_id,
+  target_chuyennganh_id
+}) => {
   try {
     // 1. Xây dựng điều kiện lọc (Where clause)
     const whereCondition = {};
+    const monHocWhere = {};
+
+    if (target_khoa_id) {
+      monHocWhere.khoa_id = target_khoa_id;
+    }
+    if (target_chuyennganh_id) {
+      monHocWhere[Op.or] = [
+        { bomon_id: target_chuyennganh_id },
+        { chuyennganh_id: target_chuyennganh_id }
+      ];
+    }
+
+    const hasMonHocScope = Object.keys(monHocWhere).length > 0;
 
     // Nếu có lọc theo khoảng ngày (Ví dụ: xem lịch tuần này)
     if (fromDate && toDate) {
@@ -511,7 +533,9 @@ const getLichChiTiet = async ({ hocky_id, page, limit, fromDate, toDate, giangvi
           include: [
             {
               model: db.MonHoc,
-              attributes: ['ten_mon', 'ma_mon'] // Chỉ lấy tên và mã
+              attributes: ['ten_mon', 'ma_mon'], // Chỉ lấy tên và mã
+              where: hasMonHocScope ? monHocWhere : undefined,
+              required: hasMonHocScope
             },
             {
               model: db.GiangVien,

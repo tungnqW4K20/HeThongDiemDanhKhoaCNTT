@@ -7,11 +7,11 @@ const { authenticateToken, authorizeRole } = require('../middlewares/auth.middle
 
 // API Tổng hợp — Admin và Lãnh đạo đều xem được thống kê
 router.get('/overview', authenticateToken, 
-    authorizeRole(['admin', 'lanhdao', 'truongbomon']), DashboardController.getOverviewData);
+    authorizeRole(['admin', 'lanhdao']), DashboardController.getOverviewData);
 
 // API riêng cho biểu đồ (Lazy load)
 router.get('/chart', authenticateToken, 
-    authorizeRole(['admin', 'lanhdao', 'truongbomon']), DashboardController.getChartDataOnly);
+    authorizeRole(['admin', 'lanhdao']), DashboardController.getChartDataOnly);
 
 // 1. Lấy danh sách học kỳ
 router.get('/hoc-ky', authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), dashboardv2Controller.getSemesters);

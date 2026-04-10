@@ -235,6 +235,10 @@ const getAllAssignments = async (req, res) => {
 
 const getLichChiTietHocKy = async (req, res) => {
   try {
+    const { role, khoa_id, chuyennganh_id } = req.user || {};
+    const target_khoa_id = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
+    const target_chuyennganh_id = role === 'truongbomon' ? chuyennganh_id : null;
+
     const { 
         hocky_id, 
         page, 
@@ -257,7 +261,9 @@ const getLichChiTietHocKy = async (req, res) => {
         limit,
         fromDate: from_date,
         toDate: to_date,
-        giangvien_id
+        giangvien_id,
+        target_khoa_id,
+        target_chuyennganh_id
     });
 
     // Flatten dữ liệu cho nhẹ

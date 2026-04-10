@@ -9,6 +9,7 @@
     "seed:admin": "node src/seeders/seed-admin.js",
     "seed:data": "node src/seeders/seed-data.js",
     "seed:attendance": "node src/seeders/seed-attendance.js",
+    "seed:data:2627": "node src/seeders/seed-data-2026-2027.js",
     "seed:truongbomon": "node src/seeders/seed-truongbomon.js",
     "sync:all-schema": "node src/seeders/sync-all-schema.js",
     "sync:bomon-schema": "node src/seeders/sync-bomon-schema.js",

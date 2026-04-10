@@ -243,10 +243,18 @@ const deleteKhoa = async (khoaId) => {
     }
 };
 
-const getAllBoMon = async () => {
+const getAllBoMon = async (target_khoa_id = null, target_chuyennganh_id = null) => {
     try {
+        const chuyenNganhWhere = { isDeleted: false };
+        if (target_khoa_id) {
+            chuyenNganhWhere.khoa_id = target_khoa_id;
+        }
+        if (target_chuyennganh_id) {
+            chuyenNganhWhere.chuyennganh_id = target_chuyennganh_id;
+        }
+
         const data = await db.ChuyenNganh.findAll({
-            where: { isDeleted: false },
+            where: chuyenNganhWhere,
             attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'mota', 'khoa_id'],
             include: [
                 {
@@ -270,8 +278,20 @@ const getAllBoMon = async () => {
             nest: true
         });
 
+        const boMonIdsInScope = data.map((item) => item.chuyennganh_id);
+        if (boMonIdsInScope.length === 0) {
+            return {
+                errCode: 0,
+                message: 'OK',
+                data: []
+            };
+        }
+
         const boMonQuanLy = await db.BoMon.findAll({
-            where: { isDeleted: false },
+            where: {
+                isDeleted: false,
+                bomon_id: { [db.Sequelize.Op.in]: boMonIdsInScope }
+            },
             attributes: ['bomon_id', 'truong_bomon_id'],
             include: [
                 {

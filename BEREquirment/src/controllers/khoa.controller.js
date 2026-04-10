@@ -91,7 +91,11 @@ const handleDeleteKhoa = async (req, res) => {
 
 const handleGetAllBoMon = async (req, res) => {
     try {
-        const response = await khoaService.getAllBoMon();
+        const { role, khoa_id, chuyennganh_id } = req.user || {};
+        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
+        const targetChuyenNganhId = role === 'truongbomon' ? chuyennganh_id : null;
+
+        const response = await khoaService.getAllBoMon(targetKhoaId, targetChuyenNganhId);
         return res.status(200).json(response);
     } catch (e) {
         console.log(e);
