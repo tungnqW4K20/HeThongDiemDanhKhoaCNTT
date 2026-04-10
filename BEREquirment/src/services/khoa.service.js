@@ -62,6 +62,41 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
     );
 };
 
+const syncTruongBoMonRole = async ({ oldTruongBoMonId = null, newTruongBoMonId = null }) => {
+    if (newTruongBoMonId) {
+        await db.TaiKhoan.update(
+            { vaitro: 'truongbomon' },
+            {
+                where: {
+                    taikhoan_id: newTruongBoMonId,
+                    vaitro: { [db.Sequelize.Op.in]: ['giangvien', 'truongbomon'] }
+                }
+            }
+        );
+    }
+
+    if (oldTruongBoMonId && oldTruongBoMonId !== newTruongBoMonId) {
+        const stillManagingBoMon = await db.BoMon.count({
+            where: {
+                truong_bomon_id: oldTruongBoMonId,
+                isDeleted: false
+            }
+        });
+
+        if (stillManagingBoMon === 0) {
+            await db.TaiKhoan.update(
+                { vaitro: 'giangvien' },
+                {
+                    where: {
+                        taikhoan_id: oldTruongBoMonId,
+                        vaitro: 'truongbomon'
+                    }
+                }
+            );
+        }
+    }
+};
+
 const getAllKhoa = async () => {
     try {
         const data = await db.Khoa.findAll({
@@ -311,6 +346,32 @@ const createBoMon = async (data) => {
             isDeleted: false
         });
 
+        if (data.truong_bomon_id) {
+            const candidate = await db.TaiKhoan.findOne({
+                where: {
+                    taikhoan_id: data.truong_bomon_id,
+                    vaitro: { [db.Sequelize.Op.in]: ['giangvien', 'truongbomon'] }
+                },
+                include: [
+                    {
+                        model: db.GiangVien,
+                        as: 'GiangVien',
+                        required: false,
+                        attributes: ['giangvien_id', 'khoa_id']
+                    }
+                ],
+                attributes: ['taikhoan_id']
+            });
+
+            if (!candidate) {
+                return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
+            }
+
+            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== data.khoa_id) {
+                return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
+            }
+        }
+
         const [boMonEntity] = await db.BoMon.findOrCreate({
             where: { bomon_id: created.chuyennganh_id },
             defaults: {
@@ -327,6 +388,7 @@ const createBoMon = async (data) => {
         if (data.truong_bomon_id) {
             boMonEntity.truong_bomon_id = data.truong_bomon_id;
             await boMonEntity.save();
+            await syncTruongBoMonRole({ newTruongBoMonId: data.truong_bomon_id });
         }
 
         if (Array.isArray(data.monhoc_ids)) {
@@ -420,6 +482,8 @@ const updateBoMon = async (data) => {
             }
         });
 
+        const oldTruongBoMonId = boMonEntity.truong_bomon_id || null;
+
         boMonEntity.khoa_id = data.khoa_id;
         boMonEntity.ma_bomon = data.ma_chuyennganh.trim();
         boMonEntity.ten_bomon = data.ten_chuyennganh.trim();
@@ -427,6 +491,11 @@ const updateBoMon = async (data) => {
         boMonEntity.mota = data.mota || null;
         boMonEntity.isDeleted = false;
         await boMonEntity.save();
+
+        await syncTruongBoMonRole({
+            oldTruongBoMonId,
+            newTruongBoMonId: data.truong_bomon_id || null
+        });
 
         if (Array.isArray(data.monhoc_ids)) {
             await syncMonHocByBoMon({

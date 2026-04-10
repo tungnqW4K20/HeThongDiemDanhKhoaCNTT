@@ -140,7 +140,7 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
                     as: 'TaiKhoan',
                     required: false,
                     where: {
-                        vaitro: 'giangvien'
+                        vaitro: { [Op.in]: ['giangvien', 'truongbomon'] }
                     },
                     attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
                 }
@@ -194,7 +194,7 @@ const getGiangVienById = async (giangvien_id) => {
                     as: 'TaiKhoan',
                     required: false,
                     where: {
-                        vaitro: 'giangvien'
+                        vaitro: { [Op.in]: ['giangvien', 'truongbomon'] }
                     },
                     attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
                 }

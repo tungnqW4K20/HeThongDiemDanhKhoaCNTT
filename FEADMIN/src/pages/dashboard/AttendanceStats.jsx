@@ -270,7 +270,7 @@ const AttendanceStats = () => {
             {/* CỘT TRÁI: ĐIỀU KHIỂN & BIỂU ĐỒ */}
             <div className="xl:col-span-2 space-y-6">
               <div className="bg-white p-6 md:p-8 rounded-[32px] shadow-sm border border-slate-200">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 flex-wrap">
                   <div className="flex gap-4 items-center">
                     <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-xl shadow-blue-100"><LayoutGrid size={28}/></div>
                     <div>

@@ -392,7 +392,12 @@ const adminUpdateAccountGV = async ({ taikhoan_id, username, new_password }) => 
     throw error;
   }
 
-  const account = await TaiKhoan.findOne({ where: { taikhoan_id, vaitro: 'giangvien' } });
+  const account = await TaiKhoan.findOne({
+    where: {
+      taikhoan_id,
+      vaitro: { [db.Sequelize.Op.in]: ['giangvien', 'truongbomon'] }
+    }
+  });
   if (!account) {
     const error = new Error('Không tìm thấy tài khoản giảng viên.');
     error.statusCode = 404;
