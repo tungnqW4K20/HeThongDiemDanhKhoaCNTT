@@ -152,10 +152,16 @@ const AttendanceStats = () => {
 
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
   const processedData = useMemo(() => {
-    let data = classList.filter(item => 
-      item.ten_lop.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      item.ma_lop.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    let data = classList.filter(item => {
+      const hasAttendance = Number(item.tong_ban_ghi_diem_danh || 0) > 0;
+      if (!hasAttendance) return false;
+
+      const tenLop = (item.ten_lop || '').toLowerCase();
+      const maLop = (item.ma_lop || '').toLowerCase();
+      const keyword = searchTerm.toLowerCase();
+
+      return tenLop.includes(keyword) || maLop.includes(keyword);
+    });
 
     return data.sort((a, b) => {
       return sortBy === 'high' 

@@ -136,9 +136,10 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
             ma_lop: lhp.ma_lop,
             loai: lhp.loai_hoc_phan,
             giang_vien: lhp.GiangVien ? `${lhp.GiangVien.ho} ${lhp.GiangVien.ten}` : 'N/A',
+            tong_ban_ghi_diem_danh: total,
             ti_le_vang: total > 0 ? parseFloat((absent / total * 100).toFixed(2)) : 0
         };
-    });
+    }).filter((item) => item.tong_ban_ghi_diem_danh > 0);
 
     return { success: true, data: stats };
 };
