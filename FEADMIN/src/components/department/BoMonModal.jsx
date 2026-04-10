@@ -243,11 +243,18 @@ const BoMonModal = ({ isOpen, onClose, onSuccess, initialData, khoaOptions = [] 
             >
               <option value="">-- Chưa phân công --</option>
               {truongBoMonOptions.map((item) => (
-                <option key={item.taikhoan_id} value={item.taikhoan_id}>
-                  {`${item.ho || ''} ${item.ten || ''}`.trim()} {item.ma_gv ? `(${item.ma_gv})` : ''}
+                <option
+                  key={item.taikhoan_id || item.giangvien_id}
+                  value={item.taikhoan_id || ''}
+                  disabled={!item.has_account}
+                >
+                  {`${item.ho || ''} ${item.ten || ''}`.trim()} {item.ma_gv ? `(${item.ma_gv})` : ''}{!item.has_account ? ' - chưa có tài khoản' : ''}
                 </option>
               ))}
             </select>
+            {truongBoMonOptions.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1">Chưa có giảng viên thuộc khoa này.</p>
+            )}
           </div>
 
           {initialData && (

@@ -52,7 +52,6 @@ const AttendanceStats = () => {
   const currentWeekStr = getIsoWeekString(new Date());
   const [loading, setLoading] = useState(false);
   const [dailyLoading, setDailyLoading] = useState(false);
-  const [todayLoading, setTodayLoading] = useState(false);
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [classList, setClassList] = useState([]);
@@ -65,9 +64,6 @@ const AttendanceStats = () => {
     daily_classes: [],
     warnings_students: [],
     warnings_lecturers: []
-  });
-  const [todayReport, setTodayReport] = useState({
-    daily_classes: []
   });
   const [selectedClass, setSelectedClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -148,33 +144,11 @@ const AttendanceStats = () => {
     }
   }, [selectedSemester, selectedDate, selectedWeek, dateFilterMode, selectedBoMon]);
 
-  const fetchTodayReport = useCallback(async () => {
-    setTodayLoading(true);
-    try {
-      const res = await dashboardService.getDailyAttendanceReport({
-        hocky_id: selectedSemester,
-        ngay: todayStr,
-        bomon_id: selectedBoMon
-      });
-      if (res.success && res.data) {
-        setTodayReport({ daily_classes: res.data.daily_classes || [] });
-      } else {
-        setTodayReport({ daily_classes: [] });
-      }
-    } catch (err) {
-      console.error('Lỗi thống kê lớp học phần hôm nay:', err);
-      setTodayReport({ daily_classes: [] });
-    } finally {
-      setTodayLoading(false);
-    }
-  }, [selectedSemester, selectedBoMon, todayStr]);
-
   useEffect(() => {
     if (selectedSemester) {
       fetchDailyReport();
-      fetchTodayReport();
     }
-  }, [selectedSemester, fetchDailyReport, fetchTodayReport]);
+  }, [selectedSemester, fetchDailyReport]);
 
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
   const processedData = useMemo(() => {
@@ -201,7 +175,6 @@ const AttendanceStats = () => {
     : [];
   const boMonOptions = Array.isArray(dailyReport?.bo_mon_options) ? dailyReport.bo_mon_options : [];
   const dailyClasses = Array.isArray(dailyReport?.daily_classes) ? dailyReport.daily_classes : [];
-  const todayClasses = Array.isArray(todayReport?.daily_classes) ? todayReport.daily_classes : [];
   const warningStudents = Array.isArray(dailyReport?.warnings_students) ? dailyReport.warnings_students : [];
   const warningLecturers = Array.isArray(dailyReport?.warnings_lecturers) ? dailyReport.warnings_lecturers : [];
   const effectiveFromDate = dailyReport?.from_ngay || selectedDate;
@@ -469,61 +442,6 @@ const AttendanceStats = () => {
                             <td colSpan={showDateColumn ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
                               {dateFilterMode === 'week' ? 'Không có lớp học phần trong tuần đã chọn.' : 'Không có lớp học phần trong ngày đã chọn.'}
                             </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="mb-6 rounded-2xl border border-slate-200 overflow-hidden">
-                  <div className="px-4 py-3 bg-blue-50 border-b border-blue-100 flex items-center justify-between">
-                    <h4 className="text-sm font-black text-blue-700 uppercase tracking-wide">Các lớp học phần diễn ra hôm nay</h4>
-                    {todayLoading && <Loader2 size={16} className="animate-spin text-blue-600" />}
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="bg-white border-b border-slate-100 text-slate-500">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-bold">Lớp học phần</th>
-                          <th className="px-4 py-3 text-left font-bold">Giảng viên</th>
-                          <th className="px-4 py-3 text-center font-bold">Tiết</th>
-                          <th className="px-4 py-3 text-center font-bold">Đã điểm danh</th>
-                          <th className="px-4 py-3 text-center font-bold">% Vắng buổi</th>
-                          <th className="px-4 py-3 text-center font-bold">Trạng thái</th>
-                          <th className="px-4 py-3 text-center font-bold">Quá trình</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {todayClasses.map((row) => (
-                          <tr key={`today-${row.buoi_id}`}>
-                            <td className="px-4 py-3">
-                              <div className="font-bold text-slate-700">{row.ten_lop}</div>
-                              <div className="text-[10px] text-slate-400 font-mono">{row.ma_lop}</div>
-                            </td>
-                            <td className="px-4 py-3 text-slate-600">{row.giang_vien}</td>
-                            <td className="px-4 py-3 text-center text-slate-600">{row.tiet_bat_dau} - {row.so_tiet}</td>
-                            <td className="px-4 py-3 text-center font-bold text-slate-700">{row.da_diem_danh}/{row.tong_sv}</td>
-                            <td className="px-4 py-3 text-center font-bold text-red-600">{row.ti_le_vang_buoi}%</td>
-                            <td className="px-4 py-3 text-center">
-                              <span className={`px-2 py-1 rounded-full text-[10px] font-black ${row.trang_thai_diem_danh === 'Đã điểm danh' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
-                                {row.trang_thai_diem_danh}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => row.lophocphan_id && handleViewDetail(row.lophocphan_id)}
-                                className="px-2.5 py-1 rounded-lg text-[10px] font-black bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
-                              >
-                                Xem quá trình
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                        {todayClasses.length === 0 && (
-                          <tr>
-                            <td colSpan={7} className="px-4 py-6 text-center text-slate-400">Không có lớp học phần diễn ra hôm nay.</td>
                           </tr>
                         )}
                       </tbody>

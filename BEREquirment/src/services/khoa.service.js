@@ -476,21 +476,21 @@ const getTruongBoMonOptions = async (khoaId = null) => {
         const whereGiangVien = { isDeleted: false };
         if (khoaId) whereGiangVien.khoa_id = khoaId;
 
-        const data = await db.TaiKhoan.findAll({
-            where: {
-                vaitro: { [db.Sequelize.Op.in]: ['truongbomon', 'giangvien'] }
-            },
-            attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id'],
+        const data = await db.GiangVien.findAll({
+            where: whereGiangVien,
+            attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten', 'khoa_id'],
             include: [
                 {
-                    model: db.GiangVien,
-                    as: 'GiangVien',
-                    required: true,
-                    attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten', 'khoa_id'],
-                    where: whereGiangVien
+                    model: db.TaiKhoan,
+                    as: 'TaiKhoan',
+                    required: false,
+                    where: {
+                        vaitro: { [db.Sequelize.Op.in]: ['truongbomon', 'giangvien'] }
+                    },
+                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
                 }
             ],
-            order: [[{ model: db.GiangVien, as: 'GiangVien' }, 'ten', 'ASC']],
+            order: [['ten', 'ASC']],
             raw: false,
             nest: true
         });
@@ -499,14 +499,15 @@ const getTruongBoMonOptions = async (khoaId = null) => {
             errCode: 0,
             message: 'OK',
             data: data.map((item) => ({
-                taikhoan_id: item.taikhoan_id,
-                username: item.username,
-                vaitro: item.vaitro,
-                giangvien_id: item.GiangVien?.giangvien_id,
-                ma_gv: item.GiangVien?.ma_gv,
-                ho: item.GiangVien?.ho,
-                ten: item.GiangVien?.ten,
-                khoa_id: item.GiangVien?.khoa_id
+                taikhoan_id: item.TaiKhoan?.taikhoan_id || null,
+                username: item.TaiKhoan?.username || null,
+                vaitro: item.TaiKhoan?.vaitro || null,
+                giangvien_id: item.giangvien_id,
+                ma_gv: item.ma_gv,
+                ho: item.ho,
+                ten: item.ten,
+                khoa_id: item.khoa_id,
+                has_account: Boolean(item.TaiKhoan?.taikhoan_id)
             }))
         };
     } catch (error) {
