@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, AlertCircle } from 'lucide-react';
 import khoaService from '../../service/khoaService';
 
@@ -52,9 +53,10 @@ const KhoaModal = ({ isOpen, onClose, onSuccess, initialData }) => {
   };
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-white">
           <h3 className="text-lg font-extrabold text-[#3B5998]">
@@ -126,7 +128,8 @@ const KhoaModal = ({ isOpen, onClose, onSuccess, initialData }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

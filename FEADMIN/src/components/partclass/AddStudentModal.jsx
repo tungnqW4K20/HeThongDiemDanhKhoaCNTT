@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Save } from 'lucide-react';
 
 const AddStudentModal = ({ isOpen, onClose, onSave, classId }) => {
@@ -20,6 +21,7 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classId }) => {
   }, [isOpen, classId]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -34,8 +36,8 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classId }) => {
     onSave(formData);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg">
         <div className="flex justify-between items-center p-5 border-b border-gray-100">
           <h3 className="text-lg font-bold text-gray-800">Thêm sinh viên mới</h3>
@@ -97,7 +99,8 @@ const AddStudentModal = ({ isOpen, onClose, onSave, classId }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

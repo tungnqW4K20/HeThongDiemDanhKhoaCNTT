@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, AlertCircle } from 'lucide-react';
 import namHocService from '../../service/namHocService';
 
@@ -71,9 +72,11 @@ const SchoolYearModal = ({ onClose, onSuccess }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-110 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}></div>
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" onClick={onClose}></div>
 
       <div className="relative bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -196,7 +199,8 @@ const SchoolYearModal = ({ onClose, onSuccess }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

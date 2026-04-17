@@ -218,7 +218,7 @@ const SubjectTable = ({
 
                     <td className="px-6 py-4">
                       {subject.ma_khoa ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-100 border rounded">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-100 border border-slate-200 rounded">
                           <Building2 size={12} />
                           {subject.ten_khoa || subject.ma_khoa}
                         </span>

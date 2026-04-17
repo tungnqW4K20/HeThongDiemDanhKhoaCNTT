@@ -300,6 +300,14 @@ const normalizeDate = (rawDate) => {
 };
 
 const importSinhVienFromExcel = async (lophocphan_id, fileBuffer) => {
+  const parseExcelOrder = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const normalized = value.toString().trim();
+    if (!normalized) return null;
+    const numeric = Number(normalized);
+    return Number.isInteger(numeric) && numeric > 0 ? numeric : NaN;
+  };
+
   // Kiểm tra lớp học phần
   const lhp = await db.LopHocPhan.findByPk(lophocphan_id);
   if (!lhp) throw new Error("Lớp học phần không tồn tại.");
@@ -308,6 +316,9 @@ const importSinhVienFromExcel = async (lophocphan_id, fileBuffer) => {
   const workbook = xlsx.read(fileBuffer, { type: "buffer", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const rows = xlsx.utils.sheet_to_json(sheet, { header: 1 });
+  const headerRow = rows[10] || [];
+  const firstHeaderCell = headerRow[0]?.toString().trim().toLowerCase() || "";
+  const hasSttColumn = firstHeaderCell === "stt" || firstHeaderCell.includes("thứ tự") || firstHeaderCell.includes("thu tu");
 
   const dataRows = rows.slice(11); // Bắt đầu từ dòng 12
   const errors = [];
@@ -316,27 +327,46 @@ const importSinhVienFromExcel = async (lophocphan_id, fileBuffer) => {
   // --- BƯỚC 1: VALIDATE VÀ CHUẨN HÓA TOÀN BỘ ---
   dataRows.forEach((row, index) => {
     const rowIndex = index + 12;
-    if (!row[1] || !row[2]) return; // Bỏ qua dòng trống
+    const parsedStt = hasSttColumn ? parseExcelOrder(row[0]) : null;
 
-    const ma_sv = row[1]?.toString().trim();
-    const ho_ten = row[2]?.toString().trim();
-    const ten_lop_hc = row[3]?.toString().trim() || "Lớp tự do";
-    const raw_ngay_sinh = row[4];
-    const sdt = row[6]?.toString().trim() || null;
+    const maSvRaw = hasSttColumn ? row[1] : row[0];
+    const hoTenRaw = hasSttColumn ? row[2] : row[1];
+    const lopRaw = hasSttColumn ? row[3] : row[2];
+    const raw_ngay_sinh = hasSttColumn ? row[4] : row[3];
+    const sdtRaw = hasSttColumn ? row[6] : row[5];
+
+    if (!maSvRaw && !hoTenRaw) return; // Bỏ qua dòng trống
+
+    const ma_sv = maSvRaw?.toString().trim();
+    const ho_ten = hoTenRaw?.toString().trim();
+    const ten_lop_hc = lopRaw?.toString().trim() || "Lớp tự do";
+    const sdt = sdtRaw?.toString().trim() || null;
+    const displayRef = parsedStt !== null && !Number.isNaN(parsedStt)
+      ? `(STT ${parsedStt}, dòng ${rowIndex})`
+      : `(dòng ${rowIndex})`;
 
     // Chuẩn hóa ngày sinh
     const clean_ngay_sinh = normalizeDate(raw_ngay_sinh);
     
     // Validate dữ liệu
+    if (parsedStt !== null && Number.isNaN(parsedStt)) {
+      errors.push(`Dòng ${rowIndex}: STT '${row[0]}' không hợp lệ (phải là số nguyên dương).`);
+    }
+
     if (raw_ngay_sinh && !clean_ngay_sinh) {
-      errors.push(`Dòng ${rowIndex}: Ngày sinh '${raw_ngay_sinh}' không đúng định dạng (Yêu cầu: DD/MM/YYYY).`);
+      errors.push(`Ngày sinh '${raw_ngay_sinh}' không đúng định dạng ${displayRef} (Yêu cầu: DD/MM/YYYY).`);
     }
 
     if (!ma_sv) {
-      errors.push(`Dòng ${rowIndex}: Thiếu Mã sinh viên.`);
+      errors.push(`Thiếu Mã sinh viên ${displayRef}.`);
+    }
+
+    if (!ho_ten) {
+      errors.push(`Thiếu Họ tên ${displayRef}.`);
     }
 
     validData.push({
+      stt: Number.isNaN(parsedStt) ? null : parsedStt,
       ma_sv,
       ho_ten,
       ten_lop_hc,

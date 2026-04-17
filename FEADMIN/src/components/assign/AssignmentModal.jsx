@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, Edit2, Plus, Clock, MapPin, Calendar, BookOpen, User, Layers, Hash, Search, ChevronDown, Check, Trash2, Lock } from 'lucide-react'; // Thêm icon Lock
 import giangVienService from '../../service/giangVienService';
 import hocKyService from '../../service/hockyService';
@@ -228,6 +229,7 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
   // ------------------------------------------
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   // Toggle chọn lớp hành chính (Multi-select)
   const toggleClassSelection = (classId) => {
@@ -280,12 +282,12 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
     cls.ten_lop.toLowerCase().includes(classSearch.toLowerCase())
   );
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh] border border-gray-100">
         
         {/* HEADER */}
-        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-gray-50 to-white">
+        <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-linear-to-r from-gray-50 to-white">
           <div>
             <h3 className="text-lg font-bold text-[#3B5998] flex items-center gap-2">
               {initialData ? <Edit2 size={20}/> : <Plus size={20}/>}
@@ -533,7 +535,7 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                 </div>
                 
                 <div className="mb-4">
-                    <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide flex items-center justify-between">
                         Lịch học hàng tuần
                         <span className="text-xs font-normal text-gray-400 flex items-center gap-1">
                             <Lock size={10} /> Tự động theo ngày
@@ -637,7 +639,8 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
             </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

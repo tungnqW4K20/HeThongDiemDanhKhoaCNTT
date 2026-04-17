@@ -197,7 +197,7 @@ const AttendanceStats = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6 bg-slate-50 min-h-screen font-sans text-slate-900">
+    <div className="space-y-6 bg-slate-50 min-h-screen font-sans text-slate-900">
       
       {selectedClass ? (
         /* ======================== GIAO DIỆN CHI TIẾT ======================== */

@@ -12,6 +12,11 @@ const studentService = {
   update(studentId, data) {
     return axiosClient.put(`/sinh-vien/${studentId}`, data);
   },
+
+  delete(studentId) {
+    return axiosClient.delete(`/sinh-vien/${studentId}`);
+  },
+
   // importExcel(file, classId) {
   //   console.log("🚀 Service: Đang gọi API import...", { file, classId }); 
 

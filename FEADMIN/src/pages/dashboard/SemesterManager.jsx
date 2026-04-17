@@ -48,7 +48,7 @@ const SemesterManagerPage = () => {
   };
 
   return (
-    <div className="p-8 bg-[#F8F9FA] min-h-screen">
+    <div className="animate-in fade-in duration-500">
       <div className="mb-8">
         <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý học kỳ</h1>
         {/* <p className="text-gray-500 text-sm font-medium">Hệ thống đồng bộ Thứ 2 mốc tuần 1 cho lịch giảng dạy.</p> */}

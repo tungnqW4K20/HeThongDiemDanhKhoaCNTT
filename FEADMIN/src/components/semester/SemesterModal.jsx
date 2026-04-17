@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, AlertCircle } from 'lucide-react';
 import hocKyService from '../../service/hockyService';
 import namHocService from '../../service/namHocService'; // Import service mới
@@ -78,9 +79,11 @@ const SemesterModal = ({ initialData, onClose, onSuccess }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose}></div>
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-slate-900/45 backdrop-blur-sm" onClick={onClose}></div>
 
       <div className="relative bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -101,7 +104,7 @@ const SemesterModal = ({ initialData, onClose, onSuccess }) => {
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Thuộc năm học *</label>
             <select
-              className={`w-full px-4 py-2.5 rounded-xl border outline-none transition-all appearance-none bg-no-repeat bg-[right_1rem_center] ${
+              className={`w-full px-4 py-2.5 rounded-xl border outline-none transition-all appearance-none bg-no-repeat bg-position-[right_1rem_center] ${
                 errors.namhoc_id ? 'border-red-300' : 'border-gray-200 focus:border-[#3B5998]'
               }`}
               style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E")`, backgroundSize: '1.2em' }}
@@ -190,7 +193,8 @@ const SemesterModal = ({ initialData, onClose, onSuccess }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

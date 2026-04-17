@@ -302,8 +302,8 @@ export default function LecturerManagerPage() {
 };
 
     return (
-        <div className="min-h-screen bg-[#F0F2F5] p-6 md:p-8 font-sans text-slate-900">
-            <div className="max-w-[1400px] mx-auto mb-8">
+        <div className="animate-in fade-in duration-500 text-slate-900">
+            <div className="mb-8">
                 
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>

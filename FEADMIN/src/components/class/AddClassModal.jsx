@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Plus, Loader2, ChevronDown, Check, Search } from 'lucide-react';
 import khoaService from '../../service/khoaService';
 import giangVienService from '../../service/giangVienService';
@@ -265,9 +266,10 @@ const AddClassModal = ({ isOpen, onClose, onSave }) => {
   };
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-gray-100 flex flex-col max-h-[90vh]">
         
         {/* HEADER */}
@@ -388,7 +390,8 @@ const AddClassModal = ({ isOpen, onClose, onSave }) => {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
