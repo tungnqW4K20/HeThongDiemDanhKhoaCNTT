@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, Filter, X, Trash2, Building2, RefreshCw, Upload, KeyRound } from 'lucide-react'; // Đã thêm icon Upload
+import { Search, Plus, Filter, X, Trash2, Building2, RefreshCw, Upload, KeyRound, UserPlus } from 'lucide-react'; 
 import LecturerTable from '../../components/lectures/LecturerTable';
 import LecturerStats from '../../components/lectures/LecturerStats';
 import LecturerModal from '../../components/lectures/LecturerModal';
 import DeleteConfirmModalLectures from '../../components/lectures/DeleteConfirmModal';
-import ImportLecturerModal from '../../components/lectures/ImportLecturerModal'; // Component Import Mới
+import ImportLecturerModal from '../../components/lectures/ImportLecturerModal'; 
 import giangVienService from '../../service/giangVienService';
 import khoaService from '../../service/khoaService';
 import authService from '../../service/authService';
@@ -23,8 +23,8 @@ export default function LecturerManagerPage() {
     // Modal States
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false); // State Modal Import
-    const [importLoading, setImportLoading] = useState(false); // Loading state cho Import
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
+    const [importLoading, setImportLoading] = useState(false); 
     
     const [currentLecturer, setCurrentLecturer] = useState(null);
 
@@ -45,9 +45,6 @@ export default function LecturerManagerPage() {
         setIsLoading(true);
         try {
             const response = await giangVienService.getAll();
-            // Xử lý dữ liệu trả về linh hoạt
-            // axiosClient của bạn đã bóc tách data, nên response chính là object { success: true, data: [] }
-            // Hoặc đôi khi server trả mảng trực tiếp
             const resData = response.data || response;
             
             if (Array.isArray(resData)) {
@@ -116,7 +113,7 @@ export default function LecturerManagerPage() {
         });
     }, [lecturers, searchTerm, selectedFaculty, selectedBoMon]);
 
-    // --- HANDLERS (CRUD) ---
+    // --- HANDLERS ---
     const handleAddNew = () => {
         setCurrentLecturer(null);
         setIsFormModalOpen(true);
@@ -150,32 +147,26 @@ export default function LecturerManagerPage() {
         try {
             let res;
             if (hasAccount) {
-                // Cập nhật tài khoản hiện có
                 res = await authService.updateLecturerAccount(accountTarget.TaiKhoan.taikhoan_id, {
                     username: accountForm.username,
                     new_password: accountForm.password || undefined
                 });
             } else {
-                // Tạo tài khoản mới
                 res = await authService.createLecturerAccount({
                     username: accountForm.username,
                     password: accountForm.password,
                     ma_gv: accountTarget.ma_gv
                 });
             }
-            const resData = res;
-            if (resData.success || resData.errCode === 0) {
-                alert(hasAccount
-                    ? `✅ Cập nhật tài khoản thành công cho GV ${accountTarget.ho} ${accountTarget.ten}`
-                    : `✅ Tạo tài khoản thành công cho GV ${accountTarget.ho} ${accountTarget.ten}`);
+            if (res.success || res.errCode === 0) {
+                alert(hasAccount ? '✅ Cập nhật tài khoản thành công' : '✅ Tạo tài khoản thành công');
                 setIsCreateAccountModalOpen(false);
                 fetchData();
             } else {
-                alert('⚠️ ' + (resData.message || (hasAccount ? 'Cập nhật thất bại' : 'Tạo tài khoản thất bại')));
+                alert('⚠️ ' + (res.message || 'Thất bại'));
             }
         } catch (error) {
-            const msg = error.response?.data?.message || error.message;
-            alert('❌ Lỗi: ' + msg);
+            alert('❌ Lỗi: ' + (error.response?.data?.message || error.message));
         } finally {
             setAccountLoading(false);
         }
@@ -183,33 +174,19 @@ export default function LecturerManagerPage() {
 
     const handleSave = async (formData) => {
         try {
-            if (currentLecturer) {
-                const res = await giangVienService.update(currentLecturer.giangvien_id, formData);
-                const resData = res;
-                
-                if (resData.success || resData.errCode === 0) { 
-                    alert("Cập nhật thành công!"); 
-                    fetchData(); 
-                    setIsFormModalOpen(false);
-                } else {
-                    alert(resData.message || "Lỗi cập nhật");
-                }
+            const res = currentLecturer 
+                ? await giangVienService.update(currentLecturer.giangvien_id, formData)
+                : await giangVienService.create(formData);
+            
+            if (res.success || res.errCode === 0) { 
+                alert(currentLecturer ? "Cập nhật thành công!" : "Thêm mới thành công!"); 
+                fetchData(); 
+                setIsFormModalOpen(false);
             } else {
-                const res = await giangVienService.create(formData);
-                const resData = res;
-                
-                if (resData.success || resData.errCode === 0) {
-                    alert("Thêm mới thành công!");
-                    fetchData(); 
-                    setIsFormModalOpen(false);
-                } else {
-                    alert(resData.message || "Lỗi thêm mới");
-                }
+                alert(res.message || "Lỗi thao tác");
             }
         } catch (error) {
-            console.error("Lỗi khi lưu giảng viên:", error);
-            const msg = error.response?.data?.message || error.message;
-            alert("Có lỗi xảy ra: " + msg);
+            alert("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
         }
     };
 
@@ -217,16 +194,13 @@ export default function LecturerManagerPage() {
         if (currentLecturer) {
             try {
                 const res = await giangVienService.delete(currentLecturer.giangvien_id);
-                const resData = res;
-                
-                if (resData.success || resData.errCode === 0) {
+                if (res.success || res.errCode === 0) {
                     fetchData();
                     setSelectedIds(prev => prev.filter(id => id !== currentLecturer.giangvien_id));
                 } else {
-                    alert(resData.message || "Xóa thất bại");
+                    alert(res.message || "Xóa thất bại");
                 }
             } catch (error) {
-                console.error("Lỗi khi xóa:", error);
                 alert("Không thể xóa giảng viên này.");
             } finally {
                 setIsDeleteModalOpen(false);
@@ -238,214 +212,176 @@ export default function LecturerManagerPage() {
     const handleBulkDelete = async () => {
         if (window.confirm(`Bạn có chắc muốn xóa ${selectedIds.length} giảng viên đã chọn?`)) {
             try {
-                const deletePromises = selectedIds.map(id => giangVienService.delete(id));
-                await Promise.all(deletePromises);
+                await Promise.all(selectedIds.map(id => giangVienService.delete(id)));
                 fetchData(); 
                 setSelectedIds([]);
             } catch (error) {
-                console.error("Lỗi khi xóa nhiều:", error);
                 alert("Có lỗi xảy ra khi xóa danh sách.");
             }
         }
     };
 
-    // 🔥 IMPORT HANDLER (TÍCH HỢP API)
     const handleImportFile = async (file) => {
-    if (!file) return;
-    setImportLoading(true);
-    
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await giangVienService.importExcel(formData);
-        
-        // 1. Xác định đúng Object chứa field 'success'
-        // Trong trường hợp của bạn, 'response' chính là cái JSON chứa {success, message, data}
-        // Chúng ta KHÔNG lấy response.data ở đây vì nó sẽ lấy nhầm vào object thống kê
-        const result = response; 
-
-        console.log("Dữ liệu kiểm tra:", result);
-
-        // 2. Kiểm tra điều kiện thành công (Dùng check linh hoạt hơn)
-        if (result && (result.success === true || result.errCode === 0)) {
-            
-            // Load lại danh sách giảng viên trên màn hình
-            await fetchData(); 
-            
-            // Lấy thông tin thống kê từ object data bên trong
-            const stats = result.data; // Đây mới là {total_rows, inserted, ...}
-            
-            let detailMsg = "";
-            if (stats) {
-                detailMsg = `\n- Tổng số dòng: ${stats.total_rows}` +
-                            `\n- Thêm mới: ${stats.inserted}` +
-                            `\n- Bỏ qua (trùng): ${stats.duplicates_skipped}`;
+        if (!file) return;
+        setImportLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const result = await giangVienService.importExcel(formData);
+            if (result && (result.success === true || result.errCode === 0)) {
+                await fetchData(); 
+                const stats = result.data;
+                let detailMsg = stats ? `\n- Tổng: ${stats.total_rows}\n- Thêm mới: ${stats.inserted}\n- Bỏ qua: ${stats.duplicates_skipped}` : "";
+                alert(`✅ ${result.message || "Import thành công"}${detailMsg}`);
+                setIsImportModalOpen(false);
+            } else {
+                alert(`⚠️ Thông báo: ${result.message || "Lỗi định dạng"}`);
             }
-
-            alert(`✅ ${result.message || "Import thành công"}${detailMsg}`);
-            setIsImportModalOpen(false);
-            
-        } else {
-            // Nếu result.success là false hoặc không tồn tại
-            const msg = result.message || "Dữ liệu không hợp lệ hoặc lỗi định dạng.";
-            alert(`⚠️ Thông báo: ${msg}`);
+        } catch (error) {
+            alert(`❌ Lỗi hệ thống: ${error.response?.data?.message || error.message}`);
+        } finally {
+            setImportLoading(false);
         }
-    } catch (error) {
-        console.error("Lỗi Import:", error);
-        // Lấy lỗi từ server trả về nếu có
-        const serverError = error.response?.data?.message || error.message || "Lỗi kết nối server";
-        alert(`❌ Lỗi hệ thống: ${serverError}`);
-    } finally {
-        setImportLoading(false);
-    }
-};
+    };
 
     return (
-        <div className="min-h-screen bg-[#F0F2F5] p-6 md:p-8 font-sans text-slate-900">
-            <div className="max-w-[1400px] mx-auto mb-8">
+        <div className="min-h-screen bg-[#F0F2F5] p-4 md:p-8 font-sans text-slate-900">
+            <div className="max-w-[1440px] mx-auto">
                 
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
+                {/* HEADER SECTION - NEW LAYOUT */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý Giảng viên</h1>
-                        <p className="text-gray-500 mt-1 text-sm">Quản lý hồ sơ giảng viên, thông tin liên hệ và tài khoản.</p>
+                        <div className="flex items-center gap-3 mb-2">
+                            {/* <div className="p-2 bg-[#3B5998] rounded-lg text-white">
+                                <Building2 size={24} />
+                            </div> */}
+                            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998] tracking-tight">Quản lý Giảng viên</h1>
+                        </div>
+                        <p className="text-slate-500 text-sm md:text-base">Hệ thống quản lý hồ sơ, chuyên môn và tài khoản giảng viên toàn trường.</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button 
+                            onClick={() => setIsImportModalOpen(true)}
+                            className="flex-1 sm:flex-none px-5 py-2.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
+                        >
+                            <Upload size={18} className="text-blue-600" /> 
+                            <span>Import Excel</span>
+                        </button>
+                        
+                        <button 
+                            onClick={handleAddNew}
+                            className="flex-1 sm:flex-none px-6 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white font-bold rounded-xl shadow-md shadow-blue-900/10 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Plus size={20} strokeWidth={3} /> 
+                            <span>Thêm Giảng viên mới</span>
+                        </button>
                     </div>
                 </div>
 
                 <LecturerStats totalLecturers={lecturers.length} />
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-8">
                     
                     {/* TOOLBAR */}
-                    <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
+                    <div className="p-5 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
                         
                         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
                             {/* Search */}
                             <div className="relative w-full sm:w-80 group">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998] transition-colors" />
+                                    <Search className="h-4 w-4 text-slate-400 group-focus-within:text-[#3B5998]" />
                                 </div>
                                 <input
                                     type="text"
-                                    className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm transition-all"
-                                    placeholder="Tìm tên, mã GV, email, khoa..."
+                                    className="block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] text-sm transition-all"
+                                    placeholder="Tìm tên, mã GV, email..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                                 {searchTerm && (
-                                    <button 
-                                        onClick={() => setSearchTerm('')}
-                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
-                                    >
-                                        <X size={14} />
+                                    <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+                                        <X size={16} />
                                     </button>
                                 )}
                             </div>
 
                             {/* Filter Faculty */}
-                            <div className="relative w-full sm:w-60">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Building2 className="h-4 w-4 text-gray-400" />
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <div className="relative flex-1 sm:w-56">
+                                    <select
+                                        value={selectedFaculty}
+                                        onChange={(e) => setSelectedFaculty(e.target.value)}
+                                        className="block w-full pl-3 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] text-sm appearance-none cursor-pointer hover:border-slate-300 transition-all"
+                                    >
+                                        <option value="all">Tất cả Khoa / Viện</option>
+                                        {faculties.map(khoa => <option key={khoa.khoa_id} value={khoa.ten_khoa}>{khoa.ten_khoa}</option>)}
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <Filter size={14} className="text-slate-400" />
+                                    </div>
                                 </div>
-                                <select
-                                    value={selectedFaculty}
-                                    onChange={(e) => setSelectedFaculty(e.target.value)}
-                                    className="block w-full pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
-                                >
-                                    <option value="all">Tất cả Khoa / Viện</option>
-                                    {faculties.map(khoa => (
-                                        <option key={khoa.khoa_id} value={khoa.ten_khoa}>
-                                            {khoa.ten_khoa}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                    <Filter size={14} className="text-gray-400" />
-                                </div>
-                            </div>
 
-                            <div className="relative w-full sm:w-60">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Filter className="h-4 w-4 text-gray-400" />
-                                </div>
-                                <select
-                                    value={selectedBoMon}
-                                    onChange={(e) => setSelectedBoMon(e.target.value)}
-                                    className="block w-full pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
-                                >
-                                    <option value="all">Tất cả Bộ môn</option>
-                                    {boMonOptions.map((bm) => (
-                                        <option key={bm.id} value={bm.name}>
-                                            {bm.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                    <Filter size={14} className="text-gray-400" />
+                                <div className="relative flex-1 sm:w-56">
+                                    <select
+                                        value={selectedBoMon}
+                                        onChange={(e) => setSelectedBoMon(e.target.value)}
+                                        className="block w-full pl-3 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] text-sm appearance-none cursor-pointer hover:border-slate-300 transition-all"
+                                    >
+                                        <option value="all">Tất cả Bộ môn</option>
+                                        {boMonOptions.map((bm) => <option key={bm.id} value={bm.name}>{bm.name}</option>)}
+                                    </select>
+                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <Filter size={14} className="text-slate-400" />
+                                    </div>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
-                            <button 
-                                onClick={fetchData} 
-                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
-                                title="Làm mới"
-                            >
-                                <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
-                            </button>
-
-                            {/* 🔥 NÚT IMPORT EXCEL */}
-                            <button 
-                                onClick={() => setIsImportModalOpen(true)}
-                                className="px-3 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 text-sm font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shadow-sm"
-                            >
-                                <Upload size={16} /> <span className="hidden sm:inline">Import Excel</span>
-                            </button>
-
+                        {/* Secondary Actions */}
+                        <div className="flex items-center gap-2 w-full xl:w-auto justify-end border-t xl:border-none pt-4 xl:pt-0">
                             {selectedIds.length > 0 && (
                                 <button 
                                     onClick={handleBulkDelete}
-                                    className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors animate-in fade-in"
+                                    className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-bold flex items-center gap-2 transition-all animate-in slide-in-from-right-2"
                                 >
-                                    <Trash2 size={16} /> <span className="hidden sm:inline">Xóa ({selectedIds.length})</span>
+                                    <Trash2 size={16} /> <span>Xóa {selectedIds.length} mục</span>
                                 </button>
                             )}
-                            
+
                             <button 
-                                onClick={handleAddNew}
-                                className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
+                                onClick={fetchData} 
+                                className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-200"
+                                title="Làm mới dữ liệu"
                             >
-                                <Plus size={18} /> Thêm Giảng viên
+                                <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
                             </button>
                         </div>
                     </div>
 
                     {/* TABLE */}
-                    <LecturerTable 
-                        lecturers={filteredLecturers}
-                        isLoading={isLoading}
-                        onEdit={handleEdit}
-                        onDelete={handleDeleteClick}
-                        onCreateAccount={handleOpenCreateAccount}
-                        selectedIds={selectedIds}
-                        onSelectionChange={setSelectedIds}
-                    />
-
-                    {/* FOOTER */}
-                    <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
-                        <span className="text-xs text-gray-500 font-medium">
-                            Hiển thị {filteredLecturers.length} kết quả
-                        </span>
+                    <div className="flex-1 min-h-[500px]">
+                        <LecturerTable 
+                            lecturers={filteredLecturers}
+                            isLoading={isLoading}
+                            onEdit={handleEdit}
+                            onDelete={handleDeleteClick}
+                            onCreateAccount={handleOpenCreateAccount}
+                            selectedIds={selectedIds}
+                            onSelectionChange={setSelectedIds}
+                        />
                     </div>
 
+                    {/* FOOTER */}
+                    <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex items-center justify-between">
+                        <p className="text-sm text-slate-500 font-medium">
+                            Đang hiển thị <span className="text-slate-900 font-bold">{filteredLecturers.length}</span> giảng viên
+                        </p>
+                    </div>
                 </div>
             </div>
 
-            {/* --- MODALS --- */}
-            
-            {/* 1. Modal Thêm/Sửa */}
+            {/* MODALS */}
             <LecturerModal 
                 isOpen={isFormModalOpen}
                 onClose={() => setIsFormModalOpen(false)}
@@ -454,7 +390,6 @@ export default function LecturerManagerPage() {
                 faculties={faculties}
             />
 
-            {/* 2. Modal Xóa */}
             <DeleteConfirmModalLectures
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
@@ -462,7 +397,6 @@ export default function LecturerManagerPage() {
                 subjectName={currentLecturer ? `${currentLecturer.ho} ${currentLecturer.ten}` : ''}
             />
 
-            {/* 3. 🔥 MODAL IMPORT (Mới) */}
             <ImportLecturerModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
@@ -470,86 +404,67 @@ export default function LecturerManagerPage() {
                 isLoading={importLoading}
             />
 
-            {/* 4. MODAL TẠO TÀI KHOẢN GIẢNG VIÊN */}
+            {/* MODAL TẠO TÀI KHOẢN */}
             {isCreateAccountModalOpen && accountTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div 
-                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                        onClick={() => !accountLoading && setIsCreateAccountModalOpen(false)}
-                    />
-                    <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
-                        <div className="flex items-center gap-3 mb-5">
-                            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
-                                <KeyRound size={22} />
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !accountLoading && setIsCreateAccountModalOpen(false)} />
+                    <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 overflow-hidden">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
+                                <KeyRound size={24} />
                             </div>
                             <div>
-                                <h3 className="text-base font-bold text-gray-900">
-                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Cập nhật tài khoản' : 'Tạo tài khoản đăng nhập'}
+                                <h3 className="text-lg font-bold text-slate-800">
+                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Cập nhật tài khoản' : 'Cấp tài khoản mới'}
                                 </h3>
-                                <p className="text-xs text-gray-500 mt-0.5">
-                                    GV: <span className="font-semibold text-gray-700">{accountTarget.ho} {accountTarget.ten}</span>
-                                    {accountTarget.ma_gv && <span className="ml-1 text-gray-400">({accountTarget.ma_gv})</span>}
-                                </p>
+                                <p className="text-sm text-slate-500 italic">GV: {accountTarget.ho} {accountTarget.ten}</p>
                             </div>
                         </div>
 
-                        {(() => {
-                            const hasAccount = !!accountTarget?.TaiKhoan?.taikhoan_id;
-                            return (
-                                <form onSubmit={handleCreateAccount} className="flex flex-col gap-4">
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tên đăng nhập</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={accountForm.username}
-                                            onChange={(e) => setAccountForm(prev => ({ ...prev, username: e.target.value }))}
-                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 bg-gray-50 focus:bg-white transition-all"
-                                            placeholder="Nhập tên đăng nhập..."
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
-                                            {hasAccount ? 'Mật khẩu mới' : 'Mật khẩu'}
-                                            {hasAccount && <span className="ml-1 text-gray-400 font-normal">(để trống nếu không đổi)</span>}
-                                        </label>
-                                        <input
-                                            type="password"
-                                            required={!hasAccount}
-                                            minLength={hasAccount ? 0 : 6}
-                                            value={accountForm.password}
-                                            onChange={(e) => setAccountForm(prev => ({ ...prev, password: e.target.value }))}
-                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 bg-gray-50 focus:bg-white transition-all"
-                                            placeholder={hasAccount ? 'Nhập mật khẩu mới (tùy chọn)...' : 'Tối thiểu 6 ký tự...'}
-                                        />
-                                    </div>
-                                    <div className="flex gap-2 pt-1">
-                                        <button
-                                            type="button"
-                                            disabled={accountLoading}
-                                            onClick={() => setIsCreateAccountModalOpen(false)}
-                                            className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                                        >
-                                            Hủy
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            disabled={accountLoading}
-                                            className="flex-[2] py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                                        >
-                                            {accountLoading ? (
-                                                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                            ) : (
-                                                <KeyRound size={16} />
-                                            )}
-                                            {accountLoading
-                                                ? (hasAccount ? 'Đang cập nhật...' : 'Đang tạo...')
-                                                : (hasAccount ? 'Cập nhật tài khoản' : 'Tạo tài khoản')}
-                                        </button>
-                                    </div>
-                                </form>
-                            );
-                        })()}
+                        <form onSubmit={handleCreateAccount} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 ml-1">Tên đăng nhập</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={accountForm.username}
+                                    onChange={(e) => setAccountForm(prev => ({ ...prev, username: e.target.value }))}
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all bg-slate-50"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 ml-1">
+                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Mật khẩu mới (Tùy chọn)' : 'Mật khẩu khởi tạo'}
+                                </label>
+                                <input
+                                    type="password"
+                                    required={!accountTarget.TaiKhoan?.taikhoan_id}
+                                    minLength={6}
+                                    value={accountForm.password}
+                                    onChange={(e) => setAccountForm(prev => ({ ...prev, password: e.target.value }))}
+                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all bg-slate-50"
+                                    placeholder="Tối thiểu 6 ký tự..."
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    disabled={accountLoading}
+                                    onClick={() => setIsCreateAccountModalOpen(false)}
+                                    className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
+                                >
+                                    Hủy bỏ
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={accountLoading}
+                                    className="flex-[2] py-3 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {accountLoading ? <RefreshCw size={18} className="animate-spin" /> : <KeyRound size={18} />}
+                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Lưu thay đổi' : 'Tạo tài khoản'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

@@ -537,7 +537,7 @@ export default function AssignmentPage() {
                                     </select>
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                <div className="flex items-center gap-2 w-full sm:w-auto">
                                     <button 
                                         onClick={() => setShowProposals(true)}
                                         className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
