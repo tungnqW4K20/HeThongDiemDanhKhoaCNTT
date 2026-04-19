@@ -303,7 +303,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                 as: 'LopHocPhan',
                 required: true,
                 where: lopHocPhanWhere,
-                attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'hocky_id', 'giangvien_id'],
+                attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'hocky_id', 'giangvien_id', 'tuan_hoc'],
                 include: [
                     {
                         model: db.MonHoc,
@@ -362,8 +362,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
     const completedBuoiHoc = await db.BuoiHoc.findAll({
         where: {
             lophocphan_id: { [Op.in]: classIds },
-            trangthai: 'completed',
-            ngay: { [Op.lte]: endDate }
+            trangthai: 'completed'
         },
         attributes: ['buoi_id', 'lophocphan_id']
     });
@@ -400,6 +399,21 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
         const completedIds = completedByClass.get(classId) || [];
         if (regs.length === 0 || completedIds.length === 0) return;
 
+        const lhp = dailyBuoiHoc.find((b) => b.lophocphan_id === classId)?.LopHocPhan;
+        let tongBuoiKeHoach = completedIds.length;
+        if (lhp?.tuan_hoc) {
+            try {
+                const tuanHocValue = Array.isArray(lhp.tuan_hoc)
+                    ? lhp.tuan_hoc
+                    : JSON.parse(lhp.tuan_hoc);
+                if (Array.isArray(tuanHocValue) && tuanHocValue.length > 0) {
+                    tongBuoiKeHoach = tuanHocValue.length;
+                }
+            } catch (error) {
+                tongBuoiKeHoach = completedIds.length;
+            }
+        }
+
         regs.forEach((reg) => {
             let absences = 0;
             completedIds.forEach((buoiId) => {
@@ -407,9 +421,8 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                 if (found?.trangthai === 'absent') absences += 1;
             });
 
-            const rate = (absences / completedIds.length) * 100;
+            const rate = tongBuoiKeHoach > 0 ? (absences / tongBuoiKeHoach) * 100 : 0;
             if (rate >= 20) {
-                const lhp = dailyBuoiHoc.find((b) => b.lophocphan_id === classId)?.LopHocPhan;
                 warningsStudents.push({
                     lophocphan_id: classId,
                     ten_lop: lhp?.ten_lophocphan || 'N/A',

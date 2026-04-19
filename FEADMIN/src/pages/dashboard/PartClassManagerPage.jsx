@@ -17,7 +17,7 @@ const PartClassManagement = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // list | detail
   const [selectedClass, setSelectedClass] = useState(null);
-  console.log("--------------------")
+
   // 1. Lấy danh sách học kỳ
   useEffect(() => {
     const initData = async () => {
@@ -78,52 +78,54 @@ const PartClassManagement = () => {
   }, [fetchClasses]);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        
-        {/* Toolbar */}
-        {viewMode === 'list' && (
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            <div className="flex items-center gap-3 bg-white p-2.5 rounded-2xl shadow-sm border border-gray-100">
-              <div className="bg-[#3B5998] p-2 rounded-xl text-white shadow-md shadow-blue-200">
-                <Calendar size={20} />
-              </div>
-              <select 
-                value={selectedSemester}
-                onChange={(e) => setSelectedSemester(e.target.value)}
-                className="bg-transparent font-bold text-gray-700 outline-none pr-8 cursor-pointer text-sm"
-              >
-                {semesters.map(s => (
-                  <option key={s.hocky_id} value={s.hocky_id}>{s.ten_hocky}</option>
-                ))}
-              </select>
+    <div className="animate-in fade-in duration-500">
+      {viewMode === 'list' ? (
+        <>
+          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý lớp học phần</h1>
+              <p className="text-sm text-gray-500 mt-1">Danh sách lớp học phần theo học kỳ, giảng viên và bộ môn</p>
             </div>
 
-            <button 
-              onClick={fetchClasses}
-              className="p-2.5 bg-white border border-gray-200 text-gray-500 rounded-xl hover:text-[#3B5998] transition-all shadow-sm"
-            >
-              <RefreshCw size={20} />
-            </button>
-          </div>
-        )}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 bg-white px-3 py-2.5 rounded-xl shadow-sm border border-gray-200">
+                <div className="bg-[#3B5998] p-2 rounded-lg text-white">
+                  <Calendar size={18} />
+                </div>
+                <select
+                  value={selectedSemester}
+                  onChange={(e) => setSelectedSemester(e.target.value)}
+                  className="bg-transparent font-semibold text-gray-700 outline-none pr-6 cursor-pointer text-sm"
+                >
+                  {semesters.map((s) => (
+                    <option key={s.hocky_id} value={s.hocky_id}>{s.ten_hocky}</option>
+                  ))}
+                </select>
+              </div>
 
-        {/* Nội dung chính */}
-        {viewMode === 'list' ? (
-          <ClassListView 
-            data={classList} 
+              <button
+                onClick={fetchClasses}
+                className="p-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
+                title="Làm mới dữ liệu"
+              >
+                <RefreshCw size={20} className={isLoading ? 'animate-spin' : ''} />
+              </button>
+            </div>
+          </div>
+
+          <ClassListView
+            data={classList}
             isLoading={isLoading}
             onSelect={(cls) => { setSelectedClass(cls); setViewMode('detail'); }}
             onImportClick={() => alert("Tính năng Import Excel")}
           />
-        ) : (
-          <ClassDetailView 
-            classInfo={selectedClass} 
-            onBack={() => setViewMode('list')} 
-          />
-        )}
-
-      </div>
+        </>
+      ) : (
+        <ClassDetailView
+          classInfo={selectedClass}
+          onBack={() => setViewMode('list')}
+        />
+      )}
     </div>
   );
 };

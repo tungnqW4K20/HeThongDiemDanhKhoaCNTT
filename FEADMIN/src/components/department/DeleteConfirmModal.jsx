@@ -1,11 +1,13 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, X } from 'lucide-react';
 
 const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title = "Xác nhận xóa", message, studentName }) => {
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm border border-gray-100 overflow-hidden">
         <div className="p-6">
           <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full text-red-600 mb-4">
@@ -36,7 +38,8 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, title = "Xác nhận x
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -88,23 +88,15 @@ export default function ClassManagerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F0F2F5] text-slate-900 font-sans">
-        <main className="max-w-[1400px] mx-auto p-6 md:p-8">
-            <nav className="flex mb-6 text-sm text-gray-500 justify-between items-center">
-                <ol className="inline-flex items-center space-x-1 md:space-x-3">
-                    {selectedClass && (
-                    <li>
-                        <div className="flex items-center">
-                            <span className="mx-2 text-gray-400">/</span>
-                            <span className="text-[#3B5998] font-semibold">{selectedClass.name}</span>
-                        </div>
-                    </li>
-                    )}
-                </ol>
-            </nav>
-
+    <div className="animate-in fade-in duration-500 text-slate-900">
+      <main>
             {!selectedClass ? (
                 <>
+            <div className="mb-6">
+            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý lớp hành chính</h1>
+            <p className="text-sm text-gray-500 mt-1">Danh sách các lớp chính quy và liên thông</p>
+            </div>
+
                   <ClassListView 
                     data={classesData} 
                     onSelect={setSelectedClass}

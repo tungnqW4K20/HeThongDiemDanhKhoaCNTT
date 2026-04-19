@@ -61,7 +61,7 @@ const ClassListView = ({ data, onSelect, onAddClass, onImportClick }) => {
 
   useEffect(() => {
     resetPagination();
-  }, [searchTerm, selectedDepartment, selectedMajor, selectedCampus]);
+  }, [searchTerm, selectedDepartment, selectedMajor, selectedCampus, resetPagination]);
 
 
   const handleDepartmentChange = (e) => {
@@ -91,22 +91,16 @@ const ClassListView = ({ data, onSelect, onAddClass, onImportClick }) => {
       
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col transition-all">
         {/* --- HEADER TOOLBAR --- */}
-        <div className="p-6 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý lớp hành chính</h1>
-            <p className="text-sm text-gray-500 mt-1">Danh sách các lớp chính quy và liên thông</p>
-          </div>
-          
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            {/* Search Input */}
-            <div className="relative group w-full sm:w-auto">
+        <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white">
+          {/* Search Input */}
+          <div className="relative group w-full xl:max-w-xl">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-[#3B5998] transition-colors" />
               <input 
                 type="text" 
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Tìm kiếm lớp..." 
-                className="pl-10 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 focus:border-[#3B5998] w-full sm:w-64 transition-all"
+                className="pl-10 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 focus:border-[#3B5998] w-full transition-all"
               />
               {searchTerm && (
                 <button 
@@ -116,9 +110,9 @@ const ClassListView = ({ data, onSelect, onAddClass, onImportClick }) => {
                   <X size={14} />
                 </button>
               )}
-            </div>
-            
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+          </div>
+
+          <div className="flex items-center gap-2 w-full xl:w-auto xl:justify-end">
                 {/* Filter Toggle Button */}
                 <button 
                   onClick={() => setShowFilters(!showFilters)}
@@ -145,7 +139,6 @@ const ClassListView = ({ data, onSelect, onAddClass, onImportClick }) => {
                 >
                   + Thêm lớp
                 </button>
-            </div>
           </div>
         </div>
 

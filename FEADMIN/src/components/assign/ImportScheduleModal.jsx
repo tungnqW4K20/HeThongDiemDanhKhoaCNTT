@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Upload, FileSpreadsheet, Download, CheckCircle, AlertCircle, Loader2, Trash2, Calendar, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import hocKyService from '../../service/hockyService';
@@ -50,6 +51,7 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
   }, [isOpen]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   // Xử lý khi chọn học kỳ từ dropdown
   const handleSemesterChange = (e) => {
@@ -100,8 +102,8 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
     onImport(payload);
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl mt-[50px] max-h-[600px] overflow-hidden border border-gray-100 flex flex-col overflow-y-auto">
         
         {/* Header */}
@@ -249,7 +251,8 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

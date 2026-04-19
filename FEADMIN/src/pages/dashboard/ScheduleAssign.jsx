@@ -466,7 +466,7 @@ export default function AssignmentPage() {
     const soSinhVienCanhBao = danhSachSinhVien.filter((sv) => sv.canh_bao).length;
 
     return (
-        <div className="min-h-screen bg-[#F0F2F5] p-6 md:p-8 font-sans text-slate-900">
+        <div className="animate-in fade-in duration-500 text-slate-900">
             {/* Loading Overlay */}
             {(isLoading || importLoading || isAttendanceLoading) && (
                 <div className="fixed inset-0 z-60 bg-black/20 flex items-center justify-center backdrop-blur-[1px]">
@@ -477,16 +477,15 @@ export default function AssignmentPage() {
                 </div>
             )}
 
-            <div className="max-w-[1400px] mx-auto">
-                {/* 
-                    LOGIC CHUYỂN ĐỔI COMPONENT:
-                    Nếu showProposals = true -> Hiện ProposalView
-                    Nếu showProposals = false -> Hiện Bảng lịch giảng dạy
-                */}
-                {showProposals ? (
-                    <ProposalView onBack={() => setShowProposals(false)} />
-                ) : (
-                    <div className="animate-in fade-in duration-500">
+            {/* 
+                LOGIC CHUYỂN ĐỔI COMPONENT:
+                Nếu showProposals = true -> Hiện ProposalView
+                Nếu showProposals = false -> Hiện Bảng lịch giảng dạy
+            */}
+            {showProposals ? (
+                <ProposalView onBack={() => setShowProposals(false)} />
+            ) : (
+                <div className="animate-in fade-in duration-500">
                         {/* Header của Assignment */}
                         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
                             <div>
@@ -514,7 +513,7 @@ export default function AssignmentPage() {
 
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
                             <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3">
+                                <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3 justify-between">
                                     <div className="relative w-full sm:w-80 group">
                                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998]" />
                                         <input
@@ -577,9 +576,8 @@ export default function AssignmentPage() {
                                 </span>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
+                </div>
+            )}
 
             {/* Các Modal (đặt ở ngoài để dùng chung hoặc riêng cho view Assignment) */}
             {!showProposals && (
@@ -647,13 +645,13 @@ export default function AssignmentPage() {
                                 </div>
 
                                 <div className="flex-1 overflow-auto">
-                                    <table className="min-w-full text-sm text-left">
+                                    <table className="min-w-full text-sm text-left border-collapse">
                                         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                             <tr>
-                                                <th className="px-5 py-3 sticky left-0 z-20 bg-slate-50 border-r min-w-[220px] font-bold text-slate-600">Sinh viên</th>
-                                                <th className="px-4 py-3 text-center border-r min-w-[100px] font-bold text-slate-600">% Vắng</th>
+                                                <th className="px-5 py-3 sticky left-0 z-20 bg-slate-50 border-r border-slate-200 min-w-[220px] font-bold text-slate-600">Sinh viên</th>
+                                                <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[100px] font-bold text-slate-600">% Vắng</th>
                                                 {lichSuCot.map((h, i) => (
-                                                    <th key={i} className="px-3 py-3 text-center text-[10px] font-mono border-r min-w-[90px] text-slate-500 uppercase">
+                                                    <th key={i} className="px-3 py-3 text-center text-[10px] font-mono border-r border-slate-200 min-w-[90px] text-slate-500 uppercase">
                                                         {new Date(h.ngay).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
                                                     </th>
                                                 ))}
@@ -662,16 +660,16 @@ export default function AssignmentPage() {
                                         <tbody className="divide-y divide-slate-100">
                                             {danhSachSinhVien.map((sv) => (
                                                 <tr key={sv.sinhvien_id} className={sv.canh_bao ? 'bg-red-50/40' : 'hover:bg-slate-50'}>
-                                                    <td className={`px-5 py-3 sticky left-0 z-10 border-r ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white text-slate-700'}`}>
+                                                    <td className={`px-5 py-3 sticky left-0 z-10 border-r border-slate-200 ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white text-slate-700'}`}>
                                                         <div className="font-semibold">{sv.ten_sv}</div>
                                                         <div className="text-[11px] opacity-70 font-mono">{sv.ma_sv}</div>
                                                         {sv.canh_bao && <div className="text-[10px] font-bold text-red-600 mt-1">Cảnh báo: Vắng quá 20%</div>}
                                                     </td>
-                                                    <td className={`px-4 py-3 text-center font-black border-r ${sv.canh_bao ? 'text-red-600' : 'text-slate-600'}`}>
+                                                    <td className={`px-4 py-3 text-center font-black border-r border-slate-200 ${sv.canh_bao ? 'text-red-600' : 'text-slate-600'}`}>
                                                         {sv.ti_le_vang}%
                                                     </td>
                                                     {sv.history?.map((h, i) => (
-                                                        <td key={i} className="px-3 py-3 text-center border-r last:border-r-0">
+                                                        <td key={i} className="px-3 py-3 text-center border-r border-slate-200 last:border-r-0">
                                                             {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto" />}
                                                             {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto" />}
                                                             {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto" />}

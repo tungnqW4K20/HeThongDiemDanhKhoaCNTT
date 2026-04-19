@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, Edit2, Plus, ChevronDown, Check, Search } from 'lucide-react';
 import khoaService from '../../service/khoaService';
 
@@ -116,6 +117,7 @@ const SubjectModal = ({ isOpen, onClose, onSave, initialData }) => {
   }, [searchDepartmentTerm, searchBoMonTerm]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   // Lọc danh sách khoa dựa trên từ khóa tìm kiếm
   const filteredDepartments = departments.filter(dept => 
@@ -213,8 +215,8 @@ const SubjectModal = ({ isOpen, onClose, onSave, initialData }) => {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
@@ -392,7 +394,8 @@ const SubjectModal = ({ isOpen, onClose, onSave, initialData }) => {
             </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

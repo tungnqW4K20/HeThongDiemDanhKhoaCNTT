@@ -1,5 +1,6 @@
 // components/class/ImportStudentModal.jsx
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, UploadCloud, FileSpreadsheet, Download, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -13,6 +14,7 @@ const ImportStudentModal = ({ isOpen, onClose, onImport, classId }) => {
   const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -92,8 +94,8 @@ const ImportStudentModal = ({ isOpen, onClose, onImport, classId }) => {
       validateAndSetFile(e.dataTransfer.files[0]); 
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg border border-gray-100 flex flex-col overflow-hidden max-h-[90vh]">
         
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
@@ -183,7 +185,8 @@ const ImportStudentModal = ({ isOpen, onClose, onImport, classId }) => {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -1,6 +1,7 @@
 'use strict';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     ArrowLeft, CheckCircle2, XCircle, Clock, 
     Search, Info, ChevronRight, Loader2, AlertCircle,
@@ -94,7 +95,7 @@ const ProposalView = ({ onBack }) => {
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-10 relative">
             
             {/* --- COMPACT PROFESSIONAL MODAL --- */}
-            {confirmModal.isOpen && (
+            {confirmModal.isOpen && typeof document !== 'undefined' && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div 
                         className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
@@ -155,7 +156,8 @@ const ProposalView = ({ onBack }) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* --- HEADER --- */}

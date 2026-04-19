@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Upload, FileSpreadsheet, Download, CheckCircle, AlertCircle, Loader2, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx'; 
 
@@ -9,6 +10,7 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
   const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   // Tải file mẫu
   const handleDownloadTemplate = () => {
@@ -110,8 +112,8 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
@@ -250,7 +252,8 @@ const ImportSubjectModal = ({ isOpen, onClose, onImport, isLoading }) => {
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

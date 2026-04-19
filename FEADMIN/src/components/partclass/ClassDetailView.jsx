@@ -6,7 +6,10 @@ import {
 import Badge from './Badge';
 import AddStudentModal from './AddStudentModal';
 import ImportStudentModal from './ImportStudentModal';
+import EditStudentModal from './EditStudentModal';
+import DeleteConfirmModal from './DeleteConfirmModal';
 import hocPhanService from '../../service/lophocphanService';
+import studentService from '../../service/studentService';
 
 
 const ClassDetailView = ({ classInfo, onBack }) => {
@@ -17,6 +20,9 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   // States điều khiển Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState(null);
    const fetchStudents = async () => {
     setIsLoading(true);
     try {
@@ -25,11 +31,14 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         // Map lại dữ liệu cho khớp với UI (vì API trả về cấu trúc DangKyHoc lồng SinhVien)
         const mappedStudents = res.data.map(item => ({
           id: item.SinhVien.sinhvien_id,
+          sinhvien_id: item.SinhVien.sinhvien_id,
           ma_sv: item.SinhVien.ma_sv,
           ten: item.SinhVien.ten,
           ngaysinh: item.SinhVien.ngaysinh,
           email: item.SinhVien.email,
           sdt: item.SinhVien.sdt,
+          lop_hanhchinh_id: item.SinhVien.lop_hanhchinh_id,
+          trang_thai: item.SinhVien.trang_thai || 'Đang học',
           ten_lop_hc: item.SinhVien.Lop?.ten_lop || 'N/A'
         }));
         console.log("mappedStudents", mappedStudents)
@@ -48,6 +57,53 @@ const ClassDetailView = ({ classInfo, onBack }) => {
     console.log("Thêm sinh viên:", data);
     // Gọi API save -> fetchStudents()
     setIsAddModalOpen(false);
+  };
+
+  const handleEditClick = (student) => {
+    setSelectedStudent(student);
+    setIsEditModalOpen(true);
+  };
+
+  const handleConfirmEdit = async (updatedStudent) => {
+    try {
+      const res = await studentService.update(updatedStudent.sinhvien_id, updatedStudent);
+      const isSuccess = res?.success ?? (res?.errCode === undefined ? true : res?.errCode === 0);
+      if (isSuccess) {
+        alert(res.message || 'Cập nhật sinh viên thành công');
+        setIsEditModalOpen(false);
+        setSelectedStudent(null);
+        fetchStudents();
+      } else {
+        alert(res?.message || 'Không thể cập nhật sinh viên');
+      }
+    } catch (error) {
+      console.error('Lỗi cập nhật sinh viên:', error);
+      alert(error?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật sinh viên');
+    }
+  };
+
+  const handleDeleteClick = (student) => {
+    setSelectedStudent(student);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!selectedStudent?.sinhvien_id) return;
+    try {
+      const res = await studentService.delete(selectedStudent.sinhvien_id);
+      const isSuccess = res?.success ?? (res?.errCode === undefined ? true : res?.errCode === 0);
+      if (isSuccess) {
+        alert(res.message || 'Xóa sinh viên thành công');
+        setIsDeleteModalOpen(false);
+        setSelectedStudent(null);
+        fetchStudents();
+      } else {
+        alert(res?.message || 'Không thể xóa sinh viên');
+      }
+    } catch (error) {
+      console.error('Lỗi xóa sinh viên:', error);
+      alert(error?.response?.data?.message || 'Có lỗi xảy ra khi xóa sinh viên');
+    }
   };
 
   useEffect(() => {
@@ -215,7 +271,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan="6" className="py-10 text-center">
+                  <td colSpan="7" className="py-10 text-center">
                     <Loader2 className="animate-spin text-[#3B5998] mx-auto" />
                   </td>
                 </tr>
@@ -245,10 +301,18 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Sửa">
+                        <button
+                          onClick={() => handleEditClick(sv)}
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          title="Sửa"
+                        >
                           <Edit3 size={16} />
                         </button>
-                        <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Xóa khỏi lớp">
+                        <button
+                          onClick={() => handleDeleteClick(sv)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Xóa"
+                        >
                           <Trash2 size={16} />
                         </button>
                       </div>
@@ -257,7 +321,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="py-10 text-center text-gray-400 text-sm italic">
+                  <td colSpan="7" className="py-10 text-center text-gray-400 text-sm italic">
                     Chưa có sinh viên nào trong lớp học phần này
                   </td>
                 </tr>
@@ -280,6 +344,26 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportStudent}
         classId={classInfo.id}
+      />
+
+      <EditStudentModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setSelectedStudent(null);
+        }}
+        onSave={handleConfirmEdit}
+        student={selectedStudent}
+      />
+
+      <DeleteConfirmModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setSelectedStudent(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        studentName={selectedStudent?.ten}
       />
     </div>
   );

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save } from 'lucide-react';
 
 const RetakeModal = ({ isOpen, onClose, onSubmit, initialData }) => {
@@ -32,6 +33,7 @@ const RetakeModal = ({ isOpen, onClose, onSubmit, initialData }) => {
   }, [initialData, isOpen]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -43,8 +45,8 @@ const RetakeModal = ({ isOpen, onClose, onSubmit, initialData }) => {
     onSubmit(formData);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden animate-fade-in-up">
         {/* Header Modal */}
         <div className="bg-[#3B5998] px-6 py-4 flex justify-between items-center">
@@ -153,7 +155,8 @@ const RetakeModal = ({ isOpen, onClose, onSubmit, initialData }) => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
