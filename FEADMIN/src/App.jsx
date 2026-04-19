@@ -19,6 +19,7 @@ import KhoaManager from './pages/dashboard/KhoaManager';
 import BoMonManagerPage from './pages/dashboard/BoMonManager';
 import PartClassManagerPage from './pages/dashboard/PartClassManagerPage';
 import AttendanceStats from './pages/dashboard/AttendanceStats';
+import CoSoManagerPage from './pages/dashboard/CoSoManager';
 
 const StudentManager = () => <div>Đăng ký học phần Content</div>;
 const LecturerManager = () => <div>Quản lý Giảng Viên Content</div>;
@@ -53,6 +54,7 @@ function App() {
                 <Route path="/department" element={<KhoaManager />} />
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
                   <Route path="/bo-mon" element={<BoMonManagerPage />} />
+                  <Route path="/co-so" element={<CoSoManagerPage />} />
                 </Route>
                 <Route path="/part-class" element={<PartClassManagerPage />} />
               </Route>

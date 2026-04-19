@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save } from 'lucide-react';
 
+const normalizeStatus = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (!raw) return 'Đang học';
+  if (raw === 'dang hoc' || raw === 'đang học') return 'Đang học';
+  if (raw === 'canh bao' || raw === 'cảnh báo') return 'Cảnh báo';
+  if (raw === 'bao luu' || raw === 'bảo lưu') return 'Bảo lưu';
+  if (raw === 'thoi hoc' || raw === 'thôi học') return 'Thôi học';
+  return 'Đang học';
+};
+
 const EditStudentModal = ({ isOpen, onClose, onSave, student }) => {
   // Khởi tạo state dựa trên props student truyền vào (mapping dữ liệu API sang form)
   const [formData, setFormData] = useState({
@@ -27,7 +37,7 @@ const EditStudentModal = ({ isOpen, onClose, onSave, student }) => {
             email: student.email || '',
             sdt: student.sdt || '',
             ngaysinh: formattedDate,
-            trang_thai: student.trang_thai || 'Đang học'
+          trang_thai: normalizeStatus(student.trang_thai)
         });
     }
   }, [student]);

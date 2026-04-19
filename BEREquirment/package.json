@@ -8,6 +8,7 @@
     "dev": "nodemon src/index.js",
     "seed:admin": "node src/seeders/seed-admin.js",
     "seed:data": "node src/seeders/seed-data.js",
+    "seed:csv:full": "node src/seeders/seed-csv-full.js",
     "seed:attendance": "node src/seeders/seed-attendance.js",
     "seed:data:2627": "node src/seeders/seed-data-2026-2027.js",
     "seed:truongbomon": "node src/seeders/seed-truongbomon.js",
@@ -15,7 +16,8 @@
     "sync:bomon-schema": "node src/seeders/sync-bomon-schema.js",
     "seed:conflict": "node src/seeders/seed-dexuat-conflict.js",
     "seed:gv001-lich": "node src/seeders/seed-gv001-lich.js",
-    "seed:today-tomorrow": "node src/seeders/seed-today-tomorrow-attendance.js"
+    "seed:today-tomorrow": "node src/seeders/seed-today-tomorrow-attendance.js",
+    "db:cleanup:keep-admin": "node scripts/cleanup-keep-admin.js --db=attendance_system --yes"
   },
   "keywords": [],
   "author": "",

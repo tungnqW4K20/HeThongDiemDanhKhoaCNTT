@@ -61,7 +61,8 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         }
     } catch (error) {
         console.error("Lỗi thêm sinh viên:", error);
-        alert("Có lỗi xảy ra khi thêm sinh viên");
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage || "Có lỗi xảy ra khi thêm sinh viên");
     }
   };
 
@@ -78,7 +79,8 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         }
     } catch (error) {
         console.error("Lỗi cập nhật sinh viên:", error);
-        alert("Có lỗi xảy ra");
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage || "Có lỗi xảy ra khi cập nhật sinh viên");
     }
   };
 
