@@ -1,0 +1,16 @@
+STT,MA_SV,HO_TEN,NGAY_SINH,GIOI_TINH,EMAIL,SDT,DIA_CHI
+1,SV001,Nguyễn Văn An,20/10/2003,Nam,sv001@example.com,0987654321,Hưng Yên
+2,SV002,Trần Thị Bình,15/05/2003,Nữ,sv002@example.com,0912345678,Hà Nội
+3,SV003,Lê Minh Châu,02/12/2003,Nữ,sv003@example.com,0961122334,Hải Dương
+4,SV004,Phạm Quốc Đạt,11/08/2003,Nam,sv004@example.com,0972233445,Nam Định
+5,SV005,Vũ Thu Hà,29/03/2004,Nữ,sv005@example.com,0393344556,Hải Phòng
+6,SV006,Đỗ Hoàng Khang,07/01/2003,Nam,sv006@example.com,0384455667,Thái Bình
+7,SV007,Bùi Ngọc Lan,18/09/2004,Nữ,sv007@example.com,0375566778,Bắc Ninh
+8,SV008,Ngô Đức Long,25/04/2003,Nam,sv008@example.com,0366677889,Quảng Ninh
+9,SV009,Hoàng Gia Minh,30/11/2003,Nam,sv009@example.com,0357788990,Hà Nam
+10,SV010,Phan Thảo My,14/02/2004,Nữ,sv010@example.com,0348899001,Ninh Bình
+11,SV011,Cao Nhật Nam,09/07/2003,Nam,sv011@example.com,0339900112,Thanh Hóa
+12,SV012,Dương Tú Oanh,21/06/2004,Nữ,sv012@example.com,0321011123,Nghệ An
+13,SV013,Trịnh Quang Phúc,05/05/2003,Nam,sv013@example.com,0312122234,Phú Thọ
+14,SV014,Lý Bảo Quyên,17/10/2004,Nữ,sv014@example.com,0303233345,Thái Nguyên
+15,SV015,Nguyễn Hữu Sơn,12/01/2003,Nam,sv015@example.com,0894344456,Hòa Bình

@@ -68,7 +68,9 @@ const createSinhVien = async (req, res) => {
             data: sv
         });
     } catch (err) {
-        return res.status(400).json({ success: false, message: err.message });
+        const message = err.message || 'Lỗi thêm sinh viên';
+        const statusCode = message.includes('Trùng mã sinh viên') ? 409 : 400;
+        return res.status(statusCode).json({ success: false, message });
     }
 };
 
@@ -93,11 +95,11 @@ const deleteSinhVien = async (req, res) => {
     try {
         const { sinhvien_id } = req.params;
 
-        await svService.softDeleteSinhVien(sinhvien_id);
+        await svService.hardDeleteSinhVien(sinhvien_id);
 
         return res.json({
             success: true,
-            message: 'Xóa mềm sinh viên thành công'
+            message: 'Xóa sinh viên thành công'
         });
     } catch (err) {
         return res.status(500).json({ success: false, message: err.message });

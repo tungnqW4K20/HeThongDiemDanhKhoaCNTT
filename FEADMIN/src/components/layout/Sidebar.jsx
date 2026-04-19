@@ -35,6 +35,7 @@ const Sidebar = () => {
     { path: '/subjects', label: 'Quản lý môn học', icon: BookOpenCheck },
     { path: '/schedule', label: 'Phân công lịch dạy', icon: CalendarDays },
     { path: '/department', label: 'Quản lý khoa', icon: Building2 },
+    { path: '/co-so', label: 'Quản lý cơ sở', icon: School },
     { path: '/bo-mon', label: 'Quản lý bộ môn', icon: Library },
     { path: '/part-class', label: 'Quản lý lớp học phần', icon: ListTree },
   ];
