@@ -14,6 +14,7 @@ import AssignmentTable from '../../components/assign/AssignmentTable';
 import AssignmentModal from '../../components/assign/AssignmentModal';
 import DeleteConfirmModalSchedule from '../../components/assign/DeleteConfirmModal';
 import ImportScheduleModal from '../../components/assign/ImportScheduleModal'; 
+import ImportResultModal from '../../components/common/ImportResultModal';
 
 // Services
 import phanCongService from '../../service/phancongService';
@@ -27,6 +28,41 @@ import ProposalView from '../../components/assign/ProposalView.jsx';
 const formatDateVN = (date) => {
     return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 }
+
+const parseDateOnlyLocal = (dateValue) => {
+    if (!dateValue) return null;
+    const normalized = String(dateValue).slice(0, 10);
+    const [y, m, d] = normalized.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m - 1, d, 12, 0, 0, 0);
+};
+
+const pickDefaultSemesterIdByTime = (semesterList = []) => {
+    if (!Array.isArray(semesterList) || semesterList.length === 0) return '';
+
+    const now = new Date();
+    now.setHours(12, 0, 0, 0);
+
+    const currentSemester = semesterList.find((sem) => {
+        const start = parseDateOnlyLocal(sem.ngay_batdau);
+        const end = parseDateOnlyLocal(sem.ngay_ketthuc);
+        return start && end && now >= start && now <= end;
+    });
+    if (currentSemester?.hocky_id) return currentSemester.hocky_id;
+
+    const sortedByStartDesc = [...semesterList].sort((a, b) => {
+        const aStart = parseDateOnlyLocal(a.ngay_batdau)?.getTime() || 0;
+        const bStart = parseDateOnlyLocal(b.ngay_batdau)?.getTime() || 0;
+        return bStart - aStart;
+    });
+
+    const nearestPastSemester = sortedByStartDesc.find((sem) => {
+        const start = parseDateOnlyLocal(sem.ngay_batdau);
+        return start && start <= now;
+    });
+
+    return nearestPastSemester?.hocky_id || sortedByStartDesc[0]?.hocky_id || '';
+};
 
 // const generateWeeksFromSemester = (anchorMondayStr, endDateStr) => {
 //     if (!anchorMondayStr || !endDateStr) return [];
@@ -109,6 +145,10 @@ export default function AssignmentPage() {
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
+    const [isImportResultModalOpen, setIsImportResultModalOpen] = useState(false);
+    const [importResultSummary, setImportResultSummary] = useState(null);
+    const [importSuccessRows, setImportSuccessRows] = useState([]);
+    const [importFailedRows, setImportFailedRows] = useState([]);
     const [currentAssignment, setCurrentAssignment] = useState(null);
     const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
     const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
@@ -122,22 +162,22 @@ export default function AssignmentPage() {
             try {
                 const [hocKyRes, khoaRes] = await Promise.all([
                     hocKyService.getAll(),
-                    khoaService.getAll()
+                    khoaService.getAllBoMonRaw()
                 ]);
                 const listHocKy = hocKyRes.data || []; 
                 if (listHocKy.length > 0) {
                     setSemesters(listHocKy);
-                    setCurrentSemesterId(listHocKy[0].hocky_id);
+                    setCurrentSemesterId(pickDefaultSemesterIdByTime(listHocKy));
                 }
 
-                const khoaList = khoaRes.data?.data || khoaRes.data || [];
-                const flattenedBoMon = khoaList.flatMap((khoa) =>
-                    (khoa.DanhSachChuyenNganh || []).map((bm) => ({
-                        id: bm.chuyennganh_id,
-                        name: bm.ten_chuyennganh
-                    }))
-                );
-                setBoMonOptions(flattenedBoMon);
+                const boMonList = khoaRes.data?.data || khoaRes.data || [];
+                const normalizedBoMon = boMonList
+                    .filter((bm) => bm?.bomon_id && (bm?.ten_bomon || bm?.ma_bomon))
+                    .map((bm) => ({
+                        id: bm.bomon_id,
+                        name: bm.ten_bomon || bm.ma_bomon
+                    }));
+                setBoMonOptions(normalizedBoMon);
             } catch (err) {
                 console.error("Lỗi khi load danh sách học kỳ:", err);
             }
@@ -394,7 +434,6 @@ export default function AssignmentPage() {
     };
 
     const handleImportFile = async (data) => {
-        const selectedSem = semesters.find(s => s.hocky_id === data.semesterId);
         setImportLoading(true);
         try {
             const formData = new FormData();
@@ -410,12 +449,40 @@ export default function AssignmentPage() {
 
             const res = await phanCongService.importExcel(formData);
             if (res.data?.success || res.success) {
-                alert("Import thành công");
                 setIsImportModalOpen(false);
+                const importResult = res?.data?.importResult || res?.importResult || null;
+                const successRows = Array.isArray(importResult?.successRows) ? importResult.successRows : [];
+                const failedRows = Array.isArray(importResult?.failedRows) ? importResult.failedRows : [];
+
+                setImportResultSummary({
+                    totalRows: importResult?.totalRows ?? (successRows.length + failedRows.length),
+                    successCount: importResult?.successCount ?? successRows.length,
+                    failedCount: importResult?.failedCount ?? failedRows.length
+                });
+                setImportSuccessRows(successRows);
+                setImportFailedRows(failedRows);
+                setIsImportResultModalOpen(true);
+
                 const updatedList = await phanCongService.getAll({ hocky_id: data.semesterId });
                 setAssignments(updatedList.data || []);
             }
-        } catch (error) { alert("Lỗi Import"); } 
+        } catch (error) {
+            const errorMsg = error?.response?.data?.message || 'Lỗi Import';
+            setImportResultSummary({
+                totalRows: 0,
+                successCount: 0,
+                failedCount: 1
+            });
+            setImportSuccessRows([]);
+            setImportFailedRows([
+                {
+                    rowNumber: '-',
+                    label: 'Import file Excel',
+                    reason: errorMsg
+                }
+            ]);
+            setIsImportResultModalOpen(true);
+        } 
         finally { setImportLoading(false); }
     };
 
@@ -453,6 +520,16 @@ export default function AssignmentPage() {
         setIsAttendanceModalOpen(false);
         setAttendanceDetail(null);
     };
+
+    useEffect(() => {
+        if (!isAttendanceModalOpen || typeof document === 'undefined') return;
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [isAttendanceModalOpen]);
 
     const lopHanhChinhText = Array.isArray(attendanceDetail?.lop_hanh_chinh)
         ? attendanceDetail.lop_hanh_chinh.join(', ')
@@ -601,8 +678,17 @@ export default function AssignmentPage() {
                         isLoading={importLoading} 
                     />
 
+                    <ImportResultModal
+                        isOpen={isImportResultModalOpen}
+                        onClose={() => setIsImportResultModalOpen(false)}
+                        title="Kết quả import lịch trình"
+                        summary={importResultSummary}
+                        successRows={importSuccessRows}
+                        failedRows={importFailedRows}
+                    />
+
                     {isAttendanceModalOpen && createPortal((
-                        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+                        <div className="fixed inset-0 z-9999 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
                             <div className="w-full max-w-7xl max-h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
                                 <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                                     <div>

@@ -124,9 +124,10 @@ const importMonHocExcel = async (req, res) => {
         }
 
         // 1. Lấy dữ liệu tham chiếu để Validate
-        const [allKhoa, allBoMon, allExistingMons] = await Promise.all([
+        const [allKhoa, allBoMon, allChuyenNganh, allExistingMons] = await Promise.all([
             db.Khoa.findAll({ where: { isDeleted: false }, attributes: ['khoa_id', 'ma_khoa', 'ten_khoa'] }),
             db.BoMon.findAll({ where: { isDeleted: false }, attributes: ['bomon_id', 'ma_bomon', 'ten_bomon', 'khoa_id'] }),
+            db.ChuyenNganh.findAll({ where: { isDeleted: false }, attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'khoa_id'] }),
             db.MonHoc.findAll({ attributes: ['ma_mon'] })
         ]);
 
@@ -138,11 +139,36 @@ const importMonHocExcel = async (req, res) => {
             khoaMap.set(normalize(k.ten_khoa), k.khoa_id);
         });
 
+        const chuyenNganhByKhoaMap = new Map();
+        const chuyenNganhGlobalMap = new Map();
+        allChuyenNganh.forEach((cn) => {
+            const normMa = normalize(cn.ma_chuyennganh);
+            const normTen = normalize(cn.ten_chuyennganh);
+            if (normMa) {
+                chuyenNganhByKhoaMap.set(`${cn.khoa_id}__${normMa}`, cn.chuyennganh_id);
+                if (!chuyenNganhGlobalMap.has(normMa)) chuyenNganhGlobalMap.set(normMa, cn.chuyennganh_id);
+            }
+            if (normTen) {
+                chuyenNganhByKhoaMap.set(`${cn.khoa_id}__${normTen}`, cn.chuyennganh_id);
+                if (!chuyenNganhGlobalMap.has(normTen)) chuyenNganhGlobalMap.set(normTen, cn.chuyennganh_id);
+            }
+        });
+
         const boMonMap = new Map();
         allBoMon.forEach((bm) => {
+            const normMaBoMon = normalize(bm.ma_bomon);
+            const normTenBoMon = normalize(bm.ten_bomon);
+            const resolvedChuyenNganhId =
+                (normMaBoMon ? chuyenNganhByKhoaMap.get(`${bm.khoa_id}__${normMaBoMon}`) : null) ||
+                (normTenBoMon ? chuyenNganhByKhoaMap.get(`${bm.khoa_id}__${normTenBoMon}`) : null) ||
+                (normMaBoMon ? chuyenNganhGlobalMap.get(normMaBoMon) : null) ||
+                (normTenBoMon ? chuyenNganhGlobalMap.get(normTenBoMon) : null) ||
+                null;
+
             const lookupValue = {
                 bomon_id: bm.bomon_id,
-                khoa_id: bm.khoa_id
+                khoa_id: bm.khoa_id,
+                chuyennganh_id: resolvedChuyenNganhId
             };
             boMonMap.set(normalize(bm.ma_bomon), lookupValue);
             boMonMap.set(normalize(bm.ten_bomon), lookupValue);
@@ -227,7 +253,7 @@ const importMonHocExcel = async (req, res) => {
                 sotinchi: parseInt(soTC) || 0,
                 khoa_id: khoaId,
                 bomon_id: boMonId,
-                chuyennganh_id: boMonId,
+                chuyennganh_id: boMonMap.get(normalize(maBoMonExcel))?.chuyennganh_id || null,
                 // mota: 'Imported via Excel',
                 isDeleted: false
             });

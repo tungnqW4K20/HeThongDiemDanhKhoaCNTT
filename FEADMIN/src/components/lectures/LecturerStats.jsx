@@ -1,7 +1,7 @@
 import React from 'react';
 import { Users, UserPlus, Mail } from 'lucide-react';
 
-const LecturerStats = ({ totalLecturers }) => {
+const LecturerStats = ({ totalLecturers, newThisMonth, emailActivatedPercent }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex items-center gap-4">
@@ -20,7 +20,7 @@ const LecturerStats = ({ totalLecturers }) => {
         </div>
         <div>
           <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Mới tháng này</p>
-          <p className="text-2xl font-bold text-gray-800">3</p> {/* Mock data */}
+          <p className="text-2xl font-bold text-gray-800">{newThisMonth}</p>
         </div>
       </div>
 
@@ -30,7 +30,7 @@ const LecturerStats = ({ totalLecturers }) => {
         </div>
         <div>
           <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Đã kích hoạt Email</p>
-          <p className="text-2xl font-bold text-gray-800">98%</p>
+          <p className="text-2xl font-bold text-gray-800">{emailActivatedPercent}%</p>
         </div>
       </div>
     </div>

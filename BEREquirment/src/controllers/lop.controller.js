@@ -108,6 +108,58 @@ const createLop = async (req, res) => {
   }
 };
 
+const updateLop = async (req, res) => {
+    try {
+        const { lop_id } = req.params;
+        const {
+            ten_lop,
+            nien_khoa,
+            chuong_trinh,
+            khoa_id,
+            giangvien_id,
+            ghichu,
+            chuyennganh_id,
+            coso_id
+        } = req.body;
+
+        if (!lop_id) {
+            return res.status(400).json({
+                success: false,
+                message: 'Thiếu ID lớp cần cập nhật.'
+            });
+        }
+
+        if (ten_lop !== undefined && !ten_lop) {
+            return res.status(400).json({
+                success: false,
+                message: 'ten_lop không được để trống.'
+            });
+        }
+
+        const updated = await lopService.updateLop(lop_id, {
+            ten_lop,
+            nien_khoa,
+            chuong_trinh,
+            khoa_id,
+            giangvien_id,
+            ghichu,
+            chuyennganh_id,
+            coso_id
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: 'Cập nhật lớp hành chính thành công.',
+            data: updated
+        });
+    } catch (error) {
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 
 // const importClasses = async (req, res) => {
 //     const t = await db.sequelize.transaction(); // Bắt đầu Transaction
@@ -514,6 +566,7 @@ const normalize = (str) => {
 module.exports = {
     getAll,
     createLop,
+    updateLop,
     getStudentsByClass,
     importClasses
 };

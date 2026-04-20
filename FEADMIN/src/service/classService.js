@@ -9,6 +9,10 @@ const classService = {
     return axiosClient.post('/lop', data);
   },
 
+  update(classId, data) {
+    return axiosClient.put(`/lop/${classId}`, data);
+  },
+
   createMultiple(classesArray) {
     const promises = classesArray.map(cls => this.create(cls));
     return Promise.allSettled(promises);

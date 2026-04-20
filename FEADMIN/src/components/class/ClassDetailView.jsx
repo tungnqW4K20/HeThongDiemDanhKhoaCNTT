@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
-  ArrowLeft, Download, GraduationCap, Search, X, Mail, Phone, 
+  ArrowLeft, GraduationCap, Search, X, Mail, Phone, 
   Calendar, Edit2, Trash2, Plus, Loader2, Upload, UserCheck 
 } from 'lucide-react'; 
 import Badge from './Badge';
@@ -10,10 +11,16 @@ import EditStudentModal from './EditStudentModal';
 import AddStudentModal from './AddStudentModal';
 import ImportStudentModal from './ImportStudentModal';
 import studentService from '../../service/studentService';
+import classService from '../../service/classService';
+import khoaService from '../../service/khoaService';
+import cosoService from '../../service/cosoService';
+import giangVienService from '../../service/giangVienService';
+import SearchableSelect from '../common/SearchableSelect';
 
 const ClassDetailView = ({ classInfo, onBack }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [studentsList, setStudentsList] = useState([]); 
+  const [classMeta, setClassMeta] = useState(classInfo || {});
   const [gvcn, setGvcn] = useState(null); // Lưu thông tin GVCN từ API
   const [loading, setLoading] = useState(false);
   
@@ -21,10 +28,33 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [editClassModalOpen, setEditClassModalOpen] = useState(false);
+  const [classSaving, setClassSaving] = useState(false);
+  const [classForm, setClassForm] = useState({
+    ten_lop: '',
+    nien_khoa: '',
+    chuong_trinh: '',
+    ghichu: '',
+    khoa_id: '',
+    chuyennganh_id: '',
+    coso_id: '',
+    giangvien_id: ''
+  });
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [majorOptions, setMajorOptions] = useState([]);
+  const [campusOptions, setCampusOptions] = useState([]);
+  const [teacherOptions, setTeacherOptions] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
+  const extractList = (res) => {
+    const body = res?.data ?? res;
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.data)) return body.data;
+    return [];
+  };
+
   // Fetch dữ liệu từ API
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     if (!classInfo?.id) return;
     setLoading(true);
     try {
@@ -42,11 +72,37 @@ const ClassDetailView = ({ classInfo, onBack }) => {
     } finally {
         setLoading(false);
     }
-  };
+  }, [classInfo?.id]);
 
   useEffect(() => {
     fetchStudents();
+  }, [fetchStudents]);
+
+  useEffect(() => {
+    setClassMeta(classInfo || {});
   }, [classInfo]);
+
+  useEffect(() => {
+    const fetchEditOptions = async () => {
+      try {
+        const [khoaRes, majorRes, cosoRes, gvRes] = await Promise.all([
+          khoaService.getAll(),
+          khoaService.getAllChuyenNganh(),
+          cosoService.getAll(),
+          giangVienService.getAll()
+        ]);
+
+        setDepartmentOptions(extractList(khoaRes));
+        setMajorOptions(extractList(majorRes));
+        setCampusOptions(extractList(cosoRes));
+        setTeacherOptions(extractList(gvRes));
+      } catch (error) {
+        console.error('Lỗi tải danh mục sửa lớp:', error);
+      }
+    };
+
+    fetchEditOptions();
+  }, []);
 
   // --- HÀM XỬ LÝ LOGIC (GIỮ NGUYÊN) ---
   const handleAddStudent = async (newStudentData) => {
@@ -130,6 +186,92 @@ const ClassDetailView = ({ classInfo, onBack }) => {
     }
   };
 
+  const openEditClassModal = () => {
+    setClassForm({
+      ten_lop: classMeta?.name || '',
+      nien_khoa: classMeta?.year || '',
+      chuong_trinh: classMeta?.program || 'Đại học',
+      ghichu: classMeta?.ghichu || '',
+      khoa_id: classMeta?.khoa_id || '',
+      chuyennganh_id: classMeta?.chuyennganh_id || '',
+      coso_id: classMeta?.coso_id || '',
+      giangvien_id: classMeta?.giangvien_id || ''
+    });
+    setEditClassModalOpen(true);
+  };
+
+  const handleClassFormChange = (field, value) => {
+    setClassForm((prev) => {
+      if (field === 'khoa_id') {
+        return {
+          ...prev,
+          khoa_id: value,
+          chuyennganh_id: ''
+        };
+      }
+      return {
+        ...prev,
+        [field]: value
+      };
+    });
+  };
+
+  const handleSaveClassInfo = async () => {
+    if (!classInfo?.id) return;
+
+    if (!classForm.ten_lop?.trim()) {
+      alert('Tên lớp không được để trống.');
+      return;
+    }
+
+    const nienKhoa = Number(classForm.nien_khoa);
+    if (!Number.isInteger(nienKhoa) || nienKhoa < 1900 || nienKhoa > 3000) {
+      alert('Niên khóa không hợp lệ. Ví dụ: 2022.');
+      return;
+    }
+
+    setClassSaving(true);
+    try {
+      const payload = {
+        ten_lop: classForm.ten_lop.trim(),
+        nien_khoa: nienKhoa,
+        chuong_trinh: classForm.chuong_trinh?.trim() || 'Đại học',
+        ghichu: classForm.ghichu?.trim() || null,
+        khoa_id: classForm.khoa_id || null,
+        chuyennganh_id: classForm.chuyennganh_id || null,
+        coso_id: classForm.coso_id || null,
+        giangvien_id: classForm.giangvien_id || null
+      };
+
+      const res = await classService.update(classInfo.id, payload);
+      if (!(res?.success || res?.errCode === 0)) {
+        throw new Error(res?.message || 'Cập nhật lớp thất bại.');
+      }
+
+      setClassMeta((prev) => ({
+        ...prev,
+        name: payload.ten_lop,
+        year: payload.nien_khoa,
+        program: payload.chuong_trinh,
+        ghichu: payload.ghichu,
+        khoa_id: payload.khoa_id || '',
+        chuyennganh_id: payload.chuyennganh_id || '',
+        coso_id: payload.coso_id || '',
+        giangvien_id: payload.giangvien_id || '',
+        department: departmentOptions.find((item) => item.khoa_id === payload.khoa_id)?.ten_khoa || prev.department
+      }));
+
+      fetchStudents();
+      setEditClassModalOpen(false);
+      alert(res?.message || 'Cập nhật lớp thành công.');
+    } catch (error) {
+      const serverMessage = error?.response?.data?.message;
+      alert(serverMessage || error.message || 'Có lỗi xảy ra khi cập nhật lớp.');
+    } finally {
+      setClassSaving(false);
+    }
+  };
+
   const filteredStudents = studentsList.filter(sv => 
     (sv.ten && sv.ten.toLowerCase().includes(searchTerm.toLowerCase())) || 
     (sv.ma_sv && sv.ma_sv.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -142,6 +284,32 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         return date.toLocaleDateString('vi-VN');
       } catch { return dateString; }
   };
+
+  const filteredMajorOptions = majorOptions.filter((item) => {
+    if (!classForm.khoa_id) return true;
+    const khoaId = item?.khoa_id || item?.Khoa?.khoa_id;
+    return !khoaId || khoaId === classForm.khoa_id;
+  });
+
+  const departmentSelectOptions = departmentOptions.map((item) => ({
+    value: item.khoa_id,
+    label: item.ten_khoa
+  }));
+
+  const majorSelectOptions = filteredMajorOptions.map((item) => ({
+    value: item.chuyennganh_id,
+    label: item.ten_chuyennganh
+  }));
+
+  const campusSelectOptions = campusOptions.map((item) => ({
+    value: item.coso_id,
+    label: item.ten_coso
+  }));
+
+  const teacherSelectOptions = teacherOptions.map((item) => ({
+    value: item.giangvien_id,
+    label: `${item.ho || ''} ${item.ten || ''}`.trim() || item.ma_gv || item.email || 'Giảng viên'
+  }));
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
@@ -172,6 +340,127 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         classId={classInfo.id}
       />
 
+      {editClassModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed left-0 top-0 z-9999 h-screen w-screen bg-black/45 backdrop-blur-[1px] p-4 sm:p-6">
+          <div className="mx-auto flex h-full w-full max-w-xl flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
+              <h3 className="text-lg font-semibold text-gray-800">Sửa thông tin lớp hành chính</h3>
+              <button
+                onClick={() => setEditClassModalOpen(false)}
+                className="rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                aria-label="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tên lớp</label>
+                <input
+                  type="text"
+                  value={classForm.ten_lop}
+                  onChange={(e) => handleClassFormChange('ten_lop', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#3B5998] focus:ring-1 focus:ring-[#3B5998]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Niên khóa</label>
+                <input
+                  type="number"
+                  value={classForm.nien_khoa}
+                  onChange={(e) => handleClassFormChange('nien_khoa', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#3B5998] focus:ring-1 focus:ring-[#3B5998]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Chương trình</label>
+                <input
+                  type="text"
+                  value={classForm.chuong_trinh}
+                  onChange={(e) => handleClassFormChange('chuong_trinh', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#3B5998] focus:ring-1 focus:ring-[#3B5998]"
+                />
+              </div>
+
+              <div>
+                <SearchableSelect
+                  label="Khoa"
+                  options={departmentSelectOptions}
+                  value={classForm.khoa_id}
+                  onChange={(val) => handleClassFormChange('khoa_id', val)}
+                  placeholder="-- Chưa chọn khoa --"
+                  menuZIndexClass="z-60"
+                />
+              </div>
+
+              <div>
+                <SearchableSelect
+                  label="Chuyên ngành"
+                  options={majorSelectOptions}
+                  value={classForm.chuyennganh_id}
+                  onChange={(val) => handleClassFormChange('chuyennganh_id', val)}
+                  placeholder={classForm.khoa_id ? '-- Chọn chuyên ngành --' : 'Chọn khoa trước'}
+                  disabled={!classForm.khoa_id}
+                  menuZIndexClass="z-50"
+                />
+              </div>
+
+              <div>
+                <SearchableSelect
+                  label="Cơ sở"
+                  options={campusSelectOptions}
+                  value={classForm.coso_id}
+                  onChange={(val) => handleClassFormChange('coso_id', val)}
+                  placeholder="-- Chưa chọn cơ sở --"
+                  menuZIndexClass="z-40"
+                />
+              </div>
+
+              <div>
+                <SearchableSelect
+                  label="Giảng viên chủ nhiệm"
+                  options={teacherSelectOptions}
+                  value={classForm.giangvien_id}
+                  onChange={(val) => handleClassFormChange('giangvien_id', val)}
+                  placeholder="-- Chưa phân công --"
+                  menuZIndexClass="z-30"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                <textarea
+                  rows={3}
+                  value={classForm.ghichu}
+                  onChange={(e) => handleClassFormChange('ghichu', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-[#3B5998] focus:ring-1 focus:ring-[#3B5998]"
+                />
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 z-10 flex justify-end gap-2 border-t border-gray-100 bg-white px-6 py-4">
+              <button
+                onClick={() => setEditClassModalOpen(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleSaveClassInfo}
+                disabled={classSaving}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-[#3B5998] hover:bg-[#2e4676] disabled:opacity-60"
+              >
+                {classSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Header Actions */}
       <div className="mb-6 flex items-center justify-between">
         <button 
@@ -184,9 +473,12 @@ const ClassDetailView = ({ classInfo, onBack }) => {
           Quay lại danh sách
         </button>
         <div className="flex gap-3">
-            <button className="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 flex items-center gap-2">
-                <Download size={16}/> Xuất Excel
-            </button>
+          <button
+            onClick={openEditClassModal}
+            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 flex items-center gap-2"
+          >
+            <Edit2 size={16}/> Sửa thông tin lớp
+          </button>
             <button 
                 onClick={() => setImportModalOpen(true)}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
@@ -211,11 +503,11 @@ const ClassDetailView = ({ classInfo, onBack }) => {
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
                 <Badge type="blue">Chính quy</Badge>
-                <Badge type="gray">Khóa {classInfo.year}</Badge>
+              <Badge type="gray">Khóa {classMeta.year}</Badge>
             </div>
             
-            <h1 className="text-3xl font-bold text-gray-800 mb-1">{classInfo.name}</h1>
-            <p className="text-sm text-gray-400 mt-1 uppercase font-semibold">{classInfo.department}</p>
+            <h1 className="text-3xl font-bold text-gray-800 mb-1">{classMeta.name}</h1>
+            <p className="text-sm text-gray-400 mt-1 uppercase font-semibold">{classMeta.department}</p>
 
             <div className="mt-6 flex items-center gap-10">
                 <div>
@@ -238,7 +530,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         </div>
         
         {/* Thông tin GVCN Card (Bên phải) */}
-        <div className="bg-gradient-to-br from-[#3B5998] to-[#2e4676] rounded-xl p-6 shadow-md text-white flex flex-col justify-between">
+        <div className="bg-linear-to-br from-[#3B5998] to-[#2e4676] rounded-xl p-6 shadow-md text-white flex flex-col justify-between">
             <div>
                 <div className="flex items-center gap-2 mb-4">
                   <UserCheck size={20} className="text-blue-200" />
@@ -267,9 +559,9 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                   <p className="text-blue-100 text-sm italic">Chưa phân công giảng viên</p>
                 )}
             </div>
-            <button className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors border border-white/10 backdrop-blur-sm">
+            {/* <button className="mt-4 w-full py-2 bg-white/10 hover:bg-white/20 rounded-lg text-sm font-medium transition-colors border border-white/10 backdrop-blur-sm">
                 Gửi thông báo nhanh
-            </button>
+            </button> */}
         </div>
       </div>
 

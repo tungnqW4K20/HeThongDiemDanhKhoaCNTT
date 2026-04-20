@@ -9,6 +9,14 @@ const khoaService = {
     return axiosClient.get('/khoa/get-all-bo-mon');
   },
 
+  getAllBoMonRaw: () => {
+    return axiosClient.get('/khoa/get-all-bo-mon-raw');
+  },
+
+  getAllChuyenNganh: () => {
+    return axiosClient.get('/khoa/get-all-chuyen-nganh');
+  },
+
   getTruongBoMonOptions: (khoaId) => {
     const query = khoaId ? `?khoa_id=${khoaId}` : '';
     return axiosClient.get(`/khoa/get-truong-bo-mon-options${query}`);
@@ -36,6 +44,18 @@ const khoaService = {
 
   deleteBoMon: (id) => {
     return axiosClient.delete('/khoa/delete-bo-mon', { data: { id } });
+  },
+
+  createChuyenNganh: (data) => {
+    return axiosClient.post('/khoa/create-chuyen-nganh', data);
+  },
+
+  updateChuyenNganh: (data) => {
+    return axiosClient.put('/khoa/update-chuyen-nganh', data);
+  },
+
+  deleteChuyenNganh: (id) => {
+    return axiosClient.delete('/khoa/delete-chuyen-nganh', { data: { id } });
   }
 };
 

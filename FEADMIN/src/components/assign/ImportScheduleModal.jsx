@@ -23,25 +23,22 @@ const ImportScheduleModal = ({ isOpen, onClose, onImport, isLoading }) => {
     if (isOpen) {
         const fetchHocKy = async () => {
             try {
-                const [hocKyRes, khoaRes] = await Promise.all([
+                const [hocKyRes, boMonRes] = await Promise.all([
                   hocKyService.getAll(),
-                  khoaService.getAll()
+                  khoaService.getAllBoMonRaw()
                 ]);
 
                 const list = hocKyRes.data?.data || hocKyRes.data || [];
                 setSemesters(list);
 
-                const khoaList = khoaRes.data?.data || khoaRes.data || [];
-                const flattenedBoMon = khoaList.flatMap((khoa) => {
-                  const boMonList = khoa.DanhSachChuyenNganh || [];
-                  return boMonList.map((bm) => ({
-                    id: bm.chuyennganh_id,
-                    ten: bm.ten_chuyennganh,
-                    ma: bm.ma_chuyennganh,
-                    tenKhoa: khoa.ten_khoa
-                  }));
-                });
-                setBoMonOptions(flattenedBoMon);
+                const rawBoMonList = boMonRes?.data || [];
+                const normalizedBoMon = rawBoMonList.map((bm) => ({
+                  id: bm.bomon_id,
+                  ten: bm.ten_bomon,
+                  ma: bm.ma_bomon,
+                  tenKhoa: bm.Khoa?.ten_khoa || ''
+                }));
+                setBoMonOptions(normalizedBoMon);
             } catch (err) {
                 console.error("Lỗi load học kỳ", err);
             }

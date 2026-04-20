@@ -6,14 +6,51 @@ import ClassListView from '../../components/partclass/ClassListView';
 import ClassDetailView from '../../components/partclass/ClassDetailView';
 import hocPhanService from '../../service/lophocphanService';
 import hocKyService from '../../service/hockyService';
+import khoaService from '../../service/khoaService';
 
 // Components
+
+const parseDateOnlyLocal = (dateValue) => {
+  if (!dateValue) return null;
+  const normalized = String(dateValue).slice(0, 10);
+  const [y, m, d] = normalized.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+};
+
+const pickDefaultSemesterIdByTime = (semesterList = []) => {
+  if (!Array.isArray(semesterList) || semesterList.length === 0) return '';
+
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+
+  const currentSemester = semesterList.find((sem) => {
+    const start = parseDateOnlyLocal(sem.ngay_batdau);
+    const end = parseDateOnlyLocal(sem.ngay_ketthuc);
+    return start && end && now >= start && now <= end;
+  });
+  if (currentSemester?.hocky_id) return currentSemester.hocky_id;
+
+  const sortedByStartDesc = [...semesterList].sort((a, b) => {
+    const aStart = parseDateOnlyLocal(a.ngay_batdau)?.getTime() || 0;
+    const bStart = parseDateOnlyLocal(b.ngay_batdau)?.getTime() || 0;
+    return bStart - aStart;
+  });
+
+  const nearestPastSemester = sortedByStartDesc.find((sem) => {
+    const start = parseDateOnlyLocal(sem.ngay_batdau);
+    return start && start <= now;
+  });
+
+  return nearestPastSemester?.hocky_id || sortedByStartDesc[0]?.hocky_id || '';
+};
 
 
 const PartClassManagement = () => {
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [classList, setClassList] = useState([]);
+  const [boMonOptions, setBoMonOptions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // list | detail
   const [selectedClass, setSelectedClass] = useState(null);
@@ -25,7 +62,7 @@ const PartClassManagement = () => {
         const res = await hocKyService.getAll();
         if (res.success && res.data.length > 0) {
           setSemesters(res.data);
-          setSelectedSemester(res.data[0].hocky_id);
+          setSelectedSemester(pickDefaultSemesterIdByTime(res.data));
         }
       } catch (err) { console.error("Lỗi học kỳ:", err); }
     };
@@ -77,6 +114,27 @@ const PartClassManagement = () => {
     fetchClasses();
   }, [fetchClasses]);
 
+  useEffect(() => {
+    const fetchBoMonOptions = async () => {
+      try {
+        const res = await khoaService.getAllBoMonRaw();
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const normalized = list
+          .filter((item) => item?.bomon_id && (item?.ten_bomon || item?.ma_bomon))
+          .map((item) => ({
+            id: item.bomon_id,
+            name: item.ten_bomon || item.ma_bomon
+          }));
+        setBoMonOptions(normalized);
+      } catch (error) {
+        console.error('Lỗi tải bộ lọc bộ môn cho lớp học phần:', error);
+        setBoMonOptions([]);
+      }
+    };
+
+    fetchBoMonOptions();
+  }, []);
+
   return (
     <div className="animate-in fade-in duration-500">
       {viewMode === 'list' ? (
@@ -115,6 +173,7 @@ const PartClassManagement = () => {
 
           <ClassListView
             data={classList}
+            boMonOptions={boMonOptions}
             isLoading={isLoading}
             onSelect={(cls) => { setSelectedClass(cls); setViewMode('detail'); }}
             onImportClick={() => alert("Tính năng Import Excel")}

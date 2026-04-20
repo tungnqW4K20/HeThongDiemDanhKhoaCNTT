@@ -820,8 +820,7 @@ const importScheduleExcel = async (buffer, hockyData) => {
 
   const t = await db.sequelize.transaction();
   try {
-      const targetBoMonIdRaw = cleanStr(hockyData.selected_bomon_id || '');
-      const targetBoMonId = targetBoMonIdRaw ? Number(targetBoMonIdRaw) : null;
+      const targetBoMonId = cleanStr(hockyData.selected_bomon_id || '') || null;
       const shouldFilterByBoMon = !!targetBoMonId;
 
       // Nếu có hocky_id, dùng trực tiếp — tránh tạo học kỳ mới do tên không khớp chính xác
@@ -839,10 +838,22 @@ const importScheduleExcel = async (buffer, hockyData) => {
       }
     let monCount = await MonHoc.count({ transaction: t });
     const dataRows = allRows.slice(headerRowIndex + 1);
+    const successRows = [];
+    const failedRows = [];
+
+    const getRowMeta = (row, rowIndex) => {
+      const rowNumber = headerRowIndex + 2 + rowIndex;
+      const tenMon = cleanStr(row[col.hocPhan]);
+      const maGV = cleanStr(row[col.maGV]);
+      const maLop = cleanStr(row[col.maLop]);
+      const label = [tenMon || 'N/A', maLop || 'N/A', maGV || 'N/A'].join(' | ');
+      return { rowNumber, tenMon, maGV, maLop, label };
+    };
     const mapMonHoc = new Map(), mapGiangVien = new Map(), mapLopHC = new Map();
     const mapKhoa = new Map();
     const mapBoMonByKhoa = new Map();
     const mapBoMonGlobal = new Map();
+    const mapBoMonMeta = new Map();
 
     const normalizeLookup = (val) => removeAccents(cleanStr(val).toUpperCase());
 
@@ -857,20 +868,55 @@ const importScheduleExcel = async (buffer, hockyData) => {
       if (ten) mapKhoa.set(ten, k.khoa_id);
     });
 
-    const allBoMon = await db.ChuyenNganh.findAll({
+    const allBoMon = await db.BoMon.findAll({
+      where: { isDeleted: false },
+      attributes: ['bomon_id', 'khoa_id', 'ma_bomon', 'ten_bomon'],
+      transaction: t
+    });
+
+    const allChuyenNganh = await db.ChuyenNganh.findAll({
+      where: { isDeleted: false },
       attributes: ['chuyennganh_id', 'khoa_id', 'ma_chuyennganh', 'ten_chuyennganh'],
       transaction: t
     });
-    allBoMon.forEach((bm) => {
-      const ma = normalizeLookup(bm.ma_chuyennganh);
-      const ten = normalizeLookup(bm.ten_chuyennganh);
+
+    const mapChuyenNganhByKhoa = new Map();
+    const mapChuyenNganhGlobal = new Map();
+    allChuyenNganh.forEach((cn) => {
+      const ma = normalizeLookup(cn.ma_chuyennganh);
+      const ten = normalizeLookup(cn.ten_chuyennganh);
       if (ma) {
-        mapBoMonByKhoa.set(`${bm.khoa_id}__${ma}`, bm.chuyennganh_id);
-        if (!mapBoMonGlobal.has(ma)) mapBoMonGlobal.set(ma, bm.chuyennganh_id);
+        mapChuyenNganhByKhoa.set(`${cn.khoa_id}__${ma}`, cn.chuyennganh_id);
+        if (!mapChuyenNganhGlobal.has(ma)) mapChuyenNganhGlobal.set(ma, cn.chuyennganh_id);
       }
       if (ten) {
-        mapBoMonByKhoa.set(`${bm.khoa_id}__${ten}`, bm.chuyennganh_id);
-        if (!mapBoMonGlobal.has(ten)) mapBoMonGlobal.set(ten, bm.chuyennganh_id);
+        mapChuyenNganhByKhoa.set(`${cn.khoa_id}__${ten}`, cn.chuyennganh_id);
+        if (!mapChuyenNganhGlobal.has(ten)) mapChuyenNganhGlobal.set(ten, cn.chuyennganh_id);
+      }
+    });
+
+    allBoMon.forEach((bm) => {
+      const ma = normalizeLookup(bm.ma_bomon);
+      const ten = normalizeLookup(bm.ten_bomon);
+      const resolvedChuyenNganhId =
+        (ma ? mapChuyenNganhByKhoa.get(`${bm.khoa_id}__${ma}`) : null) ||
+        (ten ? mapChuyenNganhByKhoa.get(`${bm.khoa_id}__${ten}`) : null) ||
+        (ma ? mapChuyenNganhGlobal.get(ma) : null) ||
+        (ten ? mapChuyenNganhGlobal.get(ten) : null) ||
+        null;
+
+      mapBoMonMeta.set(bm.bomon_id, {
+        khoa_id: bm.khoa_id,
+        chuyennganh_id: resolvedChuyenNganhId
+      });
+
+      if (ma) {
+        mapBoMonByKhoa.set(`${bm.khoa_id}__${ma}`, bm.bomon_id);
+        if (!mapBoMonGlobal.has(ma)) mapBoMonGlobal.set(ma, bm.bomon_id);
+      }
+      if (ten) {
+        mapBoMonByKhoa.set(`${bm.khoa_id}__${ten}`, bm.bomon_id);
+        if (!mapBoMonGlobal.has(ten)) mapBoMonGlobal.set(ten, bm.bomon_id);
       }
     });
 
@@ -897,6 +943,8 @@ const importScheduleExcel = async (buffer, hockyData) => {
         boMonId = targetBoMonId;
       }
 
+      const rowChuyenNganhId = boMonId ? (mapBoMonMeta.get(boMonId)?.chuyennganh_id || null) : null;
+
       if (shouldFilterByBoMon && boMonId !== targetBoMonId) continue;
 
       if (tenMon.length < 2 || !rawMaLopStr) continue;
@@ -909,14 +957,16 @@ const importScheduleExcel = async (buffer, hockyData) => {
             ma_mon: `M${String(++monCount).padStart(3, '0')}`,
             sotinchi: 3,
             khoa_id: khoaId,
-            chuyennganh_id: boMonId
+            bomon_id: boMonId,
+            chuyennganh_id: rowChuyenNganhId
           },
           transaction: t
         });
 
         const patchPayload = {};
         if (khoaId && !mon.khoa_id) patchPayload.khoa_id = khoaId;
-        if (boMonId && !mon.chuyennganh_id) patchPayload.chuyennganh_id = boMonId;
+        if (boMonId && !mon.bomon_id) patchPayload.bomon_id = boMonId;
+        if (rowChuyenNganhId && !mon.chuyennganh_id) patchPayload.chuyennganh_id = rowChuyenNganhId;
         if (Object.keys(patchPayload).length > 0) {
           await mon.update(patchPayload, { transaction: t });
         }
@@ -951,14 +1001,14 @@ const importScheduleExcel = async (buffer, hockyData) => {
             defaults: {
               nien_khoa: dayjs().year(),
               khoa_id: khoaId,
-              chuyennganh_id: boMonId
+              chuyennganh_id: rowChuyenNganhId
             },
             transaction: t
           });
 
           const patchPayload = {};
           if (khoaId && !lhc.khoa_id) patchPayload.khoa_id = khoaId;
-          if (boMonId && !lhc.chuyennganh_id) patchPayload.chuyennganh_id = boMonId;
+          if (rowChuyenNganhId && !lhc.chuyennganh_id) patchPayload.chuyennganh_id = rowChuyenNganhId;
           if (Object.keys(patchPayload).length > 0) {
             await lhc.update(patchPayload, { transaction: t });
           }
@@ -970,7 +1020,8 @@ const importScheduleExcel = async (buffer, hockyData) => {
 
     // --- BƯỚC 2: GOM NHÓM (CHỐNG TRÙNG TRONG EXCEL - TRƯỜNG HỢP TÁCH LỚP) ---
     const groups = new Map();
-    dataRows.forEach(row => {
+    dataRows.forEach((row, rowIndex) => {
+      const rowMeta = getRowMeta(row, rowIndex);
       const tenMon = cleanStr(row[col.hocPhan]);
       const rawMaLopStr = cleanStr(row[col.maLop]);
       const khoaRaw = col.khoa >= 0 ? cleanStr(row[col.khoa]) : '';
@@ -995,13 +1046,34 @@ const importScheduleExcel = async (buffer, hockyData) => {
       if (!rowBoMonId && shouldFilterByBoMon) {
         rowBoMonId = targetBoMonId;
       }
-      if (shouldFilterByBoMon && rowBoMonId !== targetBoMonId) return;
+      if (shouldFilterByBoMon && rowBoMonId !== targetBoMonId) {
+        failedRows.push({
+          ...rowMeta,
+          status: 'failed',
+          reason: 'Dữ liệu không thuộc bộ môn đã chọn để import.'
+        });
+        return;
+      }
 
-      if (!tenMon || !rawMaLopStr || isNaN(thu) || isNaN(tietBD) || !maGV) return;
+      if (!tenMon || !rawMaLopStr || isNaN(thu) || isNaN(tietBD) || !maGV) {
+        failedRows.push({
+          ...rowMeta,
+          status: 'failed',
+          reason: 'Thiếu dữ liệu bắt buộc (tên học phần, mã lớp, thứ, tiết bắt đầu hoặc mã giảng viên).'
+        });
+        return;
+      }
 
       const monID = mapMonHoc.get(tenMon);
       const gvID = mapGiangVien.get(maGV);
-      if (!monID || !gvID) return;
+      if (!monID || !gvID) {
+        failedRows.push({
+          ...rowMeta,
+          status: 'failed',
+          reason: 'Không thể ánh xạ môn học hoặc giảng viên từ dữ liệu import.'
+        });
+        return;
+      }
 
       // FINGERPRINT: Bộ nhận diện duy nhất của một lớp học phần
       // Bỏ 'thu', 'tietBD', và 'phong' để gom các lớp học nhiều thứ/tiết/phòng khác nhau thành 1 LHP
@@ -1022,11 +1094,13 @@ const importScheduleExcel = async (buffer, hockyData) => {
           loai_hoc_phan: loai,
           // Lưu lại danh sách LHC để xử lý lớp ghép
           lhc_names: rawMaLopStr.split(/\s+/),
-          rows: [row]
+          rows: [row],
+          rowRefs: [rowMeta]
         });
       } else {
         const g = groups.get(fingerprint);
         g.rows.push(row);
+        g.rowRefs.push(rowMeta);
         // Lưu tiết bắt đầu để tìm min
         if (!g.tiet_bat_dau_list.includes(tietBD)) {
           g.tiet_bat_dau_list.push(tietBD);
@@ -1091,10 +1165,32 @@ const importScheduleExcel = async (buffer, hockyData) => {
       });
       // Bulk upsert buổi học
       await BuoiHoc.bulkCreate(sessions, { updateOnDuplicate: ['giangvien_day_thay_id', 'tiet_bat_dau', 'so_tiet', 'phong'], transaction: t });
+
+      const importMessage = created
+        ? `Đã tạo lớp học phần ${maLop} và cập nhật lịch học.`
+        : `Đã cập nhật lớp học phần ${maLop} và đồng bộ lịch học.`;
+
+      data.rowRefs.forEach((rowRef) => {
+        successRows.push({
+          ...rowRef,
+          status: 'success',
+          reason: importMessage
+        });
+      });
     }
 
     await t.commit();
-    return { success: true, countLHP: groups.size };
+    return {
+      success: true,
+      countLHP: groups.size,
+      rowResults: {
+        totalRows: dataRows.length,
+        successCount: successRows.length,
+        failedCount: failedRows.length,
+        successRows,
+        failedRows
+      }
+    };
   } catch (error) {
     await t.rollback();
     console.error("IMPORT ERROR LOG:", error);

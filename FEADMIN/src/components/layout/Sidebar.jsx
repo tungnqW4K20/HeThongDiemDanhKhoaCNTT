@@ -37,6 +37,7 @@ const Sidebar = () => {
     { path: '/department', label: 'Quản lý khoa', icon: Building2 },
     { path: '/co-so', label: 'Quản lý cơ sở', icon: School },
     { path: '/bo-mon', label: 'Quản lý bộ môn', icon: Library },
+    { path: '/chuyen-nganh', label: 'Quản lý chuyên ngành', icon: UserPlus },
     { path: '/part-class', label: 'Quản lý lớp học phần', icon: ListTree },
   ];
 

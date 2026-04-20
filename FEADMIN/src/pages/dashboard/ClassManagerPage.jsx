@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Upload } from 'lucide-react'; 
 import classService from '../../service/classService';
+import cosoService from '../../service/cosoService';
+import khoaService from '../../service/khoaService';
 import ClassListView from '../../components/class/ClassListView';
 import ClassDetailView from '../../components/class/ClassDetailView';
 import ImportClassModal from '../../components/class/ImportClassModal';
@@ -8,6 +10,9 @@ import ImportClassModal from '../../components/class/ImportClassModal';
 export default function ClassManagerPage() {
   const [selectedClass, setSelectedClass] = useState(null);
   const [classesData, setClassesData] = useState([]);
+  const [campusOptions, setCampusOptions] = useState([]);
+  const [departmentOptions, setDepartmentOptions] = useState([]);
+  const [majorOptions, setMajorOptions] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // State cho Modal Import
@@ -24,6 +29,11 @@ export default function ClassManagerPage() {
         const formattedData = listClasses.map(item => ({
           id: item.lop_hanhchinh_id,
           name: item.ten_lop,
+          khoa_id: item.khoa_id || '',
+          chuyennganh_id: item.chuyennganh_id || '',
+          coso_id: item.coso_id || '',
+          giangvien_id: item.giangvien_id || '',
+          ghichu: item.ghichu || '',
           // Vẫn map dữ liệu này để dùng cho Filter hoặc xem Detail, nhưng không hiển thị ở Table
           majorName: item.ChuyenNganh?.ten_chuyennganh || "Chưa phân chuyên ngành",
           program: item.chuong_trinh,
@@ -48,7 +58,50 @@ export default function ClassManagerPage() {
 
   useEffect(() => {
     fetchClasses();
+    fetchFilterOptions();
   }, []);
+
+  const fetchFilterOptions = async () => {
+    try {
+      const [coSoRes, khoaRes, chuyenNganhRes] = await Promise.all([
+        cosoService.getAll(),
+        khoaService.getAll(),
+        khoaService.getAllChuyenNganh()
+      ]);
+
+      const coSoList = coSoRes?.data?.data || coSoRes?.data || [];
+      const khoaList = khoaRes?.data?.data || khoaRes?.data || [];
+      const chuyenNganhList = chuyenNganhRes?.data?.data || chuyenNganhRes?.data || [];
+
+      setCampusOptions(
+        Array.isArray(coSoList)
+          ? coSoList.map((item) => item.ten_coso).filter(Boolean)
+          : []
+      );
+
+      setDepartmentOptions(
+        Array.isArray(khoaList)
+          ? khoaList.map((item) => item.ten_khoa).filter(Boolean)
+          : []
+      );
+
+      setMajorOptions(
+        Array.isArray(chuyenNganhList)
+          ? chuyenNganhList
+              .filter((item) => item?.ten_chuyennganh)
+              .map((item) => ({
+                name: item.ten_chuyennganh,
+                department: item.Khoa?.ten_khoa || ''
+              }))
+          : []
+      );
+    } catch (error) {
+      console.error('Failed to fetch class filter options', error);
+      setCampusOptions([]);
+      setDepartmentOptions([]);
+      setMajorOptions([]);
+    }
+  };
 
   const handleCreateClass = async (newClassPayload) => {
     try {
@@ -99,6 +152,9 @@ export default function ClassManagerPage() {
 
                   <ClassListView 
                     data={classesData} 
+                    campusOptions={campusOptions}
+                    departmentOptions={departmentOptions}
+                    majorOptions={majorOptions}
                     onSelect={setSelectedClass}
                     onAddClass={handleCreateClass}
                     onImportClick={() => setIsImportModalOpen(true)}

@@ -3,13 +3,13 @@ import { Search, Library, ChevronRight, Loader2 } from 'lucide-react';
 import Badge from './Badge';
 import Pagination from '../Pagination'; // Import component bạn vừa đưa
 
-const ClassListView = ({ data, onSelect, onImportClick, isLoading }) => {
+const ClassListView = ({ data, onSelect, onImportClick, isLoading, boMonOptions: externalBoMonOptions = [] }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBoMon, setSelectedBoMon] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5; // Số bản ghi mỗi trang
 
-  const boMonOptions = useMemo(() => {
+  const boMonOptionsFromData = useMemo(() => {
     const map = new Map();
     data.forEach((item) => {
       if (item.departmentId && item.departmentName) {
@@ -18,6 +18,8 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading }) => {
     });
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [data]);
+
+  const boMonOptions = externalBoMonOptions.length > 0 ? externalBoMonOptions : boMonOptionsFromData;
 
   // 1. Logic lọc dữ liệu theo Search Term
   const filteredData = useMemo(() => {

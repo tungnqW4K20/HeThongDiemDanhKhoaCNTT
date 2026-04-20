@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Plus, Filter, X, Trash2, Building2, RefreshCw, Upload, KeyRound } from 'lucide-react'; // Đã thêm icon Upload
 import LecturerTable from '../../components/lectures/LecturerTable';
 import LecturerStats from '../../components/lectures/LecturerStats';
@@ -18,6 +19,7 @@ export default function LecturerManagerPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedFaculty, setSelectedFaculty] = useState('all'); 
     const [selectedBoMon, setSelectedBoMon] = useState('all');
+    const [boMonOptions, setBoMonOptions] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
     
     // Modal States
@@ -34,10 +36,21 @@ export default function LecturerManagerPage() {
     const [accountForm, setAccountForm] = useState({ username: '', password: '' });
     const [accountLoading, setAccountLoading] = useState(false);
 
+    useEffect(() => {
+        if (!isCreateAccountModalOpen || typeof document === 'undefined') return;
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [isCreateAccountModalOpen]);
+
     // --- EFFECT ---
     useEffect(() => {
         fetchData();
         fetchFaculties();
+        fetchBoMonOptions();
     }, []);
 
     // --- API CALLS ---
@@ -81,26 +94,37 @@ export default function LecturerManagerPage() {
         }
     };
 
-    // --- FILTER LOGIC ---
-    const boMonOptions = useMemo(() => {
-        return faculties.flatMap((khoa) =>
-            (khoa.DanhSachChuyenNganh || []).map((bm) => ({
-                id: bm.chuyennganh_id,
-                name: bm.ten_chuyennganh
-            }))
-        );
-    }, [faculties]);
+    const fetchBoMonOptions = async () => {
+        try {
+            const res = await khoaService.getAllBoMonRaw();
+            const resData = res.data || res;
+            const list = Array.isArray(resData)
+                ? resData
+                : (Array.isArray(resData?.data) ? resData.data : []);
 
+            setBoMonOptions(
+                list
+                    .filter((bm) => bm?.bomon_id && (bm?.ten_bomon || bm?.ma_bomon))
+                    .map((bm) => ({ id: bm.bomon_id, name: bm.ten_bomon || bm.ma_bomon }))
+            );
+        } catch (error) {
+            console.error('Lỗi lấy danh sách bộ môn:', error);
+            setBoMonOptions([]);
+        }
+    };
+
+    // --- FILTER LOGIC ---
     const filteredLecturers = useMemo(() => {
         return lecturers.filter(gv => {
             const searchLower = searchTerm.toLowerCase();
             const khoaName = gv.Khoa ? gv.Khoa.ten_khoa : '';
-            const boMonName =
-                gv.BoMon?.ten_bomon ||
-                gv.ChuyenNganh?.ten_chuyen_nganh ||
-                gv.bomon?.ten_bomon ||
-                gv.ten_bomon ||
-                '';
+            const boMonId =
+                gv.bomon_id ||
+                gv.BoMon?.bomon_id ||
+                gv.ChuyenNganh?.chuyennganh_id ||
+                gv.bomon?.bomon_id ||
+                gv.chuyennganh_id ||
+                null;
 
             const matchesSearch = 
                 (gv.ten && gv.ten.toLowerCase().includes(searchLower)) || 
@@ -110,11 +134,40 @@ export default function LecturerManagerPage() {
                 (khoaName && khoaName.toLowerCase().includes(searchLower));
 
             const matchesFaculty = selectedFaculty === 'all' || khoaName === selectedFaculty;
-            const matchesBoMon = selectedBoMon === 'all' || boMonName === selectedBoMon;
+            const matchesBoMon = selectedBoMon === 'all' || boMonId === selectedBoMon;
 
             return matchesSearch && matchesFaculty && matchesBoMon;
         });
     }, [lecturers, searchTerm, selectedFaculty, selectedBoMon]);
+
+    const stats = useMemo(() => {
+        const total = lecturers.length;
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+
+        const newThisMonth = lecturers.filter((gv) => {
+            if (!gv?.ngay_tao) return false;
+            const created = new Date(gv.ngay_tao);
+            if (Number.isNaN(created.getTime())) return false;
+            return created.getMonth() === currentMonth && created.getFullYear() === currentYear;
+        }).length;
+
+        const emailActivatedCount = lecturers.filter((gv) => {
+            const email = (gv?.email || '').trim();
+            return email.length > 0 && email.includes('@');
+        }).length;
+
+        const emailActivatedPercent = total > 0
+            ? Math.round((emailActivatedCount / total) * 100)
+            : 0;
+
+        return {
+            total,
+            newThisMonth,
+            emailActivatedPercent
+        };
+    }, [lecturers]);
 
     // --- HANDLERS (CRUD) ---
     const handleAddNew = () => {
@@ -312,9 +365,13 @@ export default function LecturerManagerPage() {
                     </div>
                 </div>
 
-                <LecturerStats totalLecturers={lecturers.length} />
+                <LecturerStats
+                    totalLecturers={stats.total}
+                    newThisMonth={stats.newThisMonth}
+                    emailActivatedPercent={stats.emailActivatedPercent}
+                />
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                     
                     {/* TOOLBAR */}
                     <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
@@ -375,7 +432,7 @@ export default function LecturerManagerPage() {
                                 >
                                     <option value="all">Tất cả Bộ môn</option>
                                     {boMonOptions.map((bm) => (
-                                        <option key={bm.id} value={bm.name}>
+                                        <option key={bm.id} value={bm.id}>
                                             {bm.name}
                                         </option>
                                     ))}
@@ -433,13 +490,6 @@ export default function LecturerManagerPage() {
                         onSelectionChange={setSelectedIds}
                     />
 
-                    {/* FOOTER */}
-                    <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
-                        <span className="text-xs text-gray-500 font-medium">
-                            Hiển thị {filteredLecturers.length} kết quả
-                        </span>
-                    </div>
-
                 </div>
             </div>
 
@@ -471,10 +521,10 @@ export default function LecturerManagerPage() {
             />
 
             {/* 4. MODAL TẠO TÀI KHOẢN GIẢNG VIÊN */}
-            {isCreateAccountModalOpen && accountTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div 
-                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            {isCreateAccountModalOpen && accountTarget && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+                    <div
+                        className="absolute inset-0"
                         onClick={() => !accountLoading && setIsCreateAccountModalOpen(false)}
                     />
                     <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
@@ -535,7 +585,7 @@ export default function LecturerManagerPage() {
                                         <button
                                             type="submit"
                                             disabled={accountLoading}
-                                            className="flex-[2] py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                            className="flex-1 py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
                                             {accountLoading ? (
                                                 <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
@@ -551,7 +601,8 @@ export default function LecturerManagerPage() {
                             );
                         })()}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

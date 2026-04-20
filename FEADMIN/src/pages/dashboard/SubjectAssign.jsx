@@ -4,8 +4,10 @@ import SubjectTable from '../../components/subjects/SubjectTable';
 import SubjectModal from '../../components/subjects/SubjectModal';
 import DeleteConfirmModal from '../../components/subjects/DeleteConfirmModal';
 import ImportSubjectModal from '../../components/subjects/ImportSubjectModal'; 
+import ImportResultModal from '../../components/common/ImportResultModal';
 import SubjectStats from '../../components/subjects/SubjectStats';
 import monHocService from '../../service/monhocService';
+import khoaService from '../../service/khoaService';
 
 export default function SubjectManagerPage() {
   // --- STATE MANAGEMENT ---
@@ -13,6 +15,7 @@ export default function SubjectManagerPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBoMon, setSelectedBoMon] = useState('all');
+  const [boMonOptions, setBoMonOptions] = useState([]);
   
   // State quản lý Import
   const [importLoading, setImportLoading] = useState(false);
@@ -21,8 +24,24 @@ export default function SubjectManagerPage() {
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
+  const [isImportResultModalOpen, setIsImportResultModalOpen] = useState(false);
+  const [importResultSummary, setImportResultSummary] = useState(null);
+  const [importSuccessRows, setImportSuccessRows] = useState([]);
+  const [importFailedRows, setImportFailedRows] = useState([]);
   
   const [currentSubject, setCurrentSubject] = useState(null);
+
+  const mapDetailErrorsToRows = (details = []) => {
+    return details.map((detail) => {
+      const text = String(detail || 'Lỗi dữ liệu');
+      const matched = text.match(/Dòng\s+(\d+)/i);
+      return {
+        rowNumber: matched ? Number(matched[1]) : '-',
+        label: text,
+        reason: text
+      };
+    });
+  };
 
   // --- API CALLS ---
   const fetchSubjects = async () => {
@@ -58,18 +77,29 @@ export default function SubjectManagerPage() {
     fetchSubjects();
   }, []);
 
+  useEffect(() => {
+    const fetchBoMonOptions = async () => {
+      try {
+        const res = await khoaService.getAllBoMonRaw();
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const normalized = list
+          .filter((item) => item?.bomon_id && (item?.ten_bomon || item?.ma_bomon))
+          .map((item) => ({
+            id: item.bomon_id,
+            name: item.ten_bomon || item.ma_bomon
+          }));
+        setBoMonOptions(normalized);
+      } catch (error) {
+        console.error('Lỗi tải danh sách bộ môn cho bộ lọc môn học:', error);
+        setBoMonOptions([]);
+      }
+    };
+
+    fetchBoMonOptions();
+  }, []);
+
   // --- STATS & FILTER ---
   const totalCredits = useMemo(() => subjects.reduce((acc, curr) => acc + (curr.sotinchi || 0), 0), [subjects]);
-
-  const boMonOptions = useMemo(() => {
-    const map = new Map();
-    subjects.forEach((sub) => {
-      if (sub.bo_mon_id && sub.ten_bo_mon) {
-        map.set(sub.bo_mon_id, sub.ten_bo_mon);
-      }
-    });
-    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [subjects]);
 
   const filteredSubjects = useMemo(() => {
     return subjects.filter((sub) => {
@@ -144,13 +174,39 @@ export default function SubjectManagerPage() {
       
       // Kiểm tra trực tiếp trên response
       if (response && response.success) {
-          alert(`✅ ${response.message}`);
           await fetchSubjects(); // Load lại dữ liệu
           setIsImportModalOpen(false); // Đóng modal
+
+          const successCountMatch = String(response.message || '').match(/(\d+)/);
+          const successCount = successCountMatch ? Number(successCountMatch[1]) : 0;
+          setImportResultSummary({
+            totalRows: successCount,
+            successCount,
+            failedCount: 0
+          });
+          setImportSuccessRows([
+            {
+              rowNumber: '-',
+              label: 'Import danh sách môn học',
+              reason: response.message || 'Import thành công'
+            }
+          ]);
+          setImportFailedRows([]);
+          setIsImportResultModalOpen(true);
       } else {
           // Trường hợp server trả về 200 nhưng success: false (nếu có logic đó)
           // Hoặc cấu trúc response khác dự kiến
-          alert(`⚠️ Import thất bại: ${response?.message || "Không rõ nguyên nhân"}`);
+          const failMessage = response?.message || 'Không rõ nguyên nhân';
+          setImportResultSummary({ totalRows: 0, successCount: 0, failedCount: 1 });
+          setImportSuccessRows([]);
+          setImportFailedRows([
+            {
+              rowNumber: '-',
+              label: 'Import danh sách môn học',
+              reason: failMessage
+            }
+          ]);
+          setIsImportResultModalOpen(true);
       }
 
     } catch (error) {
@@ -159,10 +215,26 @@ export default function SubjectManagerPage() {
       const errorMsg = error.response?.data?.message || error.message || "Lỗi kết nối server";
       const details = error.response?.data?.details;
       if (Array.isArray(details) && details.length) {
-        const topErrors = details.slice(0, 10).join('\n- ');
-        alert(`❌ Lỗi import: ${errorMsg}\n\n- ${topErrors}`);
+        const failedRows = mapDetailErrorsToRows(details);
+        setImportResultSummary({
+          totalRows: failedRows.length,
+          successCount: 0,
+          failedCount: failedRows.length
+        });
+        setImportSuccessRows([]);
+        setImportFailedRows(failedRows);
+        setIsImportResultModalOpen(true);
       } else {
-        alert(`❌ Lỗi import: ${errorMsg}`);
+        setImportResultSummary({ totalRows: 0, successCount: 0, failedCount: 1 });
+        setImportSuccessRows([]);
+        setImportFailedRows([
+          {
+            rowNumber: '-',
+            label: 'Import danh sách môn học',
+            reason: errorMsg
+          }
+        ]);
+        setIsImportResultModalOpen(true);
       }
     } finally {
       setImportLoading(false);
@@ -183,7 +255,7 @@ export default function SubjectManagerPage() {
         </div>
 
         {/* CONTENT CARD */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[500px]">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
             
             {/* TOOLBAR */}
             <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-white">
@@ -250,24 +322,6 @@ export default function SubjectManagerPage() {
               onEdit={handleEdit} 
               onDelete={handleDeleteClick} 
             />
-
-            {/* PAGINATION FOOTER */}
-            <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
-                <span className="text-xs text-gray-500 font-medium">
-                    Hiển thị {filteredSubjects.length} / {subjects.length} kết quả
-                </span>
-                <div className="flex gap-1">
-                    <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-400 hover:bg-gray-50 disabled:opacity-50" disabled>
-                        &lt;
-                    </button>
-                    <button className="w-8 h-8 flex items-center justify-center rounded border border-[#3B5998] bg-[#3B5998] text-white font-medium text-xs">
-                        1
-                    </button>
-                    <button className="w-8 h-8 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50">
-                        &gt;
-                    </button>
-                </div>
-            </div>
         </div>
       </div>
 
@@ -295,6 +349,15 @@ export default function SubjectManagerPage() {
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportFile}
         isLoading={importLoading}
+      />
+
+      <ImportResultModal
+        isOpen={isImportResultModalOpen}
+        onClose={() => setIsImportResultModalOpen(false)}
+        title="Kết quả import môn học"
+        summary={importResultSummary}
+        successRows={importSuccessRows}
+        failedRows={importFailedRows}
       />
     </div>
   );

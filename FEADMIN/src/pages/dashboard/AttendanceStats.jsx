@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { 
   Search, Loader2, ArrowLeft, Info, User, Users, 
-  AlertTriangle, BookOpen, Calendar, SortAsc, LayoutGrid, List
+  AlertTriangle, BookOpen, Calendar, SortAsc, LayoutGrid
 } from 'lucide-react';
 import dashboardService from '../../service/dashboardService';
 
@@ -15,6 +15,18 @@ const toYmd = (date) => {
   const month = `${d.getMonth() + 1}`.padStart(2, '0');
   const day = `${d.getDate()}`.padStart(2, '0');
   return `${year}-${month}-${day}`;
+};
+
+const parseYmdToLocalDate = (ymd) => {
+  if (!ymd) return null;
+  return new Date(`${ymd}T00:00:00`);
+};
+
+const clampDateString = (value, min, max) => {
+  if (!value) return min || max || '';
+  if (min && value < min) return min;
+  if (max && value > max) return max;
+  return value;
 };
 
 const getIsoWeekString = (date) => {
@@ -58,7 +70,10 @@ const AttendanceStats = () => {
   const [dateFilterMode, setDateFilterMode] = useState('day');
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [selectedWeek, setSelectedWeek] = useState(currentWeekStr);
+  const [selectedFromDate, setSelectedFromDate] = useState(todayStr);
+  const [selectedToDate, setSelectedToDate] = useState(todayStr);
   const [selectedBoMon, setSelectedBoMon] = useState('all');
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
   const [dailyReport, setDailyReport] = useState({
     bo_mon_options: [],
     daily_classes: [],
@@ -69,6 +84,51 @@ const AttendanceStats = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('high'); // high: vắng nhiều nhất, low: ít nhất
   const latestStatsRequestRef = React.useRef(0);
+  const selectedSemesterMeta = useMemo(
+    () => semesters.find((hk) => hk.hocky_id === selectedSemester) || null,
+    [semesters, selectedSemester]
+  );
+  const semesterStartDate = selectedSemesterMeta?.ngay_batdau ? toYmd(selectedSemesterMeta.ngay_batdau) : '';
+  const semesterEndDate = selectedSemesterMeta?.ngay_ketthuc ? toYmd(selectedSemesterMeta.ngay_ketthuc) : '';
+  const semesterWeekOptions = useMemo(() => {
+    if (!selectedSemesterMeta || !semesterEndDate) return [];
+
+    const anchorStr = selectedSemesterMeta.ngay_monday_tuan_1
+      ? toYmd(selectedSemesterMeta.ngay_monday_tuan_1)
+      : semesterStartDate;
+    const anchorDate = parseYmdToLocalDate(anchorStr);
+    const endDate = parseYmdToLocalDate(semesterEndDate);
+    if (!anchorDate || !endDate || anchorDate > endDate) return [];
+
+    const baseWeekNo = Number(selectedSemesterMeta.tuan_bat_dau_co_lich) || 1;
+    const options = [];
+    const cursor = new Date(anchorDate);
+    let index = 0;
+
+    while (cursor <= endDate && index < 60) {
+      const from = toYmd(cursor);
+      const weekEnd = new Date(cursor);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      const boundedEnd = weekEnd > endDate ? endDate : weekEnd;
+
+      options.push({
+        value: getIsoWeekString(cursor),
+        from,
+        to: toYmd(boundedEnd),
+        weekNo: baseWeekNo + index,
+        label: `Tuần ${baseWeekNo + index} (${toYmd(cursor)} - ${toYmd(boundedEnd)})`
+      });
+
+      cursor.setDate(cursor.getDate() + 7);
+      index += 1;
+    }
+
+    return options;
+  }, [selectedSemesterMeta, semesterStartDate, semesterEndDate]);
+  const selectedWeekOption = useMemo(
+    () => semesterWeekOptions.find((item) => item.value === selectedWeek) || null,
+    [semesterWeekOptions, selectedWeek]
+  );
 
   // 1. Khởi tạo lấy danh sách học kỳ
   useEffect(() => {
@@ -111,6 +171,24 @@ const AttendanceStats = () => {
     }
   }, [selectedSemester, selectedBoMon, fetchStats]);
 
+  useEffect(() => {
+    if (!semesterStartDate || !semesterEndDate) return;
+
+    setSelectedDate((prev) => clampDateString(prev, semesterStartDate, semesterEndDate));
+    setSelectedFromDate((prev) => clampDateString(prev, semesterStartDate, semesterEndDate));
+    setSelectedToDate((prev) => clampDateString(prev, semesterStartDate, semesterEndDate));
+  }, [semesterStartDate, semesterEndDate]);
+
+  useEffect(() => {
+    if (!semesterWeekOptions.length) return;
+
+    const hasSelected = semesterWeekOptions.some((item) => item.value === selectedWeek);
+    if (hasSelected) return;
+
+    const todayOption = semesterWeekOptions.find((item) => item.from <= todayStr && todayStr <= item.to);
+    setSelectedWeek((todayOption || semesterWeekOptions[0]).value);
+  }, [semesterWeekOptions, selectedWeek, todayStr]);
+
   const handleViewDetail = async (lhpId) => {
     setLoading(true);
     try {
@@ -123,12 +201,20 @@ const AttendanceStats = () => {
   const fetchDailyReport = useCallback(async () => {
     setDailyLoading(true);
     try {
-      const weekRange = getWeekRangeFromInput(selectedWeek);
+      const safeSelectedDate = clampDateString(selectedDate, semesterStartDate, semesterEndDate);
+      const safeFromDate = clampDateString(selectedFromDate, semesterStartDate, semesterEndDate);
+      const safeToDate = clampDateString(selectedToDate, semesterStartDate, semesterEndDate);
+      const normalizedFromDate = safeFromDate <= safeToDate ? safeFromDate : safeToDate;
+      const normalizedToDate = safeFromDate <= safeToDate ? safeToDate : safeFromDate;
+      const weekRange = selectedWeekOption || getWeekRangeFromInput(selectedWeek);
+      const boundedWeekFrom = clampDateString(weekRange?.from, semesterStartDate, semesterEndDate);
+      const boundedWeekTo = clampDateString(weekRange?.to, semesterStartDate, semesterEndDate);
+
       const res = await dashboardService.getDailyAttendanceReport({
         hocky_id: selectedSemester,
-        ngay: dateFilterMode === 'day' ? selectedDate : undefined,
-        from_ngay: dateFilterMode === 'week' ? weekRange?.from : undefined,
-        to_ngay: dateFilterMode === 'week' ? weekRange?.to : undefined,
+        ngay: dateFilterMode === 'day' ? safeSelectedDate : undefined,
+        from_ngay: dateFilterMode === 'week' ? boundedWeekFrom : (dateFilterMode === 'range' ? normalizedFromDate : undefined),
+        to_ngay: dateFilterMode === 'week' ? boundedWeekTo : (dateFilterMode === 'range' ? normalizedToDate : undefined),
         bomon_id: selectedBoMon
       });
       if (res.success && res.data) {
@@ -142,7 +228,18 @@ const AttendanceStats = () => {
     } finally {
       setDailyLoading(false);
     }
-  }, [selectedSemester, selectedDate, selectedWeek, dateFilterMode, selectedBoMon]);
+  }, [
+    selectedSemester,
+    selectedDate,
+    selectedWeek,
+    selectedFromDate,
+    selectedToDate,
+    dateFilterMode,
+    selectedBoMon,
+    semesterStartDate,
+    semesterEndDate,
+    selectedWeekOption
+  ]);
 
   useEffect(() => {
     if (selectedSemester) {
@@ -180,12 +277,22 @@ const AttendanceStats = () => {
     ? selectedClass.danh_sach_sinh_vien
     : [];
   const boMonOptions = Array.isArray(dailyReport?.bo_mon_options) ? dailyReport.bo_mon_options : [];
-  const dailyClasses = Array.isArray(dailyReport?.daily_classes) ? dailyReport.daily_classes : [];
+  const dailyClasses = useMemo(
+    () => (Array.isArray(dailyReport?.daily_classes) ? dailyReport.daily_classes : []),
+    [dailyReport?.daily_classes]
+  );
+  const filteredDailyClasses = useMemo(() => {
+    if (attendanceStatusFilter === 'all') return dailyClasses;
+    if (attendanceStatusFilter === 'checked') {
+      return dailyClasses.filter((row) => row.trang_thai_diem_danh === 'Đã điểm danh');
+    }
+    return dailyClasses.filter((row) => row.trang_thai_diem_danh !== 'Đã điểm danh');
+  }, [dailyClasses, attendanceStatusFilter]);
   const warningStudents = Array.isArray(dailyReport?.warnings_students) ? dailyReport.warnings_students : [];
   const warningLecturers = Array.isArray(dailyReport?.warnings_lecturers) ? dailyReport.warnings_lecturers : [];
   const effectiveFromDate = dailyReport?.from_ngay || selectedDate;
   const effectiveToDate = dailyReport?.to_ngay || selectedDate;
-  const showDateColumn = dateFilterMode === 'week';
+  const showDateColumn = dateFilterMode !== 'day';
 
   if (loading && !selectedClass && semesters.length === 0) {
     return (
@@ -197,7 +304,7 @@ const AttendanceStats = () => {
   }
 
   return (
-    <div className="space-y-6 bg-slate-50 min-h-screen font-sans text-slate-900">
+    <div className="space-y-6 min-h-screen font-sans text-slate-900">
       
       {selectedClass ? (
         /* ======================== GIAO DIỆN CHI TIẾT ======================== */
@@ -209,7 +316,7 @@ const AttendanceStats = () => {
             <ArrowLeft size={20} /> Quay lại danh sách
           </button>
           
-          <div className="bg-white p-6 md:p-8 rounded-[32px] shadow-sm border border-slate-200">
+          <div className="bg-white p-6 md:p-8 rounded-4xl shadow-sm border border-slate-200">
             <div className="flex flex-col lg:flex-row justify-between border-b border-slate-100 pb-8 mb-8 gap-6">
                 <div>
                     <div className="flex items-center gap-2 mb-3">
@@ -221,11 +328,11 @@ const AttendanceStats = () => {
                     <h2 className="text-3xl font-black text-slate-800 leading-tight">{selectedClass.ten_lophocphan}</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
+                    <div className="bg-slate-50 p-4 rounded-2xl  flex items-center gap-4">
                         <div className="p-3 bg-white rounded-xl text-blue-600 shadow-sm"><User size={24}/></div>
                         <div><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Giảng viên</p><p className="text-sm font-black">{selectedClass.giang_vien}</p></div>
                     </div>
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center gap-4">
+                    <div className="bg-slate-50 p-4 rounded-2xl  flex items-center gap-4">
                         <div className="p-3 bg-white rounded-xl text-emerald-600 shadow-sm"><Users size={24}/></div>
                       <div><p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lớp hành chính</p><p className="text-sm font-black truncate w-32" title={lopHanhChinhDisplay}>{lopHanhChinhDisplay}</p></div>
                     </div>
@@ -236,10 +343,10 @@ const AttendanceStats = () => {
                 <table className="w-full text-sm text-left">
                     <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th className="px-6 py-4 sticky left-0 bg-slate-50 z-20 border-r w-64 font-black text-slate-600">Sinh viên</th>
-                            <th className="px-4 py-4 text-center border-r w-24 font-black text-slate-600">% Vắng</th>
+                            <th className="px-6 py-4 sticky left-0 bg-slate-50 z-20 w-64 font-black text-slate-600">Sinh viên</th>
+                            <th className="px-4 py-4 text-center  w-24 font-black text-slate-600">% Vắng</th>
                             {danhSachSinhVien[0]?.history?.map((h, i) => (
-                                <th key={i} className="px-3 py-4 text-center text-[10px] font-mono border-r min-w-[85px] text-slate-400 uppercase">
+                                <th key={i} className="px-3 py-4 text-center text-[10px] font-mono  min-w-[85px] text-slate-400 uppercase">
                                     {new Date(h.ngay).toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'})}
                                 </th>
                             ))}
@@ -248,13 +355,13 @@ const AttendanceStats = () => {
                     <tbody className="divide-y divide-slate-100">
                           {danhSachSinhVien.map(sv => (
                             <tr key={sv.sinhvien_id} className={`group hover:bg-slate-50 transition-colors ${sv.canh_bao ? 'bg-red-50/30' : ''}`}>
-                                <td className={`px-6 py-4 sticky left-0 z-10 border-r shadow-sm font-medium ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white group-hover:bg-slate-50 text-slate-700'}`}>
+                                <td className={`px-6 py-4 sticky left-0 z-10  shadow-sm font-medium ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white group-hover:bg-slate-50 text-slate-700'}`}>
                                     <div className="font-bold">{sv.ten_sv}</div>
                                     <div className="text-[10px] opacity-60 font-mono italic">{sv.ma_sv}</div>
                                 </td>
-                                <td className={`px-4 py-4 text-center font-black border-r ${sv.canh_bao ? 'text-red-600 animate-pulse' : 'text-slate-600'}`}>{sv.ti_le_vang}%</td>
+                                <td className={`px-4 py-4 text-center font-black  ${sv.canh_bao ? 'text-red-600 animate-pulse' : 'text-slate-600'}`}>{sv.ti_le_vang}%</td>
                               {sv.history?.map((h, i) => (
-                                    <td key={i} className="px-3 py-4 text-center border-r last:border-0">
+                                    <td key={i} className="px-3 py-4 text-center  last:border-0">
                                         {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto border-2 border-white shadow-sm" />}
@@ -271,11 +378,11 @@ const AttendanceStats = () => {
       ) : (
         /* ======================== GIAO DIỆN TỔNG QUAN (BẢN FIX HOVER) ======================== */
         <>
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             
             {/* CỘT TRÁI: ĐIỀU KHIỂN & BIỂU ĐỒ */}
-            <div className="xl:col-span-2 space-y-6">
-              <div className="bg-white p-6 md:p-8 rounded-[32px] shadow-sm border border-slate-200">
+            <div className="space-y-6">
+              <div className="bg-white p-6 md:p-8 rounded-4xl shadow-sm border border-slate-200">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 flex-wrap">
                   <div className="flex gap-4 items-center">
                     <div className="p-4 bg-blue-600 rounded-2xl text-white shadow-xl shadow-blue-100"><LayoutGrid size={28}/></div>
@@ -310,6 +417,13 @@ const AttendanceStats = () => {
                         >
                           Theo tuần
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setDateFilterMode('range')}
+                          className={`px-2.5 py-1.5 text-[11px] font-bold rounded-lg transition-colors ${dateFilterMode === 'range' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                        >
+                          Từ ngày - đến ngày
+                        </button>
                       </div>
 
                       {dateFilterMode === 'day' ? (
@@ -318,19 +432,52 @@ const AttendanceStats = () => {
                           <input
                             type="date"
                             value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
+                            min={semesterStartDate || undefined}
+                            max={semesterEndDate || undefined}
+                            onChange={(e) => setSelectedDate(clampDateString(e.target.value, semesterStartDate, semesterEndDate))}
                             className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
                           />
                         </div>
-                      ) : (
+                      ) : dateFilterMode === 'week' ? (
                         <div className="relative w-full sm:w-auto">
                           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                          <input
-                            type="week"
+                          <select
                             value={selectedWeek}
                             onChange={(e) => setSelectedWeek(e.target.value)}
-                            className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
-                          />
+                            className="pl-10 pr-8 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-fit min-w-[260px] transition-all cursor-pointer"
+                          >
+                            {semesterWeekOptions.map((item) => (
+                              <option key={item.value} value={item.value}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <div className="relative w-full sm:w-auto">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                              type="date"
+                              value={selectedFromDate}
+                              min={semesterStartDate || undefined}
+                              max={semesterEndDate || undefined}
+                              onChange={(e) => setSelectedFromDate(clampDateString(e.target.value, semesterStartDate, semesterEndDate))}
+                              className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
+                            />
+                          </div>
+                          <span className="text-slate-400 text-xs font-bold">đến</span>
+                          <div className="relative w-full sm:w-auto">
+                            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                              type="date"
+                              value={selectedToDate}
+                              min={semesterStartDate || undefined}
+                              max={semesterEndDate || undefined}
+                              onChange={(e) => setSelectedToDate(clampDateString(e.target.value, semesterStartDate, semesterEndDate))}
+                              className="pl-10 pr-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-44 transition-all"
+                            />
+                          </div>
                         </div>
                       )}
                       <div className="relative w-full sm:w-auto">
@@ -368,6 +515,15 @@ const AttendanceStats = () => {
                       >
                         <SortAsc size={16} /> {sortBy === 'high' ? 'Vắng nhiều' : 'Vắng ít'}
                       </button>
+                      <select
+                        value={attendanceStatusFilter}
+                        onChange={(e) => setAttendanceStatusFilter(e.target.value)}
+                        className="px-3 py-2 text-xs border border-slate-100 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 w-full sm:w-auto transition-all cursor-pointer"
+                      >
+                        <option value="all">Tất cả trạng thái điểm danh</option>
+                        <option value="checked">Đã điểm danh</option>
+                        <option value="unchecked">Chưa điểm danh</option>
+                      </select>
                   </div>
                 </div>
 
@@ -376,9 +532,9 @@ const AttendanceStats = () => {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       {dateFilterMode === 'week' ? 'Lớp học phần trong tuần' : 'Lớp học phần trong ngày'}
                     </p>
-                    <p className="text-2xl font-black text-slate-800 mt-1">{dailyClasses.length}</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{filteredDailyClasses.length}</p>
                   </div>
-                  <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+                  <div className="rounded-2xl ed-100 bg-red-50 p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Cảnh báo SV nghỉ quá 20%</p>
                     <p className="text-2xl font-black text-red-600 mt-1">{warningStudents.length}</p>
                   </div>
@@ -391,7 +547,7 @@ const AttendanceStats = () => {
                 <div className="mb-6 rounded-2xl border border-slate-200 overflow-hidden">
                   <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                     <h4 className="text-sm font-black text-slate-700 uppercase tracking-wide">
-                      {dateFilterMode === 'week'
+                        {dateFilterMode !== 'day'
                         ? `Kết quả điểm danh theo tuần (${toYmd(effectiveFromDate)} đến ${toYmd(effectiveToDate)})`
                         : `Kết quả điểm danh theo ngày (${toYmd(selectedDate)})`}
                     </h4>
@@ -412,7 +568,7 @@ const AttendanceStats = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
-                        {dailyClasses.map((row) => (
+                        {filteredDailyClasses.map((row) => (
                           <tr key={row.buoi_id}>
                             {showDateColumn && (
                               <td className="px-4 py-3 text-center font-mono text-[11px] text-slate-500">
@@ -443,10 +599,10 @@ const AttendanceStats = () => {
                             </td>
                           </tr>
                         ))}
-                        {dailyClasses.length === 0 && (
+                        {filteredDailyClasses.length === 0 && (
                           <tr>
                             <td colSpan={showDateColumn ? 8 : 7} className="px-4 py-6 text-center text-slate-400">
-                              {dateFilterMode === 'week' ? 'Không có lớp học phần trong tuần đã chọn.' : 'Không có lớp học phần trong ngày đã chọn.'}
+                              {showDateColumn ? 'Không có lớp học phần trong khoảng thời gian đã chọn.' : 'Không có lớp học phần trong ngày đã chọn.'}
                             </td>
                           </tr>
                         )}
@@ -456,8 +612,8 @@ const AttendanceStats = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                  <div className="rounded-2xl border border-red-100 overflow-hidden bg-white">
-                    <div className="px-4 py-3 bg-red-50 border-b border-red-100 text-xs font-black text-red-600 uppercase tracking-wider">Cảnh báo sinh viên nghỉ quá 20%</div>
+                  <div className="rounded-2xl ed-100 overflow-hidden bg-white">
+                    <div className="px-4 py-3 bg-red-50 ed-100 text-xs font-black text-red-600 uppercase tracking-wider">Cảnh báo sinh viên nghỉ quá 20%</div>
                     <div className="max-h-56 overflow-auto divide-y divide-slate-100">
                       {warningStudents.length > 0 ? warningStudents.map((w, idx) => (
                         <div key={`${w.sinhvien_id}-${idx}`} className="px-4 py-3 text-xs">
@@ -565,51 +721,6 @@ const AttendanceStats = () => {
                     </div>
                   )}
                 </div>
-              </div>
-            </div>
-
-            {/* CỘT PHẢI: CHI TIẾT DANH SÁCH (Dạng bảng rút gọn) */}
-            <div className="space-y-6">
-              <div className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden h-full flex flex-col">
-                 <div className="p-6 border-b border-slate-100 flex items-center gap-3">
-                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><List size={18}/></div>
-                    <h3 className="font-black text-slate-800 text-sm uppercase tracking-tight">Xếp hạng vắng học</h3>
-                 </div>
-                 <div className="flex-1 overflow-y-auto custom-scrollbar max-h-[640px]">
-                    <table className="w-full text-xs text-left">
-                        <thead className="bg-slate-50/50 text-slate-400 font-bold border-b border-slate-100">
-                            <tr>
-                                <th className="px-6 py-4">Lớp</th>
-                                <th className="px-4 py-4 text-center">Vắng</th>
-                                <th className="px-4 py-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {processedData.map((item) => (
-                                <tr key={item.lophocphan_id} className="group hover:bg-blue-50/30 transition-colors">
-                                    <td className="px-6 py-4">
-                                        <div className="font-bold text-slate-700 line-clamp-1 group-hover:text-blue-600 transition-colors">{item.ten_lop}</div>
-                                        <div className="text-[10px] text-slate-400 font-mono mt-0.5">{item.ma_lop}</div>
-                                    </td>
-                                    <td className="px-4 py-4 text-center">
-                                        <span className={`font-black ${item.ti_le_vang > 15 ? 'text-red-500' : 'text-slate-600'}`}>{item.ti_le_vang}%</span>
-                                    </td>
-                                    <td className="px-4 py-4 text-right">
-                                        <button 
-                                          onClick={() => handleViewDetail(item.lophocphan_id)} 
-                                          className="p-2 hover:bg-white hover:text-blue-600 rounded-lg text-slate-300 transition-all active:scale-90"
-                                        >
-                                          <ArrowLeft size={16} className="rotate-180" />
-                                        </button>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                 </div>
-                 <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Hiển thị {processedData.length} lớp học phần</p>
-                 </div>
               </div>
             </div>
 

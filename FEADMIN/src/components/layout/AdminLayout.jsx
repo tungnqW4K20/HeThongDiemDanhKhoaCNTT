@@ -64,13 +64,11 @@ const AdminLayout = () => {
                     {/* Phải: Actions & Profile */}
                     <div className="flex items-center gap-6">
                         
-                        {/* Search Quick Action (Optional - Tăng tính chuyên nghiệp) */}
-                        <div className="hidden md:flex items-center bg-slate-200/50 border border-slate-200 rounded-2xl px-3 py-1.5 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                        {/* <div className="hidden md:flex items-center bg-slate-200/50 border border-slate-200 rounded-2xl px-3 py-1.5 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
                             <Search size={16} className="text-slate-400" />
                             <input type="text" placeholder="Tìm nhanh..." className="bg-transparent border-none outline-none text-xs ml-2 w-32 focus:w-48 transition-all" />
                         </div>
 
-                        {/* Notification Bell */}
                         <div className="relative group">
                             <button className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-500 hover:text-[#3B5998] hover:border-[#3B5998] hover:bg-blue-50 transition-all shadow-sm active:scale-90">
                                 <Bell size={20} />
@@ -81,16 +79,12 @@ const AdminLayout = () => {
                                 )}
                             </button>
                             
-                            {/* Hover Tooltip/Dropdown giả lập */}
                             <div className="absolute top-full right-0 mt-2 w-10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                {/* Có thể thêm dropdown list ở đây */}
                             </div>
                         </div>
 
-                        {/* Divider */}
-                        <div className="h-8 w-[1px] bg-slate-200 mx-1"></div>
+                        <div className="h-8 w-[1px] bg-slate-200 mx-1"></div> */}
 
-                        {/* User Profile Container */}
                         <button className="flex items-center gap-3 p-1.5 pr-4 hover:bg-white hover:shadow-md border border-transparent hover:border-slate-100 rounded-2xl transition-all group active:scale-[0.98]">
                             <div className="relative">
                                 <div className="w-10 h-10 rounded-[14px] bg-gradient-to-tr from-[#3B5998] to-[#6A89CC] flex items-center justify-center text-white font-black text-sm shadow-lg shadow-blue-200 ring-2 ring-white">
@@ -108,7 +102,7 @@ const AdminLayout = () => {
                                 </span>
                             </div>
 
-                            <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-600 transition-transform group-hover:rotate-180" />
+                            {/* <ChevronDown size={16} className="text-slate-400 group-hover:text-slate-600 transition-transform group-hover:rotate-180" /> */}
                         </button>
                     </div>
                 </header>

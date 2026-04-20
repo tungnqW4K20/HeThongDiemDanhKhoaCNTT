@@ -3,6 +3,30 @@ import authService from '../service/authService'; // Import service vừa sửa
 
 export const AuthContext = createContext();
 
+const parseJwtPayload = (token) => {
+  try {
+    const payloadPart = token.split('.')[1];
+    if (!payloadPart) return null;
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((char) => `%${(`00${char.charCodeAt(0).toString(16)}`).slice(-2)}`)
+        .join('')
+    );
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+};
+
+const isTokenExpired = (token) => {
+  const payload = parseJwtPayload(token);
+  if (!payload || !payload.exp) return true;
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  return nowInSeconds >= payload.exp;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -13,10 +37,25 @@ export const AuthProvider = ({ children }) => {
     const initAuth = () => {
       const token = localStorage.getItem('accessToken');
       const savedUser = localStorage.getItem('user');
-      
-      if (token && savedUser) {
-        setUser(JSON.parse(savedUser));
-        setIsAuthenticated(true);
+
+      if (token && savedUser && !isTokenExpired(token)) {
+        try {
+          const parsedUser = JSON.parse(savedUser);
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+        } catch {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } else {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        setUser(null);
+        setIsAuthenticated(false);
       }
       setIsLoading(false);
     };

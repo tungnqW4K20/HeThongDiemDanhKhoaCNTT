@@ -106,6 +106,23 @@ const handleGetAllBoMon = async (req, res) => {
     }
 };
 
+const handleGetAllBoMonRaw = async (req, res) => {
+    try {
+        const { role, khoa_id, chuyennganh_id } = req.user || {};
+        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
+        const targetBoMonId = role === 'truongbomon' ? chuyennganh_id : null;
+
+        const response = await khoaService.getAllBoMonRaw(targetKhoaId, targetBoMonId);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
 const handleCreateBoMon = async (req, res) => {
     try {
         const response = await khoaService.createBoMon(req.body);
@@ -166,6 +183,69 @@ const handleGetTruongBoMonOptions = async (req, res) => {
     }
 };
 
+const handleGetAllChuyenNganh = async (req, res) => {
+    try {
+        const { role, khoa_id, chuyennganh_id } = req.user || {};
+        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
+        const targetChuyenNganhId = role === 'truongbomon' ? chuyennganh_id : null;
+
+        const response = await khoaService.getAllChuyenNganh(targetKhoaId, targetChuyenNganhId);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleCreateChuyenNganh = async (req, res) => {
+    try {
+        const response = await khoaService.createChuyenNganh(req.body);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleUpdateChuyenNganh = async (req, res) => {
+    try {
+        const response = await khoaService.updateChuyenNganh(req.body);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
+const handleDeleteChuyenNganh = async (req, res) => {
+    try {
+        if (!req.body.id) {
+            return res.status(400).json({
+                errCode: 1,
+                message: 'Missing required parameter id'
+            });
+        }
+
+        const response = await khoaService.deleteChuyenNganh(req.body.id);
+        return res.status(200).json(response);
+    } catch (e) {
+        console.log(e);
+        return res.status(500).json({
+            errCode: -1,
+            message: 'Error from server'
+        });
+    }
+};
+
 module.exports = {
     handleGetAllKhoa,
     handleGetKhoaById,
@@ -173,9 +253,14 @@ module.exports = {
     handleUpdateKhoa,
     handleDeleteKhoa,
     handleGetAllBoMon,
+    handleGetAllBoMonRaw,
     handleCreateBoMon,
     handleUpdateBoMon,
     handleDeleteBoMon,
-    handleGetTruongBoMonOptions
+    handleGetTruongBoMonOptions,
+    handleGetAllChuyenNganh,
+    handleCreateChuyenNganh,
+    handleUpdateChuyenNganh,
+    handleDeleteChuyenNganh
 };
 

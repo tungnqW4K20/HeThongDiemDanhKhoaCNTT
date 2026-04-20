@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Search, RefreshCw, Library } from 'lucide-react';
 import khoaService from '../../service/khoaService';
-import BoMonTable from '../../components/department/BoMonTable';
-import BoMonModal from '../../components/department/BoMonModal';
+import ChuyenNganhTable from '../../components/department/ChuyenNganhTable';
+import ChuyenNganhModal from '../../components/department/ChuyenNganhModal';
 import DeleteConfirmModal from '../../components/department/DeleteConfirmModal';
 
-const BoMonManagerPage = () => {
+const ChuyenNganhManagerPage = () => {
   const [data, setData] = useState([]);
   const [khoaList, setKhoaList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -13,23 +13,23 @@ const BoMonManagerPage = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
-  const [selectedBoMon, setSelectedBoMon] = useState(null);
+  const [selectedChuyenNganh, setSelectedChuyenNganh] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [boMonRes, khoaRes] = await Promise.all([
-        khoaService.getAllBoMon(),
+      const [chuyenNganhRes, khoaRes] = await Promise.all([
+        khoaService.getAllChuyenNganh(),
         khoaService.getAll()
       ]);
 
-      const boMonOk = boMonRes && (boMonRes.errCode === 0 || boMonRes.success === true);
+      const chuyenNganhOk = chuyenNganhRes && (chuyenNganhRes.errCode === 0 || chuyenNganhRes.success === true);
       const khoaOk = khoaRes && (khoaRes.errCode === 0 || khoaRes.success === true);
 
-      setData(boMonOk ? (boMonRes.data || []) : []);
+      setData(chuyenNganhOk ? (chuyenNganhRes.data || []) : []);
       setKhoaList(khoaOk ? (khoaRes.data || []) : []);
     } catch (error) {
-      console.error('Lỗi fetch dữ liệu bộ môn:', error);
+      console.error('Loi fetch du lieu chuyen nganh:', error);
     } finally {
       setLoading(false);
     }
@@ -47,24 +47,22 @@ const BoMonManagerPage = () => {
       item.ten_chuyennganh?.toLowerCase().includes(normalized) ||
       item.ma_chuyennganh?.toLowerCase().includes(normalized) ||
       item.Khoa?.ten_khoa?.toLowerCase().includes(normalized) ||
-      item.TruongBoMon?.username?.toLowerCase().includes(normalized) ||
-      `${item.TruongBoMon?.GiangVien?.ho || ''} ${item.TruongBoMon?.GiangVien?.ten || ''}`.trim().toLowerCase().includes(normalized) ||
       (item.DanhSachMonHoc || []).some((mh) => mh.ten_mon?.toLowerCase().includes(normalized) || mh.ma_mon?.toLowerCase().includes(normalized))
     );
   }, [data, searchTerm]);
 
   const handleConfirmDelete = async () => {
     try {
-      const res = await khoaService.deleteBoMon(selectedBoMon.chuyennganh_id);
+      const res = await khoaService.deleteChuyenNganh(selectedChuyenNganh.chuyennganh_id);
       if (res && res.errCode === 0) {
         setIsDeleteOpen(false);
-        setSelectedBoMon(null);
+        setSelectedChuyenNganh(null);
         fetchData();
       } else {
-        alert(res.message || 'Xóa bộ môn thất bại');
+        alert(res.message || 'Xoa chuyen nganh that bai');
       }
     } catch {
-      alert('Không thể xóa bộ môn này');
+      alert('Khong the xoa chuyen nganh nay');
     }
   };
 
@@ -72,8 +70,8 @@ const BoMonManagerPage = () => {
     <div className="animate-in fade-in duration-500">
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý bộ môn</h1>
-          <p className="text-sm text-gray-500 mt-1">Quản lý các bộ môn/chuyên ngành trực thuộc khoa</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý chuyên ngành</h1>
+          <p className="text-sm text-gray-500 mt-1">Quản lý các chuyên ngành trực thuộc khoa</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -86,12 +84,12 @@ const BoMonManagerPage = () => {
           </button>
           <button
             onClick={() => {
-              setSelectedBoMon(null);
+              setSelectedChuyenNganh(null);
               setIsModalOpen(true);
             }}
             className="px-5 py-2.5 bg-[#3B5998] text-white rounded-lg flex items-center gap-2 hover:bg-[#2e4676] transition-all shadow-md font-bold text-sm"
           >
-            <Plus size={20} /> Thêm Bộ môn
+            <Plus size={20} /> Thêm Chuyên ngành
           </button>
         </div>
       </div>
@@ -101,7 +99,7 @@ const BoMonManagerPage = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
             type="text"
-            placeholder="Tìm theo mã, tên bộ môn hoặc tên khoa..."
+            placeholder="Tìm theo mã, tên chuyên ngành hoặc tên khoa..."
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] transition-all text-sm"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -118,25 +116,25 @@ const BoMonManagerPage = () => {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <BoMonTable
+        <ChuyenNganhTable
           data={filteredData}
           loading={loading}
           onEdit={(item) => {
-            setSelectedBoMon(item);
+            setSelectedChuyenNganh(item);
             setIsModalOpen(true);
           }}
           onDelete={(item) => {
-            setSelectedBoMon(item);
+            setSelectedChuyenNganh(item);
             setIsDeleteOpen(true);
           }}
         />
       </div>
 
-      <BoMonModal
+      <ChuyenNganhModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSuccess={fetchData}
-        initialData={selectedBoMon}
+        initialData={selectedChuyenNganh}
         khoaOptions={khoaList}
       />
 
@@ -144,11 +142,11 @@ const BoMonManagerPage = () => {
         isOpen={isDeleteOpen}
         onClose={() => setIsDeleteOpen(false)}
         onConfirm={handleConfirmDelete}
-        title="Xác nhận xóa bộ môn"
-        message={`Bạn có chắc chắn muốn xóa bộ môn ${selectedBoMon?.ten_chuyennganh}?`}
+        title="Xác nhận xóa chuyên ngành"
+        message={`Bạn có chắc chắn muốn xóa chuyên ngành ${selectedChuyenNganh?.ten_chuyennganh}?`}
       />
     </div>
   );
 };
 
-export default BoMonManagerPage;
+export default ChuyenNganhManagerPage;

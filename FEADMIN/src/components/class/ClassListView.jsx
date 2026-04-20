@@ -5,7 +5,15 @@ import AddClassModal from './AddClassModal';
 import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../Pagination'; 
 
-const ClassListView = ({ data, onSelect, onAddClass, onImportClick }) => {
+const ClassListView = ({
+  data,
+  onSelect,
+  onAddClass,
+  onImportClick,
+  campusOptions: externalCampusOptions = [],
+  departmentOptions: externalDepartmentOptions = [],
+  majorOptions: externalMajorOptions = []
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   
@@ -17,22 +25,46 @@ const ClassListView = ({ data, onSelect, onAddClass, onImportClick }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
   // 1. Unique Departments
-  const uniqueDepartments = useMemo(() => {
+  const uniqueDepartmentsFromData = useMemo(() => {
     return [...new Set(data.map(item => item.department))].filter(Boolean).sort();
   }, [data]);
 
+  const uniqueDepartments = useMemo(() => {
+    if (externalDepartmentOptions.length > 0) {
+      return [...new Set(externalDepartmentOptions)].filter(Boolean).sort();
+    }
+    return uniqueDepartmentsFromData;
+  }, [externalDepartmentOptions, uniqueDepartmentsFromData]);
+
   // 2. Unique Majors
-  const uniqueMajors = useMemo(() => {
-    const filteredByDept = selectedDepartment 
-      ? data.filter(item => item.department === selectedDepartment) 
+  const uniqueMajorsFromData = useMemo(() => {
+    const filteredByDept = selectedDepartment
+      ? data.filter(item => item.department === selectedDepartment)
       : data;
     return [...new Set(filteredByDept.map(item => item.majorName))].filter(Boolean).sort();
   }, [data, selectedDepartment]);
 
+  const uniqueMajors = useMemo(() => {
+    if (externalMajorOptions.length > 0) {
+      const filteredByDept = selectedDepartment
+        ? externalMajorOptions.filter((item) => item.department === selectedDepartment)
+        : externalMajorOptions;
+      return [...new Set(filteredByDept.map((item) => item.name))].filter(Boolean).sort();
+    }
+    return uniqueMajorsFromData;
+  }, [externalMajorOptions, selectedDepartment, uniqueMajorsFromData]);
+
   // 3. Unique Campuses
-  const uniqueCampuses = useMemo(() => {
+  const uniqueCampusesFromData = useMemo(() => {
     return [...new Set(data.map(item => item.campus))].filter(Boolean).sort();
   }, [data]);
+
+  const uniqueCampuses = useMemo(() => {
+    if (externalCampusOptions.length > 0) {
+      return [...new Set(externalCampusOptions)].filter(Boolean).sort();
+    }
+    return uniqueCampusesFromData;
+  }, [externalCampusOptions, uniqueCampusesFromData]);
 
   // 4. Logic lọc dữ liệu
   const filteredData = useMemo(() => {
