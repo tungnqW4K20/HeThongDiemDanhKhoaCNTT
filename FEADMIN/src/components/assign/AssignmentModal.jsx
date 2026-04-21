@@ -47,6 +47,10 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
   const [subjectSearch, setSubjectSearch] = useState('');
   const subjectDropdownRef = useRef(null); 
 
+  const [showLecturerDropdown, setShowLecturerDropdown] = useState(false);
+  const [lecturerSearch, setLecturerSearch] = useState('');
+  const lecturerDropdownRef = useRef(null);
+
   const [showClassDropdown, setShowClassDropdown] = useState(false);
   const [classSearch, setClassSearch] = useState('');
   const classDropdownRef = useRef(null);
@@ -98,22 +102,27 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
         const selectedSubject = subjects.find(s => s.monhoc_id === formData.monhoc_id);
         let list = [];
 
+        const normalizeLecturerList = (res) => {
+          if (Array.isArray(res?.data)) return res.data;
+          if (Array.isArray(res)) return res;
+          return [];
+        };
+
         if (selectedSubject && selectedSubject.Khoa) {
             try {
                 const response = await giangVienService.getByKhoa(selectedSubject.Khoa.ma_khoa);
-                if (response && response.data) list = response.data;
+                // Backend route getByKhoa trả errCode/data, nhưng vẫn hỗ trợ fallback shape khác.
+                list = normalizeLecturerList(response);
             } catch (error) {
                 console.error(error);
             }
         }
 
-        // Nếu đang chỉnh sửa và GV hiện tại không có trong list (khác khoa / import CSV),
-        // load toàn bộ GV để người dùng vẫn thấy và chọn được
-        if (formData.giangvien_id && !list.find(gv => gv.giangvien_id === formData.giangvien_id)) {
+        // Nếu không lấy được theo khoa (hoặc môn không gắn khoa), fallback lấy toàn bộ GV.
+        if (list.length === 0 || (formData.giangvien_id && !list.find(gv => gv.giangvien_id === formData.giangvien_id))) {
             try {
                 const allRes = await giangVienService.getAll();
-                const allList = allRes?.data || allRes || [];
-                list = Array.isArray(allList) ? allList : [];
+                list = normalizeLecturerList(allRes);
             } catch (error) {
                 console.error(error);
             }
@@ -156,6 +165,7 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
         if (selectedSubject) {
             setSubjectSearch(`${selectedSubject.ma_mon} - ${selectedSubject.ten_mon}`);
         }
+        setLecturerSearch(initialData.ten_giang_vien || '');
         setClassSearch('');
       } else {
         const defaultSemester = semesters.length > 0 ? semesters[0] : null;
@@ -182,19 +192,39 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
           so_tuan: 15
         });
         setSubjectSearch('');
+        setLecturerSearch('');
         setClassSearch('');
       }
       setErrors({});
       setShowSubjectDropdown(false);
+      setShowLecturerDropdown(false);
       setShowClassDropdown(false);
     }
   }, [isOpen, initialData, semesters, subjects, classes]);
+
+  useEffect(() => {
+    if (!formData.giangvien_id) {
+      if (!showLecturerDropdown) setLecturerSearch('');
+      return;
+    }
+
+    const selectedLecturer = lecturers.find((lec) => lec.giangvien_id === formData.giangvien_id);
+    if (!selectedLecturer) return;
+
+    const label = `${selectedLecturer.ho || ''} ${selectedLecturer.ten || ''} - ${selectedLecturer.ma_gv || ''}`.trim();
+    if (!showLecturerDropdown) {
+      setLecturerSearch(label);
+    }
+  }, [formData.giangvien_id, lecturers, showLecturerDropdown]);
 
   // 4. Click Outside
   useEffect(() => {
     function handleClickOutside(event) {
         if (subjectDropdownRef.current && !subjectDropdownRef.current.contains(event.target)) {
             setShowSubjectDropdown(false);
+        }
+        if (lecturerDropdownRef.current && !lecturerDropdownRef.current.contains(event.target)) {
+          setShowLecturerDropdown(false);
         }
         if (classDropdownRef.current && !classDropdownRef.current.contains(event.target)) {
             setShowClassDropdown(false);
@@ -281,6 +311,14 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
   const filteredClasses = classes.filter(cls => 
     cls.ten_lop.toLowerCase().includes(classSearch.toLowerCase())
   );
+
+  const filteredLecturers = lecturers.filter((lec) => {
+    const keyword = lecturerSearch.toLowerCase().trim();
+    if (!keyword) return true;
+    const fullName = `${lec.ho || ''} ${lec.ten || ''}`.toLowerCase();
+    const maGv = (lec.ma_gv || '').toLowerCase();
+    return fullName.includes(keyword) || maGv.includes(keyword);
+  });
 
   return createPortal(
     <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
@@ -405,24 +443,69 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
 
                 {/* GIẢNG VIÊN */}
                 <InputGroup label="Giảng viên phụ trách" required icon={User} error={errors.giangvien_id}>
-                    <select 
-                        value={formData.giangvien_id}
-                        onChange={(e) => setFormData({...formData, giangvien_id: e.target.value})}
-                        disabled={!formData.monhoc_id || lecturers.length === 0}
-                        className={`w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 focus:border-[#3B5998] text-sm bg-white appearance-none
-                          ${(!formData.monhoc_id || lecturers.length === 0) ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
-                    >
-                        <option value="">
-                            {formData.monhoc_id 
-                                ? (lecturers.length > 0 ? "-- Chọn giảng viên --" : "-- Không tìm thấy giảng viên khoa này --") 
-                                : "-- Vui lòng chọn môn học trước --"}
-                        </option>
-                        {lecturers.map(lec => (
-                            <option key={lec.giangvien_id} value={lec.giangvien_id}>
-                                {lec.ho} {lec.ten} - {lec.ma_gv}
-                            </option>
-                        ))}
-                    </select>
+                    <div className="relative" ref={lecturerDropdownRef}>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={lecturerSearch}
+                          autoComplete="off"
+                          disabled={!formData.monhoc_id}
+                          onClick={() => {
+                            if (!formData.monhoc_id) return;
+                            setShowLecturerDropdown(true);
+                          }}
+                          onChange={(e) => {
+                            setLecturerSearch(e.target.value);
+                            setShowLecturerDropdown(true);
+                            if (formData.giangvien_id) setFormData(prev => ({ ...prev, giangvien_id: '' }));
+                            if (errors.giangvien_id) setErrors(prev => ({ ...prev, giangvien_id: undefined }));
+                          }}
+                          placeholder={formData.monhoc_id
+                            ? 'Tìm theo tên hoặc mã giảng viên...'
+                            : 'Vui lòng chọn môn học trước'}
+                          className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 text-sm bg-white
+                            ${errors.giangvien_id ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}
+                            ${!formData.monhoc_id ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
+                        />
+
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                          {showLecturerDropdown ? <Search size={16} /> : <ChevronDown size={16} />}
+                        </div>
+                      </div>
+
+                      {showLecturerDropdown && formData.monhoc_id && (
+                        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto animate-in fade-in zoom-in-95 duration-100">
+                          {filteredLecturers.length > 0 ? (
+                            filteredLecturers.map((lec) => {
+                              const isSelected = formData.giangvien_id === lec.giangvien_id;
+                              const label = `${lec.ho || ''} ${lec.ten || ''} - ${lec.ma_gv || ''}`.trim();
+
+                              return (
+                                <div
+                                  key={lec.giangvien_id}
+                                  onClick={() => {
+                                    setFormData(prev => ({ ...prev, giangvien_id: lec.giangvien_id }));
+                                    setLecturerSearch(label);
+                                    setShowLecturerDropdown(false);
+                                    setErrors(prev => ({ ...prev, giangvien_id: undefined }));
+                                  }}
+                                  className={`px-3 py-2.5 text-sm cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50 flex justify-between items-center group
+                                    ${isSelected ? 'bg-blue-50 text-[#3B5998] font-medium' : 'text-gray-700'}`}
+                                >
+                                  <span className="group-hover:translate-x-1 transition-transform duration-200">{label}</span>
+                                  {isSelected && <Check size={16} className="text-[#3B5998]" />}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div className="px-3 py-4 text-sm text-gray-400 text-center flex flex-col items-center">
+                              <Search size={24} className="mb-1 opacity-50" />
+                              Không tìm thấy giảng viên
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                 </InputGroup>
 
                 {/* LỚP HÀNH CHÍNH (MULTI-SELECT) */}

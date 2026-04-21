@@ -474,13 +474,227 @@ const getDanhSachSinhVien = async (lophocphan_id) => {
   }
 };
 
+const getSinhVienTheoLopHanhChinh = async (lophocphan_id, lop_hanhchinh_id) => {
+  try {
+    const lopHocPhan = await db.LopHocPhan.findByPk(lophocphan_id, {
+      attributes: ['lophocphan_id']
+    });
+
+    if (!lopHocPhan) {
+      return { success: false, errCode: 1, message: 'Lớp học phần không tồn tại.' };
+    }
+
+    const lopHanhChinh = await db.LopHanhChinh.findByPk(lop_hanhchinh_id, {
+      attributes: ['lop_hanhchinh_id', 'ten_lop']
+    });
+
+    if (!lopHanhChinh) {
+      return { success: false, errCode: 2, message: 'Lớp hành chính không tồn tại.' };
+    }
+
+    const sinhVienList = await db.SinhVien.findAll({
+      where: {
+        lop_hanhchinh_id,
+        isDeleted: false
+      },
+      attributes: ['sinhvien_id', 'ma_sv', 'ten', 'email', 'sdt', 'ngaysinh'],
+      order: [['ten', 'ASC']]
+    });
+
+    const sinhVienIds = sinhVienList.map((sv) => sv.sinhvien_id);
+    const existedDangKy = await db.DangKyHoc.findAll({
+      where: {
+        lophocphan_id,
+        sinhvien_id: { [Op.in]: sinhVienIds }
+      },
+      attributes: ['sinhvien_id']
+    });
+    const existedSet = new Set(existedDangKy.map((dk) => dk.sinhvien_id));
+
+    return {
+      success: true,
+      errCode: 0,
+      message: 'OK',
+      data: {
+        lop_hanhchinh: {
+          lop_hanhchinh_id: lopHanhChinh.lop_hanhchinh_id,
+          ten_lop: lopHanhChinh.ten_lop
+        },
+        students: sinhVienList.map((sv) => ({
+          ...sv.toJSON(),
+          da_dang_ky: existedSet.has(sv.sinhvien_id)
+        }))
+      }
+    };
+  } catch (error) {
+    throw new Error(`Lỗi lấy sinh viên theo lớp hành chính: ${error.message}`);
+  }
+};
+
+const addSinhVienTuLopHanhChinh = async (lophocphan_id, lop_hanhchinh_id, sinhvien_ids = []) => {
+  const t = await db.sequelize.transaction();
+  try {
+    const lopHocPhan = await db.LopHocPhan.findByPk(lophocphan_id, {
+      attributes: ['lophocphan_id'],
+      transaction: t
+    });
+
+    if (!lopHocPhan) {
+      await t.rollback();
+      return { success: false, errCode: 1, message: 'Lớp học phần không tồn tại.' };
+    }
+
+    const normalizedIds = Array.isArray(sinhvien_ids)
+      ? [...new Set(sinhvien_ids.filter(Boolean))]
+      : [];
+
+    if (normalizedIds.length === 0) {
+      await t.rollback();
+      return { success: false, errCode: 2, message: 'Vui lòng chọn ít nhất một sinh viên.' };
+    }
+
+    const sinhVienWhere = {
+      sinhvien_id: { [Op.in]: normalizedIds },
+      isDeleted: false
+    };
+    if (lop_hanhchinh_id) {
+      sinhVienWhere.lop_hanhchinh_id = lop_hanhchinh_id;
+    }
+
+    const sinhVienList = await db.SinhVien.findAll({
+      where: sinhVienWhere,
+      attributes: ['sinhvien_id', 'lop_hanhchinh_id'],
+      transaction: t
+    });
+
+    if (sinhVienList.length !== normalizedIds.length) {
+      await t.rollback();
+      return { success: false, errCode: 3, message: 'Một số sinh viên không hợp lệ hoặc không thuộc lớp hành chính đã chọn.' };
+    }
+
+    let addedCount = 0;
+    let existedCount = 0;
+
+    for (const sv of sinhVienList) {
+      const [dangKy, created] = await db.DangKyHoc.findOrCreate({
+        where: {
+          lophocphan_id,
+          sinhvien_id: sv.sinhvien_id
+        },
+        defaults: {
+          dangky_id: crypto.randomUUID(),
+          trangthai: 'active'
+        },
+        transaction: t
+      });
+
+      if (!created && dangKy.trangthai !== 'active') {
+        await dangKy.update({ trangthai: 'active' }, { transaction: t });
+      }
+
+      if (created) addedCount += 1;
+      else existedCount += 1;
+
+      if (sv.lop_hanhchinh_id) {
+        await db.LHP_LHC.findOrCreate({
+          where: {
+            lophocphan_id,
+            lop_hanhchinh_id: sv.lop_hanhchinh_id
+          },
+          transaction: t
+        });
+      }
+    }
+
+    await t.commit();
+    return {
+      success: true,
+      errCode: 0,
+      message: 'Thêm sinh viên vào lớp học phần thành công.',
+      data: {
+        total: normalizedIds.length,
+        added: addedCount,
+        existed: existedCount
+      }
+    };
+  } catch (error) {
+    await t.rollback();
+    throw new Error(`Lỗi thêm sinh viên từ lớp hành chính: ${error.message}`);
+  }
+};
+
+const removeSinhVienKhoiLopHocPhan = async (lophocphan_id, sinhvien_id) => {
+  const t = await db.sequelize.transaction();
+  try {
+    const lopHocPhan = await db.LopHocPhan.findByPk(lophocphan_id, {
+      attributes: ['lophocphan_id'],
+      transaction: t
+    });
+
+    if (!lopHocPhan) {
+      await t.rollback();
+      return { success: false, errCode: 1, message: 'Lớp học phần không tồn tại.' };
+    }
+
+    const dangKy = await db.DangKyHoc.findOne({
+      where: { lophocphan_id, sinhvien_id },
+      attributes: ['dangky_id'],
+      transaction: t
+    });
+
+    if (!dangKy) {
+      await t.rollback();
+      return { success: false, errCode: 2, message: 'Sinh viên không thuộc lớp học phần này.' };
+    }
+
+    const buoiHocList = await db.BuoiHoc.findAll({
+      where: { lophocphan_id },
+      attributes: ['buoi_id'],
+      transaction: t
+    });
+    const buoiIds = buoiHocList.map((item) => item.buoi_id);
+
+    let deletedAttendanceCount = 0;
+    if (buoiIds.length > 0) {
+      deletedAttendanceCount = await db.DiemDanh.destroy({
+        where: {
+          buoi_id: { [Op.in]: buoiIds },
+          sinhvien_id
+        },
+        transaction: t
+      });
+    }
+
+    await db.DangKyHoc.destroy({
+      where: { lophocphan_id, sinhvien_id },
+      transaction: t
+    });
+
+    await t.commit();
+    return {
+      success: true,
+      errCode: 0,
+      message: 'Đã gỡ sinh viên khỏi lớp học phần thành công.',
+      data: {
+        deleted_attendance_count: deletedAttendanceCount
+      }
+    };
+  } catch (error) {
+    await t.rollback();
+    throw new Error(`Lỗi gỡ sinh viên khỏi lớp học phần: ${error.message}`);
+  }
+};
+
 module.exports = { 
   getStudentsByLopHocPhan,
   getAllLopHocPhan,
   getAllLopHocLai,
   getSinhVienByLopHocLai,
   importSinhVienFromExcel,
-  getDanhSachSinhVien
+  getDanhSachSinhVien,
+  getSinhVienTheoLopHanhChinh,
+  addSinhVienTuLopHanhChinh,
+  removeSinhVienKhoiLopHocPhan
 };
 
 

@@ -14,6 +14,18 @@ router.get('/lop-hoc-lai/:lophocphan_id/sinhvien', lopHocPhanController.laySinhV
 router.post("/:lophocphan_id/import-excel", upload.single("file"), lopHocPhanController.importSinhVienExcel);
 
 router.get("/:lophocphan_id/danh-sach-sinh-vien", lopHocPhanController.layDanhSachSinhVien);
+router.get(
+	"/:lophocphan_id/lop-hanh-chinh/:lop_hanhchinh_id/sinh-vien",
+	lopHocPhanController.laySinhVienTheoLopHanhChinh
+);
+router.post(
+	"/:lophocphan_id/lop-hanh-chinh/add-sinh-vien",
+	lopHocPhanController.themSinhVienTuLopHanhChinh
+);
+router.delete(
+	"/:lophocphan_id/sinh-vien/:sinhvien_id",
+	lopHocPhanController.xoaSinhVienKhoiLopHocPhan
+);
 
 module.exports = router;
 

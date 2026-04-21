@@ -96,6 +96,10 @@ const PartClassManagement = () => {
           
           // Lớp hành chính (Mảng tên các lớp)
           adminClasses: item.DanhSachLopHanhChinh?.map(lop => lop.ten_lop) || [],
+          adminClassOptions: item.DanhSachLopHanhChinh?.map((lop) => ({
+            id: lop.lop_hanhchinh_id,
+            name: lop.ten_lop
+          })) || [],
           
           semesterName: item.HocKy?.ten_hocky,
           isPractical: item.ten_lophocphan.includes('*'), // Tự động nhận diện thực hành qua dấu *

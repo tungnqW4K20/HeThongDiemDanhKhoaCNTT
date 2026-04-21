@@ -1,47 +1,55 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   ArrowLeft, BookOpen, User, Phone, Users, 
-  Plus, FileSpreadsheet, Trash2, Edit3, Search, Loader2 
+  Plus, FileSpreadsheet, Trash2, Search, Loader2 
 } from 'lucide-react';
 import Badge from './Badge';
 import AddStudentModal from './AddStudentModal';
 import ImportStudentModal from './ImportStudentModal';
-import EditStudentModal from './EditStudentModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import hocPhanService from '../../service/lophocphanService';
-import studentService from '../../service/studentService';
+import classService from '../../service/classService';
 
 
 const ClassDetailView = ({ classInfo, onBack }) => {
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isAddStudentSubmitting, setIsAddStudentSubmitting] = useState(false);
+  const [allAdminClasses, setAllAdminClasses] = useState([]);
+  const [isSearchAddModalOpen, setIsSearchAddModalOpen] = useState(false);
   
   // States điều khiển Modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState(null);
-   const fetchStudents = async () => {
+  const fetchStudents = async () => {
     setIsLoading(true);
     try {
       const res = await hocPhanService.getStudents(classInfo.id);
       if (res.success) {
-        // Map lại dữ liệu cho khớp với UI (vì API trả về cấu trúc DangKyHoc lồng SinhVien)
-        const mappedStudents = res.data.map(item => ({
-          id: item.SinhVien.sinhvien_id,
-          sinhvien_id: item.SinhVien.sinhvien_id,
-          ma_sv: item.SinhVien.ma_sv,
-          ten: item.SinhVien.ten,
-          ngaysinh: item.SinhVien.ngaysinh,
-          email: item.SinhVien.email,
-          sdt: item.SinhVien.sdt,
-          lop_hanhchinh_id: item.SinhVien.lop_hanhchinh_id,
-          trang_thai: item.SinhVien.trang_thai || 'Đang học',
-          ten_lop_hc: item.SinhVien.Lop?.ten_lop || 'N/A'
-        }));
-        console.log("mappedStudents", mappedStudents)
+        const rawList = Array.isArray(res.data) ? res.data : [];
+        const mappedStudents = rawList
+          .map((item) => {
+            const sv = item?.SinhVien || item;
+            if (!sv?.sinhvien_id) return null;
+
+            return {
+              id: sv.sinhvien_id,
+              sinhvien_id: sv.sinhvien_id,
+              ma_sv: sv.ma_sv,
+              ten: sv.ten,
+              ngaysinh: sv.ngaysinh,
+              email: sv.email,
+              sdt: sv.sdt,
+              lop_hanhchinh_id: sv.lop_hanhchinh_id,
+              trang_thai: sv.trang_thai || 'Đang học',
+              ten_lop_hc: sv.Lop?.ten_lop || 'N/A'
+            };
+          })
+          .filter(Boolean);
+
         setStudents(mappedStudents);
       }
     } catch (error) {
@@ -53,32 +61,29 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   };
 
   // --- Handlers ---
-  const handleAddStudent = async (data) => {
-    console.log("Thêm sinh viên:", data);
-    // Gọi API save -> fetchStudents()
-    setIsAddModalOpen(false);
-  };
-
-  const handleEditClick = (student) => {
-    setSelectedStudent(student);
-    setIsEditModalOpen(true);
-  };
-
-  const handleConfirmEdit = async (updatedStudent) => {
+  const handleAddStudent = async (payload) => {
     try {
-      const res = await studentService.update(updatedStudent.sinhvien_id, updatedStudent);
-      const isSuccess = res?.success ?? (res?.errCode === undefined ? true : res?.errCode === 0);
-      if (isSuccess) {
-        alert(res.message || 'Cập nhật sinh viên thành công');
-        setIsEditModalOpen(false);
-        setSelectedStudent(null);
-        fetchStudents();
-      } else {
-        alert(res?.message || 'Không thể cập nhật sinh viên');
+      setIsAddStudentSubmitting(true);
+      const res = await hocPhanService.addStudentsFromAdminClass(classInfo.id, payload);
+      if (!res?.success) {
+        throw new Error(res?.message || 'Thêm sinh viên thất bại');
       }
+
+      const added = res?.data?.added || 0;
+      const existed = res?.data?.existed || 0;
+      alert(`${res.message || 'Thêm sinh viên thành công'} (Mới: ${added}, Đã có: ${existed})`);
+      if (!payload?.keepOpen) {
+        setIsAddModalOpen(false);
+        setIsSearchAddModalOpen(false);
+      }
+      fetchStudents();
+      return true;
     } catch (error) {
-      console.error('Lỗi cập nhật sinh viên:', error);
-      alert(error?.response?.data?.message || 'Có lỗi xảy ra khi cập nhật sinh viên');
+      console.error('Lỗi thêm sinh viên từ lớp hành chính:', error);
+      alert(error?.response?.data?.message || error.message || 'Có lỗi xảy ra khi thêm sinh viên');
+      throw error;
+    } finally {
+      setIsAddStudentSubmitting(false);
     }
   };
 
@@ -90,25 +95,50 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   const handleConfirmDelete = async () => {
     if (!selectedStudent?.sinhvien_id) return;
     try {
-      const res = await studentService.delete(selectedStudent.sinhvien_id);
+      const res = await hocPhanService.removeStudentFromClass(classInfo.id, selectedStudent.sinhvien_id);
       const isSuccess = res?.success ?? (res?.errCode === undefined ? true : res?.errCode === 0);
       if (isSuccess) {
-        alert(res.message || 'Xóa sinh viên thành công');
+        const deletedAttendanceCount = res?.data?.deleted_attendance_count || 0;
+        alert(`${res.message || 'Đã gỡ sinh viên khỏi lớp học phần'}\nĐã xóa ${deletedAttendanceCount} bản ghi điểm danh liên quan.`);
         setIsDeleteModalOpen(false);
         setSelectedStudent(null);
         fetchStudents();
       } else {
-        alert(res?.message || 'Không thể xóa sinh viên');
+        alert(res?.message || 'Không thể gỡ sinh viên khỏi lớp học phần');
       }
     } catch (error) {
-      console.error('Lỗi xóa sinh viên:', error);
-      alert(error?.response?.data?.message || 'Có lỗi xảy ra khi xóa sinh viên');
+      console.error('Lỗi gỡ sinh viên khỏi lớp học phần:', error);
+      alert(error?.response?.data?.message || 'Có lỗi xảy ra khi gỡ sinh viên khỏi lớp học phần');
     }
   };
 
   useEffect(() => {
     fetchStudents();
   }, [classInfo.id]);
+
+  useEffect(() => {
+    const fetchAllAdminClasses = async () => {
+      try {
+        const res = await classService.getAll();
+        const body = res?.data ?? res;
+        const list = Array.isArray(body) ? body : Array.isArray(body?.data) ? body.data : [];
+
+        const options = list
+          .filter((item) => item?.lop_hanhchinh_id && item?.ten_lop)
+          .map((item) => ({
+            id: item.lop_hanhchinh_id,
+            name: item.ten_lop
+          }));
+
+        setAllAdminClasses(options);
+      } catch (error) {
+        console.error('Lỗi tải danh sách lớp hành chính:', error);
+        setAllAdminClasses([]);
+      }
+    };
+
+    fetchAllAdminClasses();
+  }, []);
 
   // 2. Cập nhật hàm xử lý Import Excel
   const handleImportStudent = async (file) => {
@@ -131,9 +161,21 @@ const ClassDetailView = ({ classInfo, onBack }) => {
     }
   };
 
-  const filteredStudents = students.filter(s => 
-    s.ten.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    s.ma_sv.toLowerCase().includes(searchTerm.toLowerCase())
+  const adminClassOptions = useMemo(() => {
+    if (Array.isArray(classInfo?.adminClassOptions) && classInfo.adminClassOptions.length > 0) {
+      return classInfo.adminClassOptions;
+    }
+
+    if (Array.isArray(classInfo?.adminClasses)) {
+      return classInfo.adminClasses.map((name) => ({ id: name, name }));
+    }
+
+    return [];
+  }, [classInfo]);
+
+  const filteredStudents = students.filter((s) =>
+    (s.ten || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (s.ma_sv || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -171,7 +213,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Số lớp HC</p>
-                <p className="font-bold text-gray-700">{classInfo.adminClasses.length}</p>
+                <p className="font-bold text-gray-700">{adminClassOptions.length}</p>
               </div>
             </div>
           </div>
@@ -181,9 +223,9 @@ const ClassDetailView = ({ classInfo, onBack }) => {
               <Users size={18} className="text-[#3B5998]" /> Các lớp hành chính tham gia học
             </h3>
             <div className="flex flex-wrap gap-3">
-              {classInfo.adminClasses.map((lop, idx) => (
-                <div key={idx} className="px-4 py-2 bg-gray-50 rounded-xl border border-gray-100 font-bold text-gray-700 text-sm">
-                  {lop}
+              {adminClassOptions.map((lop, idx) => (
+                <div key={lop.id || idx} className="px-4 py-2 bg-gray-50 rounded-xl border border-gray-100 font-bold text-gray-700 text-sm">
+                  {lop.name}
                 </div>
               ))}
             </div>
@@ -191,7 +233,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         </div>
 
         {/* Sidebar Giảng viên */}
-        <div className="bg-gradient-to-br from-[#3B5998] to-[#1d2d50] rounded-2xl p-6 text-white shadow-xl h-fit">
+        <div className="bg-linear-to-br from-[#3B5998] to-[#1d2d50] rounded-2xl p-6 text-white shadow-xl h-fit">
           <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
             <User size={20} className="text-blue-300" /> Giảng viên phụ trách
           </h3>
@@ -249,7 +291,13 @@ const ClassDetailView = ({ classInfo, onBack }) => {
               onClick={() => setIsAddModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-[#3B5998] text-white rounded-xl hover:bg-[#2e4676] transition-all shadow-md text-sm font-bold"
             >
-              <Plus size={18} /> Thêm SV
+              <Plus size={18} /> Thêm SV từ lớp hành chính
+            </button>
+            <button
+              onClick={() => setIsSearchAddModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-[#3B5998] text-[#3B5998] rounded-xl hover:bg-[#3B5998]/5 transition-all shadow-sm text-sm font-bold"
+            >
+              <Plus size={18} /> Thêm sinh viên
             </button>
           </div>
         </div>
@@ -291,7 +339,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                       <span className="text-sm font-bold text-gray-700">{sv.ten_lop_hc}</span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {new Date(sv.ngaysinh).toLocaleDateString('vi-VN')}
+                      {sv.ngaysinh ? new Date(sv.ngaysinh).toLocaleDateString('vi-VN') : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col">
@@ -302,16 +350,9 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <button
-                          onClick={() => handleEditClick(sv)}
-                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                          title="Sửa"
-                        >
-                          <Edit3 size={16} />
-                        </button>
-                        <button
                           onClick={() => handleDeleteClick(sv)}
                           className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="Xóa"
+                          title="Gỡ khỏi lớp học phần"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -336,7 +377,22 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         isOpen={isAddModalOpen} 
         onClose={() => setIsAddModalOpen(false)} 
         onSave={handleAddStudent}
-        classId={classInfo.id} // Truyền mã lớp học phần vào modal
+        classId={classInfo.id}
+        adminClasses={adminClassOptions}
+        isSubmitting={isAddStudentSubmitting}
+        title="Thêm sinh viên từ lớp hành chính"
+        description="Chọn lớp hành chính rồi tick sinh viên cần thêm vào lớp học phần."
+      />
+
+      <AddStudentModal
+        isOpen={isSearchAddModalOpen}
+        onClose={() => setIsSearchAddModalOpen(false)}
+        onSave={handleAddStudent}
+        classId={classInfo.id}
+        adminClasses={allAdminClasses}
+        isSubmitting={isAddStudentSubmitting}
+        title="Thêm sinh viên từ lớp khác"
+        description="Chọn lớp hành chính bất kỳ rồi tick sinh viên cần thêm vào lớp học phần."
       />
 
       <ImportStudentModal
@@ -344,16 +400,6 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         onClose={() => setIsImportModalOpen(false)}
         onImport={handleImportStudent}
         classId={classInfo.id}
-      />
-
-      <EditStudentModal
-        isOpen={isEditModalOpen}
-        onClose={() => {
-          setIsEditModalOpen(false);
-          setSelectedStudent(null);
-        }}
-        onSave={handleConfirmEdit}
-        student={selectedStudent}
       />
 
       <DeleteConfirmModal
@@ -364,6 +410,10 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         }}
         onConfirm={handleConfirmDelete}
         studentName={selectedStudent?.ten}
+        title="Xác nhận gỡ sinh viên khỏi lớp học phần"
+        description={`Bạn có chắc chắn muốn gỡ sinh viên ${selectedStudent?.ten || ''} khỏi lớp học phần này không?`}
+        warningMessage="Lưu ý: Khi gỡ sinh viên khỏi lớp học phần, toàn bộ dữ liệu điểm danh của sinh viên đó trong lớp học phần này cũng sẽ bị xóa và không thể hoàn tác."
+        confirmLabel="Gỡ khỏi lớp học phần"
       />
     </div>
   );

@@ -541,18 +541,19 @@ export default function AssignmentPage() {
         ? danhSachSinhVien[0].history
         : [];
     const soSinhVienCanhBao = danhSachSinhVien.filter((sv) => sv.canh_bao).length;
+    const isGlobalBusy = isLoading || importLoading || isAttendanceLoading;
 
     return (
         <div className="animate-in fade-in duration-500 text-slate-900">
             {/* Loading Overlay */}
-            {(isLoading || importLoading || isAttendanceLoading) && (
-                <div className="fixed inset-0 z-60 bg-black/20 flex items-center justify-center backdrop-blur-[1px]">
+            {isGlobalBusy && typeof document !== 'undefined' && createPortal((
+                <div className="fixed inset-0 z-10000 bg-black/25 flex items-center justify-center backdrop-blur-[1px]">
                     <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-4">
                         <Loader2 className="animate-spin text-[#3B5998]" size={24} />
                         <span className="text-sm font-semibold">Đang xử lý dữ liệu...</span>
                     </div>
                 </div>
-            )}
+            ), document.body)}
 
             {/* 
                 LOGIC CHUYỂN ĐỔI COMPONENT:
