@@ -433,6 +433,52 @@ const adminUpdateAccountGV = async ({ taikhoan_id, username, new_password }) => 
   return result;
 };
 
+const changePassword = async ({ taikhoan_id, current_password, new_password }) => {
+  if (!taikhoan_id) {
+    const error = new Error('Thiếu thông tin tài khoản.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!current_password || !new_password) {
+    const error = new Error('Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (new_password.length < 6) {
+    const error = new Error('Mật khẩu mới phải có ít nhất 6 ký tự.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const account = await TaiKhoan.findByPk(taikhoan_id);
+  if (!account) {
+    const error = new Error('Không tìm thấy tài khoản.');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const isMatch = await bcrypt.compare(current_password, account.password_hash);
+  if (!isMatch) {
+    const error = new Error('Mật khẩu hiện tại không chính xác.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const isSamePassword = await bcrypt.compare(new_password, account.password_hash);
+  if (isSamePassword) {
+    const error = new Error('Mật khẩu mới phải khác mật khẩu hiện tại.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const newHashed = await bcrypt.hash(new_password, SALT_ROUNDS);
+  await account.update({ password_hash: newHashed });
+
+  return { taikhoan_id: account.taikhoan_id, username: account.username };
+};
+
 module.exports = {
     registerGiangVien,
     // loginCustomer,
@@ -441,5 +487,6 @@ module.exports = {
     generateNewTokens,
     loginTaiKhoan,
     registerAdmin,
-    adminUpdateAccountGV
+    adminUpdateAccountGV,
+    changePassword
 };

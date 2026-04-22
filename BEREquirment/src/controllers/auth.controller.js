@@ -210,6 +210,30 @@ const adminUpdateAccountGV = async (req, res) => {
   }
 };
 
+const changePassword = async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body || {};
+    const taikhoan_id = req.user?.id || req.user?.taikhoan_id;
+
+    const result = await authService.changePassword({
+      taikhoan_id,
+      current_password,
+      new_password
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đổi mật khẩu thành công.',
+      data: result
+    });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      message: error.message || 'Lỗi server'
+    });
+  }
+};
+
 module.exports = {
     register,
     login,
@@ -217,5 +241,6 @@ module.exports = {
     refreshToken,
     createAdmin,
     adminTaoTaiKhoanGV,
-    adminUpdateAccountGV
+    adminUpdateAccountGV,
+    changePassword
 };
