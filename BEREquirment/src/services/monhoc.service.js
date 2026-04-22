@@ -11,16 +11,40 @@ const normalizeBoMonPayload = async (payload = {}) => {
 
     const boMon = await db.BoMon.findOne({
         where: { bomon_id: boMonId, isDeleted: false },
-        attributes: ['bomon_id', 'khoa_id']
+        attributes: ['bomon_id', 'khoa_id', 'ma_bomon', 'ten_bomon']
     });
 
     if (!boMon) {
         throw new Error('Bộ môn không tồn tại hoặc đã bị xóa');
     }
 
+    let resolvedChuyenNganhId = null;
+    if (payload.chuyennganh_id) {
+        const existedChuyenNganh = await db.ChuyenNganh.findOne({
+            where: { chuyennganh_id: payload.chuyennganh_id, isDeleted: false },
+            attributes: ['chuyennganh_id']
+        });
+        resolvedChuyenNganhId = existedChuyenNganh ? existedChuyenNganh.chuyennganh_id : null;
+    }
+
+    if (!resolvedChuyenNganhId) {
+        const matchedChuyenNganh = await db.ChuyenNganh.findOne({
+            where: {
+                khoa_id: boMon.khoa_id,
+                isDeleted: false,
+                [Op.or]: [
+                    { ma_chuyennganh: boMon.ma_bomon },
+                    { ten_chuyennganh: boMon.ten_bomon }
+                ]
+            },
+            attributes: ['chuyennganh_id']
+        });
+        resolvedChuyenNganhId = matchedChuyenNganh ? matchedChuyenNganh.chuyennganh_id : null;
+    }
+
     normalized.bomon_id = boMon.bomon_id;
-    // Giữ tương thích tạm thời với các logic cũ đang đọc chuyennganh_id.
-    normalized.chuyennganh_id = boMon.bomon_id;
+    // Chỉ set bằng id chuyên ngành hợp lệ để không vỡ FK.
+    normalized.chuyennganh_id = resolvedChuyenNganhId;
     if (!normalized.khoa_id) {
         normalized.khoa_id = boMon.khoa_id;
     }

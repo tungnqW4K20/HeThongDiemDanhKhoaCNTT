@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Building2, MapPin, Search, RefreshCw, Plus, Pencil, Trash2, X } from 'lucide-react';
 import cosoService from '../../service/cosoService';
 
@@ -237,8 +238,8 @@ const CoSoManagerPage = () => {
         </div>
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-1200 bg-black/30 flex items-center justify-center p-4">
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-800">
@@ -311,7 +312,8 @@ const CoSoManagerPage = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

@@ -30,6 +30,13 @@ axiosClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       console.log('Token hết hạn hoặc không hợp lệ');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+
+      if (window.location.pathname !== '/login') {
+        window.location.replace('/login');
+      }
     }
     throw error;
   }

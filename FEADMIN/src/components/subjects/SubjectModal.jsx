@@ -74,7 +74,10 @@ const SubjectModal = ({ isOpen, onClose, onSave, initialData }) => {
         }
 
         // Đồng bộ tên hiển thị cho dropdown bộ môn
-        if (initialData.ten_bo_mon) {
+        if (!initialData.khoa_id) {
+          setSearchBoMonTerm('');
+          setFormData(prev => ({ ...prev, bomon_id: '' }));
+        } else if (initialData.ten_bo_mon) {
           setSearchBoMonTerm(initialData.ten_bo_mon);
         } else {
           const foundBoMon = boMons.find((bm) => {

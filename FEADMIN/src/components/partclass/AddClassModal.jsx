@@ -1,120 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, Loader2, ChevronDown, Check, Search } from 'lucide-react';
+import { X, Plus, Loader2 } from 'lucide-react';
 import khoaService from '../../service/khoaService';
 import giangVienService from '../../service/giangVienService';
 import coSoService from '../../service/cosoService'; // <-- IMPORT MỚI
+import SearchableSelect from '../common/SearchableSelect';
 
 // ==========================================
-// 1. COMPONENT TÙY CHỈNH: SEARCHABLE SELECT
-// ==========================================
-const SearchableSelect = ({ 
-  label, 
-  options = [], 
-  value, 
-  onChange, 
-  placeholder = "Chọn...", 
-  disabled = false, 
-  isLoading = false,
-  required = false
-}) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const wrapperRef = useRef(null);
-
-  const selectedOption = options.find(opt => opt.value === value);
-
-  const filteredOptions = options.filter(opt => {
-    const labelText = opt.label ? opt.label.toString() : "";
-    return labelText.toLowerCase().includes(searchTerm.toLowerCase());
-  });
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => { if (!isOpen) setSearchTerm(""); }, [isOpen]);
-
-  return (
-    <div className="relative" ref={wrapperRef}>
-      <label className="block text-xs font-semibold text-gray-500 uppercase mb-1">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      
-      <div 
-        className={`
-          w-full px-3 py-2 border rounded-lg flex items-center justify-between bg-white transition-all
-          ${disabled ? 'bg-gray-100 cursor-not-allowed opacity-70' : 'cursor-pointer hover:border-[#3B5998]'}
-          ${isOpen ? 'ring-2 ring-[#3B5998]/20 border-[#3B5998]' : 'border-gray-200'}
-        `}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
-      >
-        <span className={`text-sm ${selectedOption ? 'text-gray-900' : 'text-gray-400'} truncate`}>
-          {selectedOption ? selectedOption.label : placeholder}
-        </span>
-        
-        {isLoading ? (
-          <Loader2 className="animate-spin text-gray-400 shrink-0" size={16} />
-        ) : (
-          <ChevronDown className={`text-gray-400 transition-transform shrink-0 ${isOpen ? 'rotate-180' : ''}`} size={16} />
-        )}
-      </div>
-
-      {isOpen && !disabled && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-100 rounded-lg shadow-xl max-h-60 flex flex-col animate-in fade-in zoom-in-95 duration-100">
-          <div className="p-2 border-b border-gray-100 sticky top-0 bg-white rounded-t-lg">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 text-gray-400" size={14} />
-              <input
-                type="text"
-                className="w-full pl-8 pr-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-[#3B5998]"
-                placeholder="Nhập để tìm kiếm..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                autoFocus
-                onClick={(e) => e.stopPropagation()} 
-              />
-            </div>
-          </div>
-          <div className="overflow-y-auto flex-1 p-1 custom-scrollbar">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt) => (
-                <div
-                  key={opt.value}
-                  className={`
-                    px-3 py-2 text-sm rounded-md cursor-pointer flex items-center justify-between
-                    ${opt.value === value ? 'bg-[#3B5998]/10 text-[#3B5998] font-medium' : 'text-gray-700 hover:bg-gray-50'}
-                  `}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setIsOpen(false);
-                    setSearchTerm("");
-                  }}
-                >
-                  <span className="truncate">{opt.label}</span>
-                  {opt.value === value && <Check size={14} className="shrink-0 ml-2"/>}
-                </div>
-              ))
-            ) : (
-              <div className="p-4 text-center text-gray-400 text-xs">
-                Không tìm thấy dữ liệu "{searchTerm}"
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ==========================================
-// 2. MAIN COMPONENT: ADD CLASS MODAL
+// MAIN COMPONENT: ADD CLASS MODAL
 // ==========================================
 const AddClassModal = ({ isOpen, onClose, onSave }) => {
   const initialFormState = {

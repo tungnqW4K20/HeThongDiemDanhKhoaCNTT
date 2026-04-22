@@ -5,20 +5,17 @@ const normalizeMonHocIds = (monHocIds) => {
     return [...new Set(monHocIds.filter(Boolean))];
 };
 
-const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
+const syncMonHocByBoMon = async ({ boMonId, khoaId, monHocIds }) => {
     const selectedIds = normalizeMonHocIds(monHocIds);
 
     const whereLinkedToBoMon = {
         isDeleted: false,
-        [db.Sequelize.Op.or]: [
-            { bomon_id: chuyenNganhId },
-            { chuyennganh_id: chuyenNganhId }
-        ]
+        bomon_id: boMonId
     };
 
     if (selectedIds.length === 0) {
         await db.MonHoc.update(
-            { bomon_id: null, chuyennganh_id: null },
+            { bomon_id: null },
             { where: whereLinkedToBoMon }
         );
         return;
@@ -42,7 +39,7 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
     }
 
     await db.MonHoc.update(
-        { bomon_id: null, chuyennganh_id: null },
+        { bomon_id: null },
         {
             where: {
                 ...whereLinkedToBoMon,
@@ -52,7 +49,7 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
     );
 
     await db.MonHoc.update(
-        { bomon_id: chuyenNganhId, chuyennganh_id: chuyenNganhId },
+        { bomon_id: boMonId },
         {
             where: {
                 monhoc_id: { [db.Sequelize.Op.in]: selectedIds },
@@ -60,6 +57,22 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
             }
         }
     );
+};
+
+const resolveBoMonPayload = (data = {}) => {
+    const maBoMon = (data.ma_bomon ?? data.ma_chuyennganh ?? '').trim();
+    const tenBoMon = (data.ten_bomon ?? data.ten_chuyennganh ?? '').trim();
+    const boMonId = data.bomon_id || data.chuyennganh_id || null;
+
+    return {
+        bomon_id: boMonId,
+        khoa_id: data.khoa_id || null,
+        ma_bomon: maBoMon,
+        ten_bomon: tenBoMon,
+        mota: data.mota || null,
+        truong_bomon_id: data.truong_bomon_id || null,
+        monhoc_ids: Array.isArray(data.monhoc_ids) ? data.monhoc_ids : null
+    };
 };
 
 const syncTruongBoMonRole = async ({ oldTruongBoMonId = null, newTruongBoMonId = null }) => {
@@ -245,16 +258,356 @@ const deleteKhoa = async (khoaId) => {
 
 const getAllBoMon = async (target_khoa_id = null, target_chuyennganh_id = null) => {
     try {
-        const chuyenNganhWhere = { isDeleted: false };
+        const boMonWhere = { isDeleted: false };
         if (target_khoa_id) {
-            chuyenNganhWhere.khoa_id = target_khoa_id;
+            boMonWhere.khoa_id = target_khoa_id;
         }
         if (target_chuyennganh_id) {
-            chuyenNganhWhere.chuyennganh_id = target_chuyennganh_id;
+            boMonWhere.bomon_id = target_chuyennganh_id;
+        }
+
+        const data = await db.BoMon.findAll({
+            where: boMonWhere,
+            attributes: ['bomon_id', 'ma_bomon', 'ten_bomon', 'mota', 'khoa_id', 'truong_bomon_id'],
+            include: [
+                {
+                    model: db.Khoa,
+                    as: 'Khoa',
+                    attributes: ['khoa_id', 'ma_khoa', 'ten_khoa']
+                },
+                {
+                    model: db.TaiKhoan,
+                    as: 'TruongBoMon',
+                    required: false,
+                    attributes: ['taikhoan_id', 'username', 'ref_id'],
+                    include: [
+                        {
+                            model: db.GiangVien,
+                            as: 'GiangVien',
+                            required: false,
+                            attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten']
+                        }
+                    ]
+                }
+            ],
+            order: [
+                ['ten_bomon', 'ASC']
+            ],
+            raw: false,
+            nest: true
+        });
+
+        const boMonIds = data.map((item) => item.bomon_id).filter(Boolean);
+        const boMonIdSet = new Set(boMonIds);
+
+        const monHocByBoMonId = new Map();
+        if (boMonIds.length > 0) {
+            const monHocList = await db.MonHoc.findAll({
+                where: {
+                    isDeleted: false,
+                    bomon_id: { [db.Sequelize.Op.in]: boMonIds }
+                },
+                attributes: ['monhoc_id', 'ma_mon', 'ten_mon', 'bomon_id', 'chuyennganh_id'],
+                order: [['ten_mon', 'ASC']],
+                raw: false
+            });
+
+            for (const mh of monHocList) {
+                const jsonMh = mh.toJSON();
+                const keys = [jsonMh.bomon_id].filter(Boolean);
+
+                for (const key of keys) {
+                    if (!boMonIdSet.has(key)) continue;
+
+                    if (!monHocByBoMonId.has(key)) {
+                        monHocByBoMonId.set(key, new Map());
+                    }
+                    monHocByBoMonId.get(key).set(jsonMh.monhoc_id, {
+                        monhoc_id: jsonMh.monhoc_id,
+                        ma_mon: jsonMh.ma_mon,
+                        ten_mon: jsonMh.ten_mon
+                    });
+                }
+            }
+        }
+
+        const normalizedData = data.map((item) => {
+            const json = item.toJSON();
+            const monHocMap = monHocByBoMonId.get(json.bomon_id);
+            const monHocList = monHocMap ? Array.from(monHocMap.values()) : [];
+            return {
+                ...json,
+                chuyennganh_id: json.bomon_id,
+                ma_chuyennganh: json.ma_bomon,
+                ten_chuyennganh: json.ten_bomon,
+                DanhSachMonHoc: monHocList,
+                so_luong_mon_hoc: monHocList.length,
+                TruongBoMon: json.TruongBoMon || null
+            };
+        });
+
+        return {
+            errCode: 0,
+            message: 'OK',
+            data: normalizedData
+        };
+    } catch (error) {
+        throw error;
+    }
+};
+
+const getAllBoMonRaw = async (target_khoa_id = null, target_bomon_id = null) => {
+    try {
+        const where = { isDeleted: false };
+        if (target_khoa_id) {
+            where.khoa_id = target_khoa_id;
+        }
+        if (target_bomon_id) {
+            where.bomon_id = target_bomon_id;
+        }
+
+        const data = await db.BoMon.findAll({
+            where,
+            attributes: ['bomon_id', 'ma_bomon', 'ten_bomon', 'mota', 'khoa_id', 'truong_bomon_id'],
+            include: [
+                {
+                    model: db.Khoa,
+                    as: 'Khoa',
+                    attributes: ['khoa_id', 'ma_khoa', 'ten_khoa']
+                }
+            ],
+            order: [['ten_bomon', 'ASC']],
+            raw: false,
+            nest: true
+        });
+
+        return {
+            errCode: 0,
+            message: 'OK',
+            data: data.map((item) => item.toJSON())
+        };
+    } catch (error) {
+        throw error;
+    }
+};
+
+const createBoMon = async (data) => {
+    try {
+        const boMonData = resolveBoMonPayload(data);
+
+        if (!boMonData.khoa_id || !boMonData.ma_bomon || !boMonData.ten_bomon) {
+            return { errCode: 1, message: 'Thiếu thông tin bắt buộc: khoa, mã bộ môn, tên bộ môn.' };
+        }
+
+        const khoa = await db.Khoa.findOne({ where: { khoa_id: boMonData.khoa_id, isDeleted: false } });
+        if (!khoa) {
+            return { errCode: 2, message: 'Khoa không tồn tại.' };
+        }
+
+        const checkExist = await db.BoMon.findOne({
+            where: { ma_bomon: boMonData.ma_bomon, isDeleted: false }
+        });
+
+        if (checkExist) {
+            return { errCode: 3, message: 'Mã bộ môn đã tồn tại!' };
+        }
+
+        if (boMonData.truong_bomon_id) {
+            const candidate = await db.TaiKhoan.findOne({
+                where: {
+                    taikhoan_id: boMonData.truong_bomon_id,
+                    vaitro: { [db.Sequelize.Op.in]: ['giangvien', 'truongbomon'] }
+                },
+                include: [
+                    {
+                        model: db.GiangVien,
+                        as: 'GiangVien',
+                        required: false,
+                        attributes: ['giangvien_id', 'khoa_id']
+                    }
+                ],
+                attributes: ['taikhoan_id']
+            });
+
+            if (!candidate) {
+                return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
+            }
+
+            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== boMonData.khoa_id) {
+                return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
+            }
+        }
+
+        const createPayload = {
+            khoa_id: boMonData.khoa_id,
+            ma_bomon: boMonData.ma_bomon,
+            ten_bomon: boMonData.ten_bomon,
+            truong_bomon_id: boMonData.truong_bomon_id,
+            mota: boMonData.mota,
+            isDeleted: false
+        };
+
+        if (boMonData.bomon_id) {
+            createPayload.bomon_id = boMonData.bomon_id;
+        }
+
+        const boMonEntity = await db.BoMon.create(createPayload);
+
+        if (boMonData.truong_bomon_id) {
+            await syncTruongBoMonRole({ newTruongBoMonId: boMonData.truong_bomon_id });
+        }
+
+        if (Array.isArray(boMonData.monhoc_ids)) {
+            await syncMonHocByBoMon({
+                boMonId: boMonEntity.bomon_id,
+                khoaId: boMonData.khoa_id,
+                monHocIds: boMonData.monhoc_ids
+            });
+        }
+
+        return { errCode: 0, message: 'Tạo bộ môn thành công!' };
+    } catch (error) {
+        if (error.message === 'Một số môn học đã chọn không tồn tại hoặc đã bị xóa.' || error.message === 'Môn học được chọn phải thuộc cùng khoa với bộ môn.') {
+            return { errCode: 8, message: error.message };
+        }
+        throw error;
+    }
+};
+
+const updateBoMon = async (data) => {
+    try {
+        const boMonData = resolveBoMonPayload(data);
+
+        if (!boMonData.bomon_id) {
+            return { errCode: 1, message: 'Thiếu bomon_id.' };
+        }
+        if (!boMonData.khoa_id || !boMonData.ma_bomon || !boMonData.ten_bomon) {
+            return { errCode: 2, message: 'Thiếu thông tin bắt buộc: khoa, mã bộ môn, tên bộ môn.' };
+        }
+
+        const boMonEntity = await db.BoMon.findOne({
+            where: { bomon_id: boMonData.bomon_id, isDeleted: false },
+            raw: false
+        });
+
+        if (!boMonEntity) {
+            return { errCode: 3, message: 'Bộ môn không tồn tại.' };
+        }
+
+        const khoa = await db.Khoa.findOne({ where: { khoa_id: boMonData.khoa_id, isDeleted: false } });
+        if (!khoa) {
+            return { errCode: 4, message: 'Khoa không tồn tại.' };
+        }
+
+        if (boMonData.truong_bomon_id) {
+            const candidate = await db.TaiKhoan.findOne({
+                where: { taikhoan_id: boMonData.truong_bomon_id },
+                include: [
+                    {
+                        model: db.GiangVien,
+                        as: 'GiangVien',
+                        required: false,
+                        attributes: ['giangvien_id', 'khoa_id']
+                    }
+                ],
+                attributes: ['taikhoan_id']
+            });
+
+            if (!candidate) {
+                return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
+            }
+
+            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== boMonData.khoa_id) {
+                return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
+            }
+        }
+
+        const dup = await db.BoMon.findOne({
+            where: {
+                ma_bomon: boMonData.ma_bomon,
+                isDeleted: false,
+                bomon_id: { [db.Sequelize.Op.ne]: boMonData.bomon_id }
+            }
+        });
+        if (dup) {
+            return { errCode: 5, message: 'Mã bộ môn đã tồn tại!' };
+        }
+
+        const oldTruongBoMonId = boMonEntity.truong_bomon_id || null;
+
+        boMonEntity.khoa_id = boMonData.khoa_id;
+        boMonEntity.ma_bomon = boMonData.ma_bomon;
+        boMonEntity.ten_bomon = boMonData.ten_bomon;
+        boMonEntity.truong_bomon_id = boMonData.truong_bomon_id;
+        boMonEntity.mota = boMonData.mota;
+        boMonEntity.isDeleted = false;
+        await boMonEntity.save();
+
+        await syncTruongBoMonRole({
+            oldTruongBoMonId,
+            newTruongBoMonId: boMonData.truong_bomon_id
+        });
+
+        if (Array.isArray(boMonData.monhoc_ids)) {
+            await syncMonHocByBoMon({
+                boMonId: boMonData.bomon_id,
+                khoaId: boMonData.khoa_id,
+                monHocIds: boMonData.monhoc_ids
+            });
+        }
+
+        return { errCode: 0, message: 'Cập nhật bộ môn thành công!' };
+    } catch (error) {
+        if (error.message === 'Một số môn học đã chọn không tồn tại hoặc đã bị xóa.' || error.message === 'Môn học được chọn phải thuộc cùng khoa với bộ môn.') {
+            return { errCode: 8, message: error.message };
+        }
+        throw error;
+    }
+};
+
+const deleteBoMon = async (boMonId) => {
+    try {
+        const boMon = await db.BoMon.findOne({
+            where: { bomon_id: boMonId, isDeleted: false }
+        });
+
+        if (!boMon) {
+            return { errCode: 1, message: 'Bộ môn không tồn tại hoặc đã bị xóa.' };
+        }
+
+        await db.BoMon.update(
+            { isDeleted: true },
+            { where: { bomon_id: boMonId } }
+        );
+
+        await db.MonHoc.update(
+            { bomon_id: null },
+            {
+                where: {
+                    bomon_id: boMonId,
+                    isDeleted: false
+                }
+            }
+        );
+
+        return { errCode: 0, message: 'Xóa bộ môn thành công!' };
+    } catch (error) {
+        throw error;
+    }
+};
+
+const getAllChuyenNganh = async (target_khoa_id = null, target_chuyennganh_id = null) => {
+    try {
+        const where = { isDeleted: false };
+        if (target_khoa_id) {
+            where.khoa_id = target_khoa_id;
+        }
+        if (target_chuyennganh_id) {
+            where.chuyennganh_id = target_chuyennganh_id;
         }
 
         const data = await db.ChuyenNganh.findAll({
-            where: chuyenNganhWhere,
+            where,
             attributes: ['chuyennganh_id', 'ma_chuyennganh', 'ten_chuyennganh', 'mota', 'khoa_id'],
             include: [
                 {
@@ -278,54 +631,12 @@ const getAllBoMon = async (target_khoa_id = null, target_chuyennganh_id = null) 
             nest: true
         });
 
-        const boMonIdsInScope = data.map((item) => item.chuyennganh_id);
-        if (boMonIdsInScope.length === 0) {
-            return {
-                errCode: 0,
-                message: 'OK',
-                data: []
-            };
-        }
-
-        const boMonQuanLy = await db.BoMon.findAll({
-            where: {
-                isDeleted: false,
-                bomon_id: { [db.Sequelize.Op.in]: boMonIdsInScope }
-            },
-            attributes: ['bomon_id', 'truong_bomon_id'],
-            include: [
-                {
-                    model: db.TaiKhoan,
-                    as: 'TruongBoMon',
-                    required: false,
-                    attributes: ['taikhoan_id', 'username', 'ref_id'],
-                    include: [
-                        {
-                            model: db.GiangVien,
-                            as: 'GiangVien',
-                            required: false,
-                            attributes: ['giangvien_id', 'ma_gv', 'ho', 'ten']
-                        }
-                    ]
-                }
-            ],
-            raw: false,
-            nest: true
-        });
-
-        const mapTruongBoMon = new Map(
-            boMonQuanLy.map((item) => [item.bomon_id, item.TruongBoMon || null])
-        );
-
         const normalizedData = data.map((item) => {
-            const monHocList = item.DanhSachMonHoc || [];
-            const truongBoMon = mapTruongBoMon.get(item.chuyennganh_id) || null;
-
+            const json = item.toJSON();
+            const monHocList = json.DanhSachMonHoc || [];
             return {
-                ...item.toJSON(),
-                DanhSachMonHoc: monHocList,
-                so_luong_mon_hoc: monHocList.length,
-                TruongBoMon: truongBoMon
+                ...json,
+                so_luong_mon_hoc: monHocList.length
             };
         });
 
@@ -339,10 +650,10 @@ const getAllBoMon = async (target_khoa_id = null, target_chuyennganh_id = null) 
     }
 };
 
-const createBoMon = async (data) => {
+const createChuyenNganh = async (data) => {
     try {
         if (!data.khoa_id || !data.ma_chuyennganh || !data.ten_chuyennganh) {
-            return { errCode: 1, message: 'Thiếu thông tin bắt buộc: khoa, mã bộ môn, tên bộ môn.' };
+            return { errCode: 1, message: 'Thiếu thông tin bắt buộc: khoa, mã chuyên ngành, tên chuyên ngành.' };
         }
 
         const khoa = await db.Khoa.findOne({ where: { khoa_id: data.khoa_id, isDeleted: false } });
@@ -350,15 +661,17 @@ const createBoMon = async (data) => {
             return { errCode: 2, message: 'Khoa không tồn tại.' };
         }
 
-        const checkExist = await db.ChuyenNganh.findOne({
-            where: { ma_chuyennganh: data.ma_chuyennganh.trim(), isDeleted: false }
+        const dup = await db.ChuyenNganh.findOne({
+            where: {
+                ma_chuyennganh: data.ma_chuyennganh.trim(),
+                isDeleted: false
+            }
         });
-
-        if (checkExist) {
-            return { errCode: 3, message: 'Mã bộ môn đã tồn tại!' };
+        if (dup) {
+            return { errCode: 3, message: 'Mã chuyên ngành đã tồn tại!' };
         }
 
-        const created = await db.ChuyenNganh.create({
+        await db.ChuyenNganh.create({
             khoa_id: data.khoa_id,
             ma_chuyennganh: data.ma_chuyennganh.trim(),
             ten_chuyennganh: data.ten_chuyennganh.trim(),
@@ -366,111 +679,32 @@ const createBoMon = async (data) => {
             isDeleted: false
         });
 
-        if (data.truong_bomon_id) {
-            const candidate = await db.TaiKhoan.findOne({
-                where: {
-                    taikhoan_id: data.truong_bomon_id,
-                    vaitro: { [db.Sequelize.Op.in]: ['giangvien', 'truongbomon'] }
-                },
-                include: [
-                    {
-                        model: db.GiangVien,
-                        as: 'GiangVien',
-                        required: false,
-                        attributes: ['giangvien_id', 'khoa_id']
-                    }
-                ],
-                attributes: ['taikhoan_id']
-            });
-
-            if (!candidate) {
-                return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
-            }
-
-            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== data.khoa_id) {
-                return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
-            }
-        }
-
-        const [boMonEntity] = await db.BoMon.findOrCreate({
-            where: { bomon_id: created.chuyennganh_id },
-            defaults: {
-                bomon_id: created.chuyennganh_id,
-                khoa_id: data.khoa_id,
-                ma_bomon: data.ma_chuyennganh.trim(),
-                ten_bomon: data.ten_chuyennganh.trim(),
-                truong_bomon_id: data.truong_bomon_id || null,
-                mota: data.mota || null,
-                isDeleted: false
-            }
-        });
-
-        if (data.truong_bomon_id) {
-            boMonEntity.truong_bomon_id = data.truong_bomon_id;
-            await boMonEntity.save();
-            await syncTruongBoMonRole({ newTruongBoMonId: data.truong_bomon_id });
-        }
-
-        if (Array.isArray(data.monhoc_ids)) {
-            await syncMonHocByBoMon({
-                chuyenNganhId: created.chuyennganh_id,
-                khoaId: data.khoa_id,
-                monHocIds: data.monhoc_ids
-            });
-        }
-
-        return { errCode: 0, message: 'Tạo bộ môn thành công!' };
+        return { errCode: 0, message: 'Tạo chuyên ngành thành công!' };
     } catch (error) {
-        if (error.message === 'Một số môn học đã chọn không tồn tại hoặc đã bị xóa.' || error.message === 'Môn học được chọn phải thuộc cùng khoa với bộ môn.') {
-            return { errCode: 8, message: error.message };
-        }
         throw error;
     }
 };
 
-const updateBoMon = async (data) => {
+const updateChuyenNganh = async (data) => {
     try {
         if (!data.chuyennganh_id) {
             return { errCode: 1, message: 'Thiếu chuyennganh_id.' };
         }
         if (!data.khoa_id || !data.ma_chuyennganh || !data.ten_chuyennganh) {
-            return { errCode: 2, message: 'Thiếu thông tin bắt buộc: khoa, mã bộ môn, tên bộ môn.' };
+            return { errCode: 2, message: 'Thiếu thông tin bắt buộc: khoa, mã chuyên ngành, tên chuyên ngành.' };
         }
 
-        const boMon = await db.ChuyenNganh.findOne({
+        const chuyenNganh = await db.ChuyenNganh.findOne({
             where: { chuyennganh_id: data.chuyennganh_id, isDeleted: false },
             raw: false
         });
-        if (!boMon) {
-            return { errCode: 3, message: 'Bộ môn không tồn tại.' };
+        if (!chuyenNganh) {
+            return { errCode: 3, message: 'Chuyên ngành không tồn tại.' };
         }
 
         const khoa = await db.Khoa.findOne({ where: { khoa_id: data.khoa_id, isDeleted: false } });
         if (!khoa) {
             return { errCode: 4, message: 'Khoa không tồn tại.' };
-        }
-
-        if (data.truong_bomon_id) {
-            const candidate = await db.TaiKhoan.findOne({
-                where: { taikhoan_id: data.truong_bomon_id },
-                include: [
-                    {
-                        model: db.GiangVien,
-                        as: 'GiangVien',
-                        required: false,
-                        attributes: ['giangvien_id', 'khoa_id']
-                    }
-                ],
-                attributes: ['taikhoan_id']
-            });
-
-            if (!candidate) {
-                return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
-            }
-
-            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== data.khoa_id) {
-                return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
-            }
         }
 
         const dup = await db.ChuyenNganh.findOne({
@@ -481,67 +715,29 @@ const updateBoMon = async (data) => {
             }
         });
         if (dup) {
-            return { errCode: 5, message: 'Mã bộ môn đã tồn tại!' };
+            return { errCode: 5, message: 'Mã chuyên ngành đã tồn tại!' };
         }
 
-        boMon.khoa_id = data.khoa_id;
-        boMon.ma_chuyennganh = data.ma_chuyennganh.trim();
-        boMon.ten_chuyennganh = data.ten_chuyennganh.trim();
-        boMon.mota = data.mota || null;
-        await boMon.save();
+        chuyenNganh.khoa_id = data.khoa_id;
+        chuyenNganh.ma_chuyennganh = data.ma_chuyennganh.trim();
+        chuyenNganh.ten_chuyennganh = data.ten_chuyennganh.trim();
+        chuyenNganh.mota = data.mota || null;
+        await chuyenNganh.save();
 
-        const [boMonEntity] = await db.BoMon.findOrCreate({
-            where: { bomon_id: data.chuyennganh_id },
-            defaults: {
-                bomon_id: data.chuyennganh_id,
-                khoa_id: data.khoa_id,
-                ma_bomon: data.ma_chuyennganh.trim(),
-                ten_bomon: data.ten_chuyennganh.trim(),
-                mota: data.mota || null,
-                isDeleted: false
-            }
-        });
-
-        const oldTruongBoMonId = boMonEntity.truong_bomon_id || null;
-
-        boMonEntity.khoa_id = data.khoa_id;
-        boMonEntity.ma_bomon = data.ma_chuyennganh.trim();
-        boMonEntity.ten_bomon = data.ten_chuyennganh.trim();
-        boMonEntity.truong_bomon_id = data.truong_bomon_id || null;
-        boMonEntity.mota = data.mota || null;
-        boMonEntity.isDeleted = false;
-        await boMonEntity.save();
-
-        await syncTruongBoMonRole({
-            oldTruongBoMonId,
-            newTruongBoMonId: data.truong_bomon_id || null
-        });
-
-        if (Array.isArray(data.monhoc_ids)) {
-            await syncMonHocByBoMon({
-                chuyenNganhId: data.chuyennganh_id,
-                khoaId: data.khoa_id,
-                monHocIds: data.monhoc_ids
-            });
-        }
-
-        return { errCode: 0, message: 'Cập nhật bộ môn thành công!' };
+        return { errCode: 0, message: 'Cập nhật chuyên ngành thành công!' };
     } catch (error) {
-        if (error.message === 'Một số môn học đã chọn không tồn tại hoặc đã bị xóa.' || error.message === 'Môn học được chọn phải thuộc cùng khoa với bộ môn.') {
-            return { errCode: 8, message: error.message };
-        }
         throw error;
     }
 };
 
-const deleteBoMon = async (chuyenNganhId) => {
+const deleteChuyenNganh = async (chuyenNganhId) => {
     try {
-        const boMon = await db.ChuyenNganh.findOne({
+        const chuyenNganh = await db.ChuyenNganh.findOne({
             where: { chuyennganh_id: chuyenNganhId, isDeleted: false }
         });
 
-        if (!boMon) {
-            return { errCode: 1, message: 'Bộ môn không tồn tại hoặc đã bị xóa.' };
+        if (!chuyenNganh) {
+            return { errCode: 1, message: 'Chuyên ngành không tồn tại hoặc đã bị xóa.' };
         }
 
         await db.ChuyenNganh.update(
@@ -549,12 +745,17 @@ const deleteBoMon = async (chuyenNganhId) => {
             { where: { chuyennganh_id: chuyenNganhId } }
         );
 
-        await db.BoMon.update(
-            { isDeleted: true },
-            { where: { bomon_id: chuyenNganhId } }
+        await db.MonHoc.update(
+            { chuyennganh_id: null },
+            {
+                where: {
+                    chuyennganh_id: chuyenNganhId,
+                    isDeleted: false
+                }
+            }
         );
 
-        return { errCode: 0, message: 'Xóa bộ môn thành công!' };
+        return { errCode: 0, message: 'Xóa chuyên ngành thành công!' };
     } catch (error) {
         throw error;
     }
@@ -611,9 +812,14 @@ module.exports = {
     updateKhoa,
     deleteKhoa,
     getAllBoMon,
+    getAllBoMonRaw,
     createBoMon,
     updateBoMon,
     deleteBoMon,
+    getAllChuyenNganh,
+    createChuyenNganh,
+    updateChuyenNganh,
+    deleteChuyenNganh,
     getTruongBoMonOptions
 };
 

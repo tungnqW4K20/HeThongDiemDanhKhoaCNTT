@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Plus, Search, RefreshCw, Library } from 'lucide-react';
+import { Plus, Search, RefreshCw, Library, Loader2 } from 'lucide-react';
 import khoaService from '../../service/khoaService';
 import BoMonTable from '../../components/department/BoMonTable';
 import BoMonModal from '../../components/department/BoMonModal';
@@ -23,13 +23,11 @@ const BoMonManagerPage = () => {
         khoaService.getAll()
       ]);
 
-      if (boMonRes && boMonRes.errCode === 0) {
-        setData(boMonRes.data || []);
-      }
+      const boMonOk = boMonRes && (boMonRes.errCode === 0 || boMonRes.success === true);
+      const khoaOk = khoaRes && (khoaRes.errCode === 0 || khoaRes.success === true);
 
-      if (khoaRes && khoaRes.errCode === 0) {
-        setKhoaList(khoaRes.data || []);
-      }
+      setData(boMonOk ? (boMonRes.data || []) : []);
+      setKhoaList(khoaOk ? (khoaRes.data || []) : []);
     } catch (error) {
       console.error('Lỗi fetch dữ liệu bộ môn:', error);
     } finally {
@@ -149,6 +147,15 @@ const BoMonManagerPage = () => {
         title="Xác nhận xóa bộ môn"
         message={`Bạn có chắc chắn muốn xóa bộ môn ${selectedBoMon?.ten_chuyennganh}?`}
       />
+
+      {loading && (
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm">
+          <div className="flex items-center gap-3 rounded-xl border border-white/20 bg-white/90 px-5 py-3 text-[#3B5998] shadow-lg">
+            <Loader2 size={20} className="animate-spin" />
+            <span className="text-sm font-semibold">Đang tải dữ liệu bộ môn...</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

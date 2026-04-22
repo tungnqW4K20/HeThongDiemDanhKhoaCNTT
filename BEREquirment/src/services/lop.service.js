@@ -98,6 +98,7 @@ const getAllLop = async () => {
         'ten_lop',
         'nien_khoa',
         'chuong_trinh',
+        'ghichu',
         'khoa_id',
         'giangvien_id',
         'chuyennganh_id',
@@ -218,11 +219,43 @@ const createLop = async (data) => {
   }
 };
 
+const updateLop = async (lopId, data) => {
+  try {
+    const lop = await db.LopHanhChinh.findOne({
+      where: {
+        lop_hanhchinh_id: lopId,
+        isDeleted: false
+      }
+    });
+
+    if (!lop) {
+      throw new Error('Không tìm thấy lớp hành chính để cập nhật.');
+    }
+
+    const payload = {
+      ten_lop: data.ten_lop !== undefined ? data.ten_lop : lop.ten_lop,
+      nien_khoa: data.nien_khoa !== undefined ? data.nien_khoa : lop.nien_khoa,
+      chuong_trinh: data.chuong_trinh !== undefined ? data.chuong_trinh : lop.chuong_trinh,
+      ghichu: data.ghichu !== undefined ? data.ghichu : lop.ghichu,
+      giangvien_id: data.giangvien_id !== undefined ? data.giangvien_id : lop.giangvien_id,
+      khoa_id: data.khoa_id !== undefined ? data.khoa_id : lop.khoa_id,
+      chuyennganh_id: data.chuyennganh_id !== undefined ? data.chuyennganh_id : lop.chuyennganh_id,
+      coso_id: data.coso_id !== undefined ? data.coso_id : lop.coso_id
+    };
+
+    await lop.update(payload);
+    return lop;
+  } catch (error) {
+    throw new Error(`Lỗi khi cập nhật lớp: ${error.message}`);
+  }
+};
+
 
 
 module.exports = {
     getAllLop,
     getStudentsByClassId,
-    createLop
+  createLop,
+  updateLop
 };
 

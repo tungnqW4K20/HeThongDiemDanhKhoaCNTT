@@ -78,6 +78,24 @@ const getAll = async (req, res) => {
     }
 };
 
+const capNhatThongTinLopHocPhan = async (req, res) => {
+  try {
+    const { lophocphan_id } = req.params;
+    const result = await lopHocPhanService.updateLopHocPhanInfo(lophocphan_id, req.body || {});
+
+    if (!result?.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 
 const layDanhSachLopHocLai = async (req, res) => {
   try {
@@ -167,11 +185,103 @@ const layDanhSachSinhVien = async (req, res) => {
   }
 };
 
+const laySinhVienTheoLopHanhChinh = async (req, res) => {
+  try {
+    const { lophocphan_id, lop_hanhchinh_id } = req.params;
+
+    if (!lophocphan_id || !lop_hanhchinh_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu lophocphan_id hoặc lop_hanhchinh_id'
+      });
+    }
+
+    const result = await lopHocPhanService.getSinhVienTheoLopHanhChinh(lophocphan_id, lop_hanhchinh_id);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+const themSinhVienTuLopHanhChinh = async (req, res) => {
+  try {
+    const { lophocphan_id } = req.params;
+    const { lop_hanhchinh_id, sinhvien_ids } = req.body || {};
+
+    if (!lophocphan_id || !lop_hanhchinh_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu lophocphan_id hoặc lop_hanhchinh_id'
+      });
+    }
+
+    if (!Array.isArray(sinhvien_ids) || sinhvien_ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng chọn ít nhất một sinh viên'
+      });
+    }
+
+    const result = await lopHocPhanService.addSinhVienTuLopHanhChinh(
+      lophocphan_id,
+      lop_hanhchinh_id,
+      sinhvien_ids
+    );
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+const xoaSinhVienKhoiLopHocPhan = async (req, res) => {
+  try {
+    const { lophocphan_id, sinhvien_id } = req.params;
+
+    if (!lophocphan_id || !sinhvien_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Thiếu lophocphan_id hoặc sinhvien_id'
+      });
+    }
+
+    const result = await lopHocPhanService.removeSinhVienKhoiLopHocPhan(lophocphan_id, sinhvien_id);
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = { 
   getStudentsByLopHocPhan,
   getAll,
+  capNhatThongTinLopHocPhan,
   layDanhSachLopHocLai,
   laySinhVienLopHocLai,
   importSinhVienExcel,
-  layDanhSachSinhVien
+  layDanhSachSinhVien,
+  laySinhVienTheoLopHanhChinh,
+  themSinhVienTuLopHanhChinh,
+  xoaSinhVienKhoiLopHocPhan
  };

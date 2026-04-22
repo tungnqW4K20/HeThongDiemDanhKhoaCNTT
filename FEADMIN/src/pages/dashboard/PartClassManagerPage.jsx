@@ -6,14 +6,82 @@ import ClassListView from '../../components/partclass/ClassListView';
 import ClassDetailView from '../../components/partclass/ClassDetailView';
 import hocPhanService from '../../service/lophocphanService';
 import hocKyService from '../../service/hockyService';
+import khoaService from '../../service/khoaService';
 
 // Components
+
+const parseDateOnlyLocal = (dateValue) => {
+  if (!dateValue) return null;
+  const normalized = String(dateValue).slice(0, 10);
+  const [y, m, d] = normalized.split('-').map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 12, 0, 0, 0);
+};
+
+const pickDefaultSemesterIdByTime = (semesterList = []) => {
+  if (!Array.isArray(semesterList) || semesterList.length === 0) return '';
+
+  const now = new Date();
+  now.setHours(12, 0, 0, 0);
+
+  const currentSemester = semesterList.find((sem) => {
+    const start = parseDateOnlyLocal(sem.ngay_batdau);
+    const end = parseDateOnlyLocal(sem.ngay_ketthuc);
+    return start && end && now >= start && now <= end;
+  });
+  if (currentSemester?.hocky_id) return currentSemester.hocky_id;
+
+  const sortedByStartDesc = [...semesterList].sort((a, b) => {
+    const aStart = parseDateOnlyLocal(a.ngay_batdau)?.getTime() || 0;
+    const bStart = parseDateOnlyLocal(b.ngay_batdau)?.getTime() || 0;
+    return bStart - aStart;
+  });
+
+  const nearestPastSemester = sortedByStartDesc.find((sem) => {
+    const start = parseDateOnlyLocal(sem.ngay_batdau);
+    return start && start <= now;
+  });
+
+  return nearestPastSemester?.hocky_id || sortedByStartDesc[0]?.hocky_id || '';
+};
+
+const parseWeekList = (rawWeeks) => {
+  if (Array.isArray(rawWeeks)) {
+    return rawWeeks
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0);
+  }
+
+  if (typeof rawWeeks === 'string') {
+    const text = rawWeeks.trim();
+    if (!text) return [];
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => Number(item))
+          .filter((item) => Number.isInteger(item) && item > 0);
+      }
+    } catch {
+      const list = text
+        .replace(/\[|\]/g, '')
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isInteger(item) && item > 0);
+      return list;
+    }
+  }
+
+  return [];
+};
 
 
 const PartClassManagement = () => {
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [classList, setClassList] = useState([]);
+  const [boMonOptions, setBoMonOptions] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // list | detail
   const [selectedClass, setSelectedClass] = useState(null);
@@ -25,7 +93,7 @@ const PartClassManagement = () => {
         const res = await hocKyService.getAll();
         if (res.success && res.data.length > 0) {
           setSemesters(res.data);
-          setSelectedSemester(res.data[0].hocky_id);
+          setSelectedSemester(pickDefaultSemesterIdByTime(res.data));
         }
       } catch (err) { console.error("Lỗi học kỳ:", err); }
     };
@@ -43,6 +111,11 @@ const PartClassManagement = () => {
         const mapped = res.data.map(item => ({
           id: item.lophocphan_id,
           className: item.ten_lophocphan,
+          maLop: String(item.ma_lop || '').trim(),
+          tietBatDau: item.tiet_bat_dau ?? '',
+          soTiet: item.so_tiet ?? '',
+          tuanHoc: parseWeekList(item.tuan_hoc),
+          loaiHocPhan: item.loai_hoc_phan || 'LT',
           
           // Môn học
           subjectName: item.MonHoc?.ten_mon || 'Không rõ môn',
@@ -59,13 +132,16 @@ const PartClassManagement = () => {
           
           // Lớp hành chính (Mảng tên các lớp)
           adminClasses: item.DanhSachLopHanhChinh?.map(lop => lop.ten_lop) || [],
+          adminClassOptions: item.DanhSachLopHanhChinh?.map((lop) => ({
+            id: lop.lop_hanhchinh_id,
+            name: lop.ten_lop
+          })) || [],
           
           semesterName: item.HocKy?.ten_hocky,
           isPractical: item.ten_lophocphan.includes('*'), // Tự động nhận diện thực hành qua dấu *
           
-          // Mock lịch học (vì API hiện tại chưa trả về)
-          dayOfWeek: 'TBD',
-          room: 'P.000',
+          dayOfWeek: item.thu || 'TBD',
+          room: item.phong || 'P.000',
         }));
         setClassList(mapped);
       }
@@ -76,6 +152,27 @@ const PartClassManagement = () => {
   useEffect(() => {
     fetchClasses();
   }, [fetchClasses]);
+
+  useEffect(() => {
+    const fetchBoMonOptions = async () => {
+      try {
+        const res = await khoaService.getAllBoMonRaw();
+        const list = Array.isArray(res?.data) ? res.data : [];
+        const normalized = list
+          .filter((item) => item?.bomon_id && (item?.ten_bomon || item?.ma_bomon))
+          .map((item) => ({
+            id: item.bomon_id,
+            name: item.ten_bomon || item.ma_bomon
+          }));
+        setBoMonOptions(normalized);
+      } catch (error) {
+        console.error('Lỗi tải bộ lọc bộ môn cho lớp học phần:', error);
+        setBoMonOptions([]);
+      }
+    };
+
+    fetchBoMonOptions();
+  }, []);
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -115,6 +212,7 @@ const PartClassManagement = () => {
 
           <ClassListView
             data={classList}
+            boMonOptions={boMonOptions}
             isLoading={isLoading}
             onSelect={(cls) => { setSelectedClass(cls); setViewMode('detail'); }}
             onImportClick={() => alert("Tính năng Import Excel")}

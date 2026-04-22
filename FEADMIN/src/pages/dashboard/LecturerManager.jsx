@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, Filter, X, Trash2, Building2, RefreshCw, Upload, KeyRound, UserPlus } from 'lucide-react'; 
+import { Search, Plus, Filter, X, Trash2, Building2, RefreshCw, Upload, KeyRound } from 'lucide-react'; // Đã thêm icon Upload
 import LecturerTable from '../../components/lectures/LecturerTable';
 import LecturerStats from '../../components/lectures/LecturerStats';
 import LecturerModal from '../../components/lectures/LecturerModal';
@@ -18,6 +18,7 @@ export default function LecturerManagerPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedFaculty, setSelectedFaculty] = useState('all'); 
     const [selectedBoMon, setSelectedBoMon] = useState('all');
+    const [boMonOptions, setBoMonOptions] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
     
     // Modal States
@@ -34,10 +35,21 @@ export default function LecturerManagerPage() {
     const [accountForm, setAccountForm] = useState({ username: '', password: '' });
     const [accountLoading, setAccountLoading] = useState(false);
 
+    useEffect(() => {
+        if (!isCreateAccountModalOpen || typeof document === 'undefined') return;
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, [isCreateAccountModalOpen]);
+
     // --- EFFECT ---
     useEffect(() => {
         fetchData();
         fetchFaculties();
+        fetchBoMonOptions();
     }, []);
 
     // --- API CALLS ---
@@ -78,26 +90,37 @@ export default function LecturerManagerPage() {
         }
     };
 
-    // --- FILTER LOGIC ---
-    const boMonOptions = useMemo(() => {
-        return faculties.flatMap((khoa) =>
-            (khoa.DanhSachChuyenNganh || []).map((bm) => ({
-                id: bm.chuyennganh_id,
-                name: bm.ten_chuyennganh
-            }))
-        );
-    }, [faculties]);
+    const fetchBoMonOptions = async () => {
+        try {
+            const res = await khoaService.getAllBoMonRaw();
+            const resData = res.data || res;
+            const list = Array.isArray(resData)
+                ? resData
+                : (Array.isArray(resData?.data) ? resData.data : []);
 
+            setBoMonOptions(
+                list
+                    .filter((bm) => bm?.bomon_id && (bm?.ten_bomon || bm?.ma_bomon))
+                    .map((bm) => ({ id: bm.bomon_id, name: bm.ten_bomon || bm.ma_bomon }))
+            );
+        } catch (error) {
+            console.error('Lỗi lấy danh sách bộ môn:', error);
+            setBoMonOptions([]);
+        }
+    };
+
+    // --- FILTER LOGIC ---
     const filteredLecturers = useMemo(() => {
         return lecturers.filter(gv => {
             const searchLower = searchTerm.toLowerCase();
             const khoaName = gv.Khoa ? gv.Khoa.ten_khoa : '';
-            const boMonName =
-                gv.BoMon?.ten_bomon ||
-                gv.ChuyenNganh?.ten_chuyen_nganh ||
-                gv.bomon?.ten_bomon ||
-                gv.ten_bomon ||
-                '';
+            const boMonId =
+                gv.bomon_id ||
+                gv.BoMon?.bomon_id ||
+                gv.ChuyenNganh?.chuyennganh_id ||
+                gv.bomon?.bomon_id ||
+                gv.chuyennganh_id ||
+                null;
 
             const matchesSearch = 
                 (gv.ten && gv.ten.toLowerCase().includes(searchLower)) || 
@@ -107,11 +130,40 @@ export default function LecturerManagerPage() {
                 (khoaName && khoaName.toLowerCase().includes(searchLower));
 
             const matchesFaculty = selectedFaculty === 'all' || khoaName === selectedFaculty;
-            const matchesBoMon = selectedBoMon === 'all' || boMonName === selectedBoMon;
+            const matchesBoMon = selectedBoMon === 'all' || boMonId === selectedBoMon;
 
             return matchesSearch && matchesFaculty && matchesBoMon;
         });
     }, [lecturers, searchTerm, selectedFaculty, selectedBoMon]);
+
+    const stats = useMemo(() => {
+        const total = lecturers.length;
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+
+        const newThisMonth = lecturers.filter((gv) => {
+            if (!gv?.ngay_tao) return false;
+            const created = new Date(gv.ngay_tao);
+            if (Number.isNaN(created.getTime())) return false;
+            return created.getMonth() === currentMonth && created.getFullYear() === currentYear;
+        }).length;
+
+        const emailActivatedCount = lecturers.filter((gv) => {
+            const email = (gv?.email || '').trim();
+            return email.length > 0 && email.includes('@');
+        }).length;
+
+        const emailActivatedPercent = total > 0
+            ? Math.round((emailActivatedCount / total) * 100)
+            : 0;
+
+        return {
+            total,
+            newThisMonth,
+            emailActivatedPercent
+        };
+    }, [lecturers]);
 
     // --- HANDLERS ---
     const handleAddNew = () => {
@@ -279,9 +331,13 @@ export default function LecturerManagerPage() {
                     </div>
                 </div>
 
-                <LecturerStats totalLecturers={lecturers.length} />
+                <LecturerStats
+                    totalLecturers={stats.total}
+                    newThisMonth={stats.newThisMonth}
+                    emailActivatedPercent={stats.emailActivatedPercent}
+                />
 
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mt-8">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
                     
                     {/* TOOLBAR */}
                     <div className="p-5 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
@@ -321,19 +377,20 @@ export default function LecturerManagerPage() {
                                         <Filter size={14} className="text-slate-400" />
                                     </div>
                                 </div>
-
-                                <div className="relative flex-1 sm:w-56">
-                                    <select
-                                        value={selectedBoMon}
-                                        onChange={(e) => setSelectedBoMon(e.target.value)}
-                                        className="block w-full pl-3 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] text-sm appearance-none cursor-pointer hover:border-slate-300 transition-all"
-                                    >
-                                        <option value="all">Tất cả Bộ môn</option>
-                                        {boMonOptions.map((bm) => <option key={bm.id} value={bm.name}>{bm.name}</option>)}
-                                    </select>
-                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                        <Filter size={14} className="text-slate-400" />
-                                    </div>
+                                <select
+                                    value={selectedBoMon}
+                                    onChange={(e) => setSelectedBoMon(e.target.value)}
+                                    className="block w-full pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
+                                >
+                                    <option value="all">Tất cả Bộ môn</option>
+                                    {boMonOptions.map((bm) => (
+                                        <option key={bm.id} value={bm.name}>
+                                            {bm.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <Filter size={14} className="text-gray-400" />
                                 </div>
                             </div>
                         </div>
@@ -373,11 +430,12 @@ export default function LecturerManagerPage() {
                     </div>
 
                     {/* FOOTER */}
-                    <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex items-center justify-between">
-                        <p className="text-sm text-slate-500 font-medium">
-                            Đang hiển thị <span className="text-slate-900 font-bold">{filteredLecturers.length}</span> giảng viên
-                        </p>
+                    <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
+                        <span className="text-xs text-gray-500 font-medium">
+                            Hiển thị {filteredLecturers.length} kết quả
+                        </span>
                     </div>
+
                 </div>
             </div>
 
@@ -404,14 +462,17 @@ export default function LecturerManagerPage() {
                 isLoading={importLoading}
             />
 
-            {/* MODAL TẠO TÀI KHOẢN */}
+            {/* 4. MODAL TẠO TÀI KHOẢN GIẢNG VIÊN */}
             {isCreateAccountModalOpen && accountTarget && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => !accountLoading && setIsCreateAccountModalOpen(false)} />
-                    <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 overflow-hidden">
-                        <div className="flex items-center gap-4 mb-6">
-                            <div className="p-3 bg-amber-100 text-amber-600 rounded-2xl">
-                                <KeyRound size={24} />
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div 
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                        onClick={() => !accountLoading && setIsCreateAccountModalOpen(false)}
+                    />
+                    <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-5">
+                            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+                                <KeyRound size={22} />
                             </div>
                             <div>
                                 <h3 className="text-lg font-bold text-slate-800">
@@ -421,52 +482,66 @@ export default function LecturerManagerPage() {
                             </div>
                         </div>
 
-                        <form onSubmit={handleCreateAccount} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 ml-1">Tên đăng nhập</label>
-                                <input
-                                    type="text"
-                                    required
-                                    value={accountForm.username}
-                                    onChange={(e) => setAccountForm(prev => ({ ...prev, username: e.target.value }))}
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all bg-slate-50"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 ml-1">
-                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Mật khẩu mới (Tùy chọn)' : 'Mật khẩu khởi tạo'}
-                                </label>
-                                <input
-                                    type="password"
-                                    required={!accountTarget.TaiKhoan?.taikhoan_id}
-                                    minLength={6}
-                                    value={accountForm.password}
-                                    onChange={(e) => setAccountForm(prev => ({ ...prev, password: e.target.value }))}
-                                    className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:ring-4 focus:ring-amber-500/10 focus:border-amber-500 outline-none transition-all bg-slate-50"
-                                    placeholder="Tối thiểu 6 ký tự..."
-                                />
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    disabled={accountLoading}
-                                    onClick={() => setIsCreateAccountModalOpen(false)}
-                                    className="flex-1 py-3 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-all"
-                                >
-                                    Hủy bỏ
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={accountLoading}
-                                    className="flex-[2] py-3 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
-                                >
-                                    {accountLoading ? <RefreshCw size={18} className="animate-spin" /> : <KeyRound size={18} />}
-                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Lưu thay đổi' : 'Tạo tài khoản'}
-                                </button>
-                            </div>
-                        </form>
+                        {(() => {
+                            const hasAccount = !!accountTarget?.TaiKhoan?.taikhoan_id;
+                            return (
+                                <form onSubmit={handleCreateAccount} className="flex flex-col gap-4">
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">Tên đăng nhập</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={accountForm.username}
+                                            onChange={(e) => setAccountForm(prev => ({ ...prev, username: e.target.value }))}
+                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 bg-gray-50 focus:bg-white transition-all"
+                                            placeholder="Nhập tên đăng nhập..."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-gray-600 mb-1.5">
+                                            {hasAccount ? 'Mật khẩu mới' : 'Mật khẩu'}
+                                            {hasAccount && <span className="ml-1 text-gray-400 font-normal">(để trống nếu không đổi)</span>}
+                                        </label>
+                                        <input
+                                            type="password"
+                                            required={!hasAccount}
+                                            minLength={hasAccount ? 0 : 6}
+                                            value={accountForm.password}
+                                            onChange={(e) => setAccountForm(prev => ({ ...prev, password: e.target.value }))}
+                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 bg-gray-50 focus:bg-white transition-all"
+                                            placeholder={hasAccount ? 'Nhập mật khẩu mới (tùy chọn)...' : 'Tối thiểu 6 ký tự...'}
+                                        />
+                                    </div>
+                                    <div className="flex gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            disabled={accountLoading}
+                                            onClick={() => setIsCreateAccountModalOpen(false)}
+                                            className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                                        >
+                                            Hủy
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            disabled={accountLoading}
+                                            className="flex-[2] py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                        >
+                                            {accountLoading ? (
+                                                <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <KeyRound size={16} />
+                                            )}
+                                            {accountLoading
+                                                ? (hasAccount ? 'Đang cập nhật...' : 'Đang tạo...')
+                                                : (hasAccount ? 'Cập nhật tài khoản' : 'Tạo tài khoản')}
+                                        </button>
+                                    </div>
+                                </form>
+                            );
+                        })()}
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
         </div>
     );

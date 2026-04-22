@@ -333,12 +333,12 @@ const importSchedule = async (req, res) => {
     }
 
     if (targetBoMonId) {
-      const whereBoMon = { chuyennganh_id: targetBoMonId };
+      const whereBoMon = { bomon_id: targetBoMonId, isDeleted: false };
       if ((role === 'lanhdao' || role === 'truongbomon') && khoa_id) {
         whereBoMon.khoa_id = khoa_id;
       }
 
-      const boMon = await db.ChuyenNganh.findOne({ where: whereBoMon, attributes: ['chuyennganh_id'] });
+      const boMon = await db.BoMon.findOne({ where: whereBoMon, attributes: ['bomon_id'] });
       if (!boMon) {
         return res.status(400).json({ success: false, message: 'Bộ môn đã chọn không hợp lệ hoặc ngoài phạm vi quản lý.' });
       }
@@ -356,7 +356,8 @@ const importSchedule = async (req, res) => {
         return res.status(200).json({
             success: true,
             message: `Import thành công ${result.countLHP} lớp học phần.`,
-            detail: "Số tiết và SDT giảng viên đã được đồng bộ chính xác."
+          detail: "Số tiết và SDT giảng viên đã được đồng bộ chính xác.",
+          importResult: result.rowResults || null
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
