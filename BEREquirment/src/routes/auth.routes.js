@@ -9,6 +9,7 @@ router.post('/login', authController.login);
 router.post('/login-admin', authController.loginAdmin);
 router.post('/refresh', authController.refreshToken);
 router.post('/create-admin', authController.createAdmin);
+router.put('/change-password', authenticateToken, authController.changePassword);
 
 // Admin tạo tài khoản cho giảng viên (yêu cầu xác thực admin)
 router.post(

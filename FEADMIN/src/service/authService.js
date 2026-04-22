@@ -13,8 +13,14 @@ const updateLecturerAccount = (taikhoan_id, data) => {
     return axiosClient.put(`/auth/admin/tk-gv/${taikhoan_id}`, data);
 };
 
+const changePassword = (data) => {
+    // data: { current_password, new_password }
+    return axiosClient.put('/auth/change-password', data);
+};
+
 export default {
     loginAdmin,
     createLecturerAccount,
-    updateLecturerAccount
+    updateLecturerAccount,
+    changePassword
 };
