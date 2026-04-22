@@ -1,6 +1,7 @@
 'use strict';
 const db = require('../models');
 const xlsx = require('xlsx')
+const { Op } = require('sequelize');
 const svService = require('../services/sinhvien.service');
 
 // const getSinhVienByLop = async (req, res) => {
@@ -193,9 +194,16 @@ const importStudents = async (req, res) => {
         let headerRowIndex = -1;
 
         for (let i = 0; i < rawMatrix.length; i++) {
-            const row = rawMatrix[i];
-            const isHeader = row.some(cell => cell && toNonAccent(cell.toString()).toLowerCase().includes('ma_sv') || toNonAccent(cell.toString()).toLowerCase().includes('masv'));
-            if (isHeader) {
+            const row = rawMatrix[i] || [];
+            const hasMaSvColumn = row.some((cell) => {
+                if (!cell) return false;
+                const normalized = toNonAccent(cell.toString())
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]/g, '');
+                return normalized.includes('masv') || normalized.includes('mssv');
+            });
+
+            if (hasMaSvColumn) {
                 headerRowIndex = i;
                 break;
             }
@@ -259,7 +267,8 @@ const importStudents = async (req, res) => {
                 lop_hanhchinh_id: lop_hanhchinh_id, // Gán vào lớp đang chọn
                 trang_thai: 'Đang học',
                 isDeleted: false,
-                ngay_tao: new Date()
+                ngay_tao: new Date(),
+                row_number: rowNumber
             });
         }
 
@@ -273,19 +282,95 @@ const importStudents = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Không tìm thấy dữ liệu sinh viên hợp lệ.' });
         }
 
-        // 5. Bulk Upsert (Insert hoặc Update nếu trùng Mã SV)
-        // updateOnDuplicate: Nếu Mã SV đã tồn tại, sẽ cập nhật các trường sau
-        await db.SinhVien.bulkCreate(preparedStudents, {
-            transaction: t,
-            updateOnDuplicate: ['ten', 'email', 'sdt', 'ngaysinh', 'lop_hanhchinh_id', 'isDeleted', 'trang_thai'] 
+        // 5. Import theo nguyên tắc "thêm vào lớp":
+        // - Không chuyển lớp tự động.
+        // - Nếu mã SV đã thuộc lớp khác thì ghi nhận thất bại kèm tên lớp hiện tại.
+        const maSvList = preparedStudents.map((item) => item.ma_sv);
+        const existedStudents = await db.SinhVien.findAll({
+            where: { ma_sv: { [Op.in]: maSvList } },
+            attributes: ['sinhvien_id', 'ma_sv', 'lop_hanhchinh_id'],
+            transaction: t
         });
+        const existedByMaSv = new Map(existedStudents.map((sv) => [sv.ma_sv, sv]));
+        const existingClassIds = [...new Set(existedStudents.map((sv) => sv.lop_hanhchinh_id).filter(Boolean))];
+        const existingClasses = existingClassIds.length > 0
+            ? await db.LopHanhChinh.findAll({
+                where: { lop_hanhchinh_id: { [Op.in]: existingClassIds } },
+                attributes: ['lop_hanhchinh_id', 'ten_lop'],
+                transaction: t
+            })
+            : [];
+        const classNameById = new Map(existingClasses.map((item) => [item.lop_hanhchinh_id, item.ten_lop]));
+
+        let createdCount = 0;
+        const successRows = [];
+        const failedRows = [];
+
+        for (const item of preparedStudents) {
+            const existed = existedByMaSv.get(item.ma_sv);
+
+            if (!existed) {
+                const { row_number, ...createPayload } = item;
+                await db.SinhVien.create(createPayload, { transaction: t });
+                createdCount += 1;
+                successRows.push({
+                    rowNumber: item.row_number,
+                    label: `${item.ma_sv} - ${item.ten}`,
+                    reason: 'Thêm mới thành công'
+                });
+                continue;
+            }
+
+            if (existed.lop_hanhchinh_id === lop_hanhchinh_id) {
+                failedRows.push({
+                    rowNumber: item.row_number,
+                    label: `${item.ma_sv} - ${item.ten}`,
+                    reason: 'Sinh viên đã tồn tại trong lớp này'
+                });
+                continue;
+            }
+
+            if (!existed.lop_hanhchinh_id) {
+                await db.SinhVien.update(
+                    {
+                        lop_hanhchinh_id: lop_hanhchinh_id,
+                        isDeleted: false
+                    },
+                    {
+                        where: { sinhvien_id: existed.sinhvien_id },
+                        transaction: t
+                    }
+                );
+                successRows.push({
+                    rowNumber: item.row_number,
+                    label: `${item.ma_sv} - ${item.ten}`,
+                    reason: 'Gán lớp thành công (sinh viên chưa có lớp)'
+                });
+                continue;
+            }
+
+            const currentClassName = classNameById.get(existed.lop_hanhchinh_id) || 'Không rõ lớp';
+            failedRows.push({
+                rowNumber: item.row_number,
+                label: `${item.ma_sv} - ${item.ten}`,
+                reason: `Sinh viên đang thuộc lớp ${currentClassName}`
+            });
+        }
 
         await t.commit();
 
+        const failedCount = failedRows.length;
+
         return res.status(200).json({
             success: true,
-            message: `Import thành công ${preparedStudents.length} sinh viên vào lớp.`,
-            data: preparedStudents
+            message: `Kết quả import: thêm thành công ${createdCount}, thêm thất bại ${failedCount}.`,
+            data: {
+                total: preparedStudents.length,
+                created: createdCount,
+                failed: failedCount,
+                success_rows: successRows,
+                failed_rows: failedRows
+            }
         });
 
     } catch (error) {

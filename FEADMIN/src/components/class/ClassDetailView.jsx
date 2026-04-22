@@ -10,6 +10,7 @@ import DeleteConfirmModal from './DeleteConfirmModal';
 import EditStudentModal from './EditStudentModal';
 import AddStudentModal from './AddStudentModal';
 import ImportStudentModal from './ImportStudentModal';
+import ImportResultModal from '../common/ImportResultModal';
 import studentService from '../../service/studentService';
 import classService from '../../service/classService';
 import khoaService from '../../service/khoaService';
@@ -28,6 +29,10 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importResultModalOpen, setImportResultModalOpen] = useState(false);
+  const [importSummary, setImportSummary] = useState(null);
+  const [importSuccessRows, setImportSuccessRows] = useState([]);
+  const [importFailedRows, setImportFailedRows] = useState([]);
   const [editClassModalOpen, setEditClassModalOpen] = useState(false);
   const [classSaving, setClassSaving] = useState(false);
   const [classForm, setClassForm] = useState({
@@ -170,9 +175,20 @@ const ClassDetailView = ({ classInfo, onBack }) => {
     try {
       const res = await studentService.importExcel(file, classId);
       if (res && (res.success || res.errCode === 0)) {
-        alert(res.message || "Import thành công!");
+        const payload = res.data || {};
+        const successRows = Array.isArray(payload.success_rows) ? payload.success_rows : [];
+        const failedRows = Array.isArray(payload.failed_rows) ? payload.failed_rows : [];
+
+        setImportSummary({
+          totalRows: Number(payload.total ?? (successRows.length + failedRows.length)),
+          successCount: Number(payload.created ?? successRows.length),
+          failedCount: Number(payload.failed ?? failedRows.length)
+        });
+        setImportSuccessRows(successRows);
+        setImportFailedRows(failedRows);
+        setImportResultModalOpen(true);
         setImportModalOpen(false);
-        fetchStudents(); 
+        fetchStudents();
       } else {
         throw new Error(res.message || "Import thất bại");
       }
@@ -338,6 +354,14 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         onClose={() => setImportModalOpen(false)}
         onImport={handleImportStudent}
         classId={classInfo.id}
+      />
+      <ImportResultModal
+        isOpen={importResultModalOpen}
+        onClose={() => setImportResultModalOpen(false)}
+        title="Kết quả import sinh viên"
+        summary={importSummary}
+        successRows={importSuccessRows}
+        failedRows={importFailedRows}
       />
 
       {editClassModalOpen && typeof document !== 'undefined' && createPortal(
