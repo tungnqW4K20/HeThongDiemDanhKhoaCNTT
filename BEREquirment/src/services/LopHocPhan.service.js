@@ -27,7 +27,7 @@ const moment = require("moment");
 //       order: [[db.SinhVien, "ten", "ASC"]]
 //     });
 //   } catch (error) {
-//     throw new Error(`Lỗi truy vấn sinh viên lớp học phần: ${error.message}`);
+//     throw new Error(`L?i truy v?n sinh vi?n l?p h?c ph?n: ${error.message}`);
 //   }
 // };
 
@@ -82,11 +82,11 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
       const validHistory = sv.DanhSachDiemDanh || [];
 
       // Tính toán thống kê dựa trên các buổi ĐÃ HOÀN THÀNH
-      const vắng_kp = validHistory.filter(h => h.trangthai === 'absent').length;
-      const vắng_cp = validHistory.filter(h => h.trangthai === 'excused').length;
-      const tong_vắng = vắng_kp + vắng_cp;
+      const vang_kp = validHistory.filter(h => h.trangthai === 'absent').length;
+      const vang_cp = validHistory.filter(h => h.trangthai === 'excused').length;
+      const tong_vang = vang_kp + vang_cp;
       const tong_buoi_da_hoc = validHistory.length; 
-      const tile_nghi = tong_buoi_da_hoc > 0 ? (tong_vắng / tong_buoi_da_hoc) * 100 : 0;
+      const tile_nghi = tong_buoi_da_hoc > 0 ? (tong_vang / tong_buoi_da_hoc) * 100 : 0;
 
       // Lọc lấy dữ liệu điểm danh của ngày đang chọn (ngayChuan)
       const diemDanhHomNay = validHistory.filter(h => h.BuoiHoc && h.BuoiHoc.ngay === ngayChuan);
@@ -98,7 +98,7 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
           ...sv,
           DanhSachDiemDanh: diemDanhHomNay,
           DiemDanhSummary: {
-            vắng_kp, vắng_cp, tong_vắng,
+            vang_kp, vang_cp, tong_vang,
             tong_buoi: tong_buoi_da_hoc,
             tile_nghi: tile_nghi.toFixed(1),
             canh_bao: tile_nghi >= 20
@@ -195,7 +195,17 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
 
         const data = await db.LopHocPhan.findAll({
             where: { hocky_id },
-            attributes: ['lophocphan_id', 'ten_lophocphan'], 
+            attributes: [
+              'lophocphan_id',
+              'ten_lophocphan',
+              'ma_lop',
+              'phong',
+              'thu',
+              'tiet_bat_dau',
+              'so_tiet',
+              'tuan_hoc',
+              'loai_hoc_phan'
+            ], 
             include: [
                 {
                     model: db.MonHoc,
@@ -238,6 +248,153 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
         console.error('Service Error:', error);
         throw error;
     }
+};
+
+const normalizeWeekList = (input) => {
+  if (Array.isArray(input)) {
+    const list = input
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0);
+    return [...new Set(list)].sort((a, b) => a - b);
+  }
+
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return [];
+
+    const noBracket = trimmed.replace(/\[|\]/g, '');
+    const list = noBracket
+      .split(',')
+      .map((item) => Number(item.trim()))
+      .filter((item) => Number.isInteger(item) && item > 0);
+    return [...new Set(list)].sort((a, b) => a - b);
+  }
+
+  return [];
+};
+
+const updateLopHocPhanInfo = async (lophocphan_id, payload = {}) => {
+  const t = await db.sequelize.transaction();
+  try {
+    if (!lophocphan_id) {
+      await t.rollback();
+      return { success: false, errCode: 1, message: 'Thiếu lophocphan_id.' };
+    }
+
+    const lopHocPhan = await db.LopHocPhan.findByPk(lophocphan_id, { transaction: t });
+    if (!lopHocPhan) {
+      await t.rollback();
+      return { success: false, errCode: 2, message: 'Lớp học phần không tồn tại.' };
+    }
+
+    const ten_lophocphan = String(payload.ten_lophocphan || '').trim();
+    const ma_lop_input = String(payload.ma_lop || '').trim();
+    const lop_hanhchinh_ids = Array.isArray(payload.lop_hanhchinh_ids)
+      ? [...new Set(payload.lop_hanhchinh_ids.map((item) => String(item || '').trim()).filter(Boolean))]
+      : [];
+    const phong = String(payload.phong || '').trim();
+    const thu = Number(payload.thu);
+    const tiet_bat_dau = Number(payload.tiet_bat_dau);
+    const so_tiet = Number(payload.so_tiet);
+    const loai_hoc_phan = String(payload.loai_hoc_phan || '').trim().toUpperCase();
+    const tuan_hoc = normalizeWeekList(payload.tuan_hoc);
+
+    let selectedLopHanhChinh = [];
+    if (lop_hanhchinh_ids.length > 0) {
+      selectedLopHanhChinh = await db.LopHanhChinh.findAll({
+        where: {
+          lop_hanhchinh_id: { [Op.in]: lop_hanhchinh_ids },
+          isDeleted: false
+        },
+        attributes: ['lop_hanhchinh_id', 'ten_lop'],
+        transaction: t
+      });
+
+      if (selectedLopHanhChinh.length !== lop_hanhchinh_ids.length) {
+        await t.rollback();
+        return { success: false, errCode: 3, message: 'Danh sách lớp hành chính không hợp lệ.' };
+      }
+    }
+
+    const ma_lop = lop_hanhchinh_ids.length > 0
+      ? lop_hanhchinh_ids
+          .map((id) => selectedLopHanhChinh.find((item) => item.lop_hanhchinh_id === id)?.ten_lop)
+          .filter(Boolean)
+          .join('|')
+      : ma_lop_input;
+
+    if (!ten_lophocphan || !ma_lop || !phong) {
+      await t.rollback();
+      return {
+        success: false,
+        errCode: 4,
+        message: 'Thiếu thông tin bắt buộc: tên lớp học phần, lớp hành chính, phòng.'
+      };
+    }
+
+    if (!Number.isInteger(thu) || thu < 2 || thu > 8) {
+      await t.rollback();
+      return { success: false, errCode: 5, message: 'Thứ học không hợp lệ (chỉ nhận từ 2 đến 8).' };
+    }
+
+    if (!Number.isInteger(tiet_bat_dau) || tiet_bat_dau <= 0) {
+      await t.rollback();
+      return { success: false, errCode: 6, message: 'Tiết bắt đầu không hợp lệ.' };
+    }
+
+    if (!Number.isInteger(so_tiet) || so_tiet <= 0) {
+      await t.rollback();
+      return { success: false, errCode: 7, message: 'Số tiết không hợp lệ.' };
+    }
+
+    if (!['LT', 'TH'].includes(loai_hoc_phan)) {
+      await t.rollback();
+      return { success: false, errCode: 8, message: 'Loại học phần không hợp lệ (LT hoặc TH).' };
+    }
+
+    if (tuan_hoc.length === 0) {
+      await t.rollback();
+      return { success: false, errCode: 9, message: 'Tuần học không hợp lệ. Vui lòng nhập dạng 1,2,3.' };
+    }
+
+    lopHocPhan.ten_lophocphan = ten_lophocphan;
+    lopHocPhan.ma_lop = ma_lop;
+    lopHocPhan.phong = phong;
+    lopHocPhan.thu = thu;
+    lopHocPhan.tiet_bat_dau = tiet_bat_dau;
+    lopHocPhan.so_tiet = so_tiet;
+    lopHocPhan.tuan_hoc = tuan_hoc;
+    lopHocPhan.loai_hoc_phan = loai_hoc_phan;
+
+    await lopHocPhan.save({ transaction: t });
+
+    if (lop_hanhchinh_ids.length > 0) {
+      await lopHocPhan.setDanhSachLopHanhChinh(lop_hanhchinh_ids, { transaction: t });
+    }
+
+    await t.commit();
+
+    const updated = await db.LopHocPhan.findByPk(lophocphan_id, {
+      include: [
+        {
+          model: db.LopHanhChinh,
+          as: 'DanhSachLopHanhChinh',
+          attributes: ['lop_hanhchinh_id', 'ten_lop'],
+          through: { attributes: [] }
+        }
+      ]
+    });
+
+    return {
+      success: true,
+      errCode: 0,
+      message: 'Cập nhật thông tin lớp học phần thành công.',
+      data: updated ? updated.toJSON() : lopHocPhan.toJSON()
+    };
+  } catch (error) {
+    await t.rollback();
+    throw new Error(`Lỗi cập nhật lớp học phần: ${error.message}`);
+  }
 };
 
 
@@ -688,6 +845,7 @@ const removeSinhVienKhoiLopHocPhan = async (lophocphan_id, sinhvien_id) => {
 module.exports = { 
   getStudentsByLopHocPhan,
   getAllLopHocPhan,
+  updateLopHocPhanInfo,
   getAllLopHocLai,
   getSinhVienByLopHocLai,
   importSinhVienFromExcel,
@@ -696,5 +854,3 @@ module.exports = {
   addSinhVienTuLopHanhChinh,
   removeSinhVienKhoiLopHocPhan
 };
-
-

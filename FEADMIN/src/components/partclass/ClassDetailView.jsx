@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   ArrowLeft, BookOpen, User, Phone, Users, 
-  Plus, FileSpreadsheet, Trash2, Search, Loader2 
+  Plus, FileSpreadsheet, Trash2, Search, Loader2, Pencil, X
 } from 'lucide-react';
 import Badge from './Badge';
 import AddStudentModal from './AddStudentModal';
@@ -12,8 +13,11 @@ import classService from '../../service/classService';
 
 
 const ClassDetailView = ({ classInfo, onBack }) => {
+  const [detailInfo, setDetailInfo] = useState(classInfo);
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSavingClassInfo, setIsSavingClassInfo] = useState(false);
+  const [saveNotice, setSaveNotice] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddStudentSubmitting, setIsAddStudentSubmitting] = useState(false);
   const [allAdminClasses, setAllAdminClasses] = useState([]);
@@ -23,6 +27,18 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isEditClassModalOpen, setIsEditClassModalOpen] = useState(false);
+  const [classForm, setClassForm] = useState({
+    ten_lophocphan: '',
+    selected_admin_class_ids: [],
+    admin_class_search: '',
+    phong: '',
+    thu: '',
+    tiet_bat_dau: '',
+    so_tiet: '',
+    tuan_hoc: '',
+    loai_hoc_phan: 'LT'
+  });
   const [selectedStudent, setSelectedStudent] = useState(null);
   const fetchStudents = async () => {
     setIsLoading(true);
@@ -117,6 +133,10 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   }, [classInfo.id]);
 
   useEffect(() => {
+    setDetailInfo(classInfo);
+  }, [classInfo]);
+
+  useEffect(() => {
     const fetchAllAdminClasses = async () => {
       try {
         const res = await classService.getAll();
@@ -162,28 +182,173 @@ const ClassDetailView = ({ classInfo, onBack }) => {
   };
 
   const adminClassOptions = useMemo(() => {
-    if (Array.isArray(classInfo?.adminClassOptions) && classInfo.adminClassOptions.length > 0) {
-      return classInfo.adminClassOptions;
+    if (Array.isArray(detailInfo?.adminClassOptions) && detailInfo.adminClassOptions.length > 0) {
+      return detailInfo.adminClassOptions;
     }
 
-    if (Array.isArray(classInfo?.adminClasses)) {
-      return classInfo.adminClasses.map((name) => ({ id: name, name }));
+    if (Array.isArray(detailInfo?.adminClasses)) {
+      return detailInfo.adminClasses.map((name) => ({ id: name, name }));
     }
 
     return [];
-  }, [classInfo]);
+  }, [detailInfo]);
 
   const filteredStudents = students.filter((s) =>
     (s.ten || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     (s.ma_sv || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const openEditClassModal = () => {
+    const weekValues = Array.isArray(detailInfo?.tuanHoc)
+      ? detailInfo.tuanHoc
+      : String(detailInfo?.tuanHoc || '')
+          .replace(/\[|\]/g, '')
+          .split(',')
+          .map((item) => Number(item.trim()))
+          .filter((item) => Number.isInteger(item) && item > 0);
+
+    const selectedIds = Array.isArray(detailInfo?.adminClassOptions)
+      ? detailInfo.adminClassOptions
+          .map((item) => item?.id)
+          .filter(Boolean)
+      : [];
+
+    setClassForm({
+      ten_lophocphan: detailInfo?.className || '',
+      selected_admin_class_ids: selectedIds,
+      admin_class_search: '',
+      phong: detailInfo?.room || '',
+      thu: detailInfo?.dayOfWeek || '',
+      tiet_bat_dau: detailInfo?.tietBatDau || '',
+      so_tiet: detailInfo?.soTiet || '',
+      tuan_hoc: weekValues.join(','),
+      loai_hoc_phan: detailInfo?.loaiHocPhan || 'LT'
+    });
+    setIsEditClassModalOpen(true);
+  };
+
+  const handleSelectAdminClass = (adminClassId) => {
+    if (!adminClassId) return;
+
+    setClassForm((prev) => ({
+      ...prev,
+      selected_admin_class_ids: prev.selected_admin_class_ids.includes(adminClassId)
+        ? prev.selected_admin_class_ids.filter((id) => id !== adminClassId)
+        : [...prev.selected_admin_class_ids, adminClassId]
+    }));
+  };
+
+  const handleRemoveAdminClass = (adminClassId) => {
+    setClassForm((prev) => ({
+      ...prev,
+      selected_admin_class_ids: prev.selected_admin_class_ids.filter((id) => id !== adminClassId)
+    }));
+  };
+
+  const filteredAdminClassOptions = useMemo(() => {
+    const keyword = String(classForm.admin_class_search || '').trim().toLowerCase();
+    if (!keyword) return allAdminClasses;
+    return allAdminClasses.filter((item) => String(item?.name || '').toLowerCase().includes(keyword));
+  }, [allAdminClasses, classForm.admin_class_search]);
+
+  const handleSaveClassInfo = async (e) => {
+    e.preventDefault();
+
+    const normalizedAdminClassIds = (classForm.selected_admin_class_ids || [])
+      .map((item) => String(item || '').trim())
+      .filter(Boolean);
+
+    if (!classForm.ten_lophocphan.trim() || normalizedAdminClassIds.length === 0 || !classForm.phong.trim()) {
+      alert('Vui lòng nhập đầy đủ tên lớp học phần, lớp hành chính và phòng học.');
+      return;
+    }
+
+    const payload = {
+      ten_lophocphan: classForm.ten_lophocphan.trim(),
+      lop_hanhchinh_ids: normalizedAdminClassIds,
+      phong: classForm.phong.trim(),
+      thu: Number(classForm.thu),
+      tiet_bat_dau: Number(classForm.tiet_bat_dau),
+      so_tiet: Number(classForm.so_tiet),
+      tuan_hoc: classForm.tuan_hoc,
+      loai_hoc_phan: classForm.loai_hoc_phan
+    };
+
+    setIsSavingClassInfo(true);
+    try {
+      const res = await hocPhanService.updateInfo(detailInfo.id, payload);
+      if (!res?.success) {
+        alert(res?.message || 'Cập nhật lớp học phần thất bại.');
+        return;
+      }
+
+      const updated = res?.data || {};
+      const updatedAdminClassOptions = Array.isArray(updated.DanhSachLopHanhChinh)
+        ? updated.DanhSachLopHanhChinh
+            .filter((item) => item?.lop_hanhchinh_id && item?.ten_lop)
+            .map((item) => ({
+              id: item.lop_hanhchinh_id,
+              name: item.ten_lop
+            }))
+        : allAdminClasses.filter((item) => normalizedAdminClassIds.includes(item.id));
+
+      setDetailInfo((prev) => ({
+        ...prev,
+        className: updated.ten_lophocphan || payload.ten_lophocphan,
+        maLop: updated.ma_lop || '',
+        room: updated.phong || payload.phong,
+        dayOfWeek: updated.thu || payload.thu,
+        tietBatDau: updated.tiet_bat_dau || payload.tiet_bat_dau,
+        soTiet: updated.so_tiet || payload.so_tiet,
+        tuanHoc: Array.isArray(updated.tuan_hoc)
+          ? updated.tuan_hoc
+          : String(payload.tuan_hoc)
+              .split(',')
+              .map((item) => Number(item.trim()))
+              .filter((item) => Number.isInteger(item) && item > 0),
+        loaiHocPhan: updated.loai_hoc_phan || payload.loai_hoc_phan,
+        isPractical: (updated.loai_hoc_phan || payload.loai_hoc_phan) === 'TH',
+        adminClasses: updatedAdminClassOptions.map((item) => item.name),
+        adminClassOptions: updatedAdminClassOptions
+      }));
+
+      setIsEditClassModalOpen(false);
+      setSaveNotice({
+        type: 'success',
+        text: 'Cập nhật thông tin lớp học phần thành công.'
+      });
+    } catch (error) {
+      setSaveNotice({
+        type: 'error',
+        text: 'Không thể cập nhật lớp học phần. Vui lòng thử lại.'
+      });
+    } finally {
+      setIsSavingClassInfo(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!saveNotice) return undefined;
+    const timer = setTimeout(() => setSaveNotice(null), 3000);
+    return () => clearTimeout(timer);
+  }, [saveNotice]);
+
+
   return (
     <div className="animate-in fade-in duration-300 space-y-6 pb-10">
       {/* Nút Quay lại */}
-      <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-[#3B5998] font-medium transition-colors">
-        <ArrowLeft size={18} /> Quay lại danh sách lớp
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <button onClick={onBack} className="flex items-center gap-2 text-gray-500 hover:text-[#3B5998] font-medium transition-colors">
+          <ArrowLeft size={18} /> Quay lại danh sách lớp
+        </button>
+
+        <button
+          onClick={openEditClassModal}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#3B5998]/20 text-[#3B5998] hover:bg-[#3B5998]/5 font-semibold text-sm"
+        >
+          <Pencil size={16} /> Sửa thông tin lớp học phần
+        </button>
+      </div>
 
       {/* PHẦN 1: THÔNG TIN TỔNG QUAN (GIỮ NGUYÊN) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -191,25 +356,25 @@ const ClassDetailView = ({ classInfo, onBack }) => {
           <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
             <div className="flex items-center gap-3 mb-4">
               <Badge type={classInfo.isPractical ? 'yellow' : 'blue'}>Lớp học phần</Badge>
-              <span className="text-xs text-gray-400 font-medium italic">{classInfo.semesterName}</span>
+              <span className="text-xs text-gray-400 font-medium italic">{detailInfo.semesterName}</span>
             </div>
-            <h1 className="text-3xl font-extrabold text-gray-800 mb-2">{classInfo.subjectName}</h1>
+            <h1 className="text-3xl font-extrabold text-gray-800 mb-2">{detailInfo.subjectName}</h1>
             <p className="text-[#3B5998] font-bold flex items-center gap-2 mb-8">
-              <BookOpen size={20} /> Tên HP: {classInfo.className}
+              <BookOpen size={20} /> Tên HP: {detailInfo.className}
             </p>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pt-6 border-t border-gray-50">
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Thứ học</p>
-                <p className="font-bold text-gray-700">Thứ {classInfo.dayOfWeek}</p>
+                <p className="font-bold text-gray-700">Thứ {detailInfo.dayOfWeek}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Phòng học</p>
-                <p className="font-bold text-[#3B5998]">{classInfo.room}</p>
+                <p className="font-bold text-[#3B5998]">{detailInfo.room}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Mã môn</p>
-                <p className="font-bold text-gray-700">{classInfo.subjectCode}</p>
+                <p className="font-bold text-gray-700">{detailInfo.subjectCode}</p>
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Số lớp HC</p>
@@ -244,13 +409,13 @@ const ClassDetailView = ({ classInfo, onBack }) => {
               </div>
               <div>
                 <p className="text-xs text-blue-200 font-medium italic">Họ và tên</p>
-                <p className="font-bold text-lg leading-tight">{classInfo.teacherName}</p>
+                <p className="font-bold text-lg leading-tight">{detailInfo.teacherName}</p>
               </div>
             </div>
             <div className="pt-4 border-t border-white/10">
               <p className="text-xs text-blue-200 font-medium mb-1 italic">Số điện thoại liên hệ</p>
               <p className="font-bold flex items-center gap-2 text-lg">
-                <Phone size={18} className="text-green-400" /> {classInfo.teacherPhone}
+                <Phone size={18} className="text-green-400" /> {detailInfo.teacherPhone}
               </p>
             </div>
           </div>
@@ -415,6 +580,202 @@ const ClassDetailView = ({ classInfo, onBack }) => {
         warningMessage="Lưu ý: Khi gỡ sinh viên khỏi lớp học phần, toàn bộ dữ liệu điểm danh của sinh viên đó trong lớp học phần này cũng sẽ bị xóa và không thể hoàn tác."
         confirmLabel="Gỡ khỏi lớp học phần"
       />
+
+      {isEditClassModalOpen && typeof document !== 'undefined' && document.body && createPortal(
+        <div className="fixed inset-0 z-9999 bg-black/45 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#3B5998]">Sửa thông tin lớp học phần</h3>
+              <button
+                onClick={() => setIsEditClassModalOpen(false)}
+                className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                disabled={isSavingClassInfo}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveClassInfo} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Tên lớp học phần</label>
+                  <input
+                    type="text"
+                    value={classForm.ten_lophocphan}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, ten_lophocphan: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Lớp hành chính</label>
+                  <div className="mt-1 border border-gray-200 rounded-lg p-2.5 space-y-2">
+                    {classForm.selected_admin_class_ids.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {classForm.selected_admin_class_ids.map((adminClassId) => {
+                          const selectedClass = allAdminClasses.find((item) => item.id === adminClassId);
+                          const label = selectedClass?.name || adminClassId;
+                          return (
+                          <span
+                            key={adminClassId}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-100 text-[#3B5998] text-xs font-semibold"
+                          >
+                            {label}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAdminClass(adminClassId)}
+                              className="text-[#3B5998]/70 hover:text-red-600"
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        )})}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-400">Chưa chọn lớp hành chính nào</p>
+                    )}
+
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={classForm.admin_class_search}
+                        onChange={(e) => setClassForm((prev) => ({ ...prev, admin_class_search: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                        placeholder="Tìm lớp hành chính để chọn..."
+                      />
+
+                      <div className="max-h-28 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-100">
+                        {filteredAdminClassOptions.length > 0 ? (
+                          filteredAdminClassOptions.map((item) => {
+                            const selected = classForm.selected_admin_class_ids.includes(item.id);
+                            return (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={() => handleSelectAdminClass(item.id)}
+                                className={`w-full text-left px-3 py-2 text-sm transition-colors ${selected ? 'bg-blue-50 text-[#3B5998] font-semibold' : 'hover:bg-gray-50 text-gray-700'}`}
+                              >
+                                {item.name}
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <p className="px-3 py-2 text-xs text-gray-400">Không tìm thấy lớp hành chính phù hợp</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Phòng</label>
+                  <input
+                    type="text"
+                    value={classForm.phong}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, phong: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Thứ</label>
+                  <input
+                    type="number"
+                    min="2"
+                    max="8"
+                    value={classForm.thu}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, thu: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Tiết bắt đầu</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={classForm.tiet_bat_dau}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, tiet_bat_dau: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Số tiết</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={classForm.so_tiet}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, so_tiet: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Tuần học</label>
+                  <input
+                    type="text"
+                    value={classForm.tuan_hoc}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, tuan_hoc: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                    placeholder="Ví dụ: 1,2,3,4,5"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 uppercase">Loại học phần</label>
+                  <select
+                    value={classForm.loai_hoc_phan}
+                    onChange={(e) => setClassForm((prev) => ({ ...prev, loai_hoc_phan: e.target.value }))}
+                    className="mt-1 w-full px-3 py-2.5 border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-[#3B5998]/20"
+                  >
+                    <option value="LT">LT</option>
+                    <option value="TH">TH</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditClassModalOpen(false)}
+                  className="px-4 py-2 text-sm font-semibold border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50"
+                  disabled={isSavingClassInfo}
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingClassInfo}
+                  className="px-4 py-2 text-sm font-semibold bg-[#3B5998] text-white rounded-lg hover:bg-[#2d4373] disabled:opacity-60 inline-flex items-center gap-2"
+                >
+                  {isSavingClassInfo ? <Loader2 size={16} className="animate-spin" /> : null}
+                  {isSavingClassInfo ? 'Đang lưu...' : 'Lưu thay đổi'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      , document.body)}
+
+      {saveNotice && (
+        <div className="fixed top-4 right-4 z-[10001]">
+          <div
+            className={`px-4 py-2.5 rounded-lg shadow-lg text-sm font-semibold border ${
+              saveNotice.type === 'success'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-red-50 text-red-700 border-red-200'
+            }`}
+          >
+            {saveNotice.text}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

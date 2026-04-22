@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import khoaService from '../../service/khoaService';
 
@@ -75,9 +76,10 @@ const ChuyenNganhModal = ({ isOpen, onClose, onSuccess, initialData, khoaOptions
   };
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center px-4">
+  return createPortal(
+    <div className="fixed inset-0 z-9999 bg-black/45 backdrop-blur-sm flex items-center justify-center px-4 py-6">
       <div className="bg-white w-full max-w-2xl rounded-xl shadow-xl border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h3 className="text-lg font-bold text-[#3B5998]">
@@ -155,7 +157,8 @@ const ChuyenNganhModal = ({ isOpen, onClose, onSuccess, initialData, khoaOptions
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

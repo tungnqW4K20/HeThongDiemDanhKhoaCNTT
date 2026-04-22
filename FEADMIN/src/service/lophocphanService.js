@@ -5,6 +5,10 @@ const hocPhanService = {
     return axiosClient.get('/lop-hoc-phan', { params });
   },
 
+  updateInfo(lophocphan_id, payload) {
+    return axiosClient.put(`/lop-hoc-phan/${lophocphan_id}`, payload);
+  },
+
   getStudents(lophocphan_id) {
     return axiosClient.get(`/lop-hoc-phan/${lophocphan_id}/danh-sach-sinh-vien`);
   },

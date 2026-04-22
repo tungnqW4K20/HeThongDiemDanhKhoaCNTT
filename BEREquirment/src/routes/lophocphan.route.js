@@ -8,6 +8,7 @@ const { authenticateToken, authorizeRole } = require('../middlewares/auth.middle
 router.get("/:lophocphan_id/sinhvien", lopHocPhanController.getStudentsByLopHocPhan);
 
 router.get("/", authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), lopHocPhanController.getAll);
+router.put("/:lophocphan_id", authenticateToken, authorizeRole('admin'), lopHocPhanController.capNhatThongTinLopHocPhan);
 router.get("/lop-hoc-lai", lopHocPhanController.layDanhSachLopHocLai);
 router.get('/lop-hoc-lai/:lophocphan_id/sinhvien', lopHocPhanController.laySinhVienLopHocLai);
 

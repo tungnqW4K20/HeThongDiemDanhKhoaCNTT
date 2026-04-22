@@ -45,6 +45,37 @@ const pickDefaultSemesterIdByTime = (semesterList = []) => {
   return nearestPastSemester?.hocky_id || sortedByStartDesc[0]?.hocky_id || '';
 };
 
+const parseWeekList = (rawWeeks) => {
+  if (Array.isArray(rawWeeks)) {
+    return rawWeeks
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0);
+  }
+
+  if (typeof rawWeeks === 'string') {
+    const text = rawWeeks.trim();
+    if (!text) return [];
+
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map((item) => Number(item))
+          .filter((item) => Number.isInteger(item) && item > 0);
+      }
+    } catch {
+      const list = text
+        .replace(/\[|\]/g, '')
+        .split(',')
+        .map((item) => Number(item.trim()))
+        .filter((item) => Number.isInteger(item) && item > 0);
+      return list;
+    }
+  }
+
+  return [];
+};
+
 
 const PartClassManagement = () => {
   const [semesters, setSemesters] = useState([]);
@@ -80,6 +111,11 @@ const PartClassManagement = () => {
         const mapped = res.data.map(item => ({
           id: item.lophocphan_id,
           className: item.ten_lophocphan,
+          maLop: String(item.ma_lop || '').trim(),
+          tietBatDau: item.tiet_bat_dau ?? '',
+          soTiet: item.so_tiet ?? '',
+          tuanHoc: parseWeekList(item.tuan_hoc),
+          loaiHocPhan: item.loai_hoc_phan || 'LT',
           
           // Môn học
           subjectName: item.MonHoc?.ten_mon || 'Không rõ môn',
@@ -104,9 +140,8 @@ const PartClassManagement = () => {
           semesterName: item.HocKy?.ten_hocky,
           isPractical: item.ten_lophocphan.includes('*'), // Tự động nhận diện thực hành qua dấu *
           
-          // Mock lịch học (vì API hiện tại chưa trả về)
-          dayOfWeek: 'TBD',
-          room: 'P.000',
+          dayOfWeek: item.thu || 'TBD',
+          room: item.phong || 'P.000',
         }));
         setClassList(mapped);
       }

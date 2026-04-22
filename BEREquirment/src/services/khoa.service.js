@@ -5,28 +5,17 @@ const normalizeMonHocIds = (monHocIds) => {
     return [...new Set(monHocIds.filter(Boolean))];
 };
 
-const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
+const syncMonHocByBoMon = async ({ boMonId, khoaId, monHocIds }) => {
     const selectedIds = normalizeMonHocIds(monHocIds);
-
-    const linkedChuyenNganh = chuyenNganhId
-        ? await db.ChuyenNganh.findOne({
-            where: { chuyennganh_id: chuyenNganhId, isDeleted: false },
-            attributes: ['chuyennganh_id']
-        })
-        : null;
-    const safeChuyenNganhId = linkedChuyenNganh ? linkedChuyenNganh.chuyennganh_id : null;
 
     const whereLinkedToBoMon = {
         isDeleted: false,
-        [db.Sequelize.Op.or]: [
-            { bomon_id: chuyenNganhId },
-            { chuyennganh_id: chuyenNganhId }
-        ]
+        bomon_id: boMonId
     };
 
     if (selectedIds.length === 0) {
         await db.MonHoc.update(
-            { bomon_id: null, chuyennganh_id: null },
+            { bomon_id: null },
             { where: whereLinkedToBoMon }
         );
         return;
@@ -50,7 +39,7 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
     }
 
     await db.MonHoc.update(
-        { bomon_id: null, chuyennganh_id: null },
+        { bomon_id: null },
         {
             where: {
                 ...whereLinkedToBoMon,
@@ -60,7 +49,7 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
     );
 
     await db.MonHoc.update(
-        { bomon_id: chuyenNganhId, chuyennganh_id: safeChuyenNganhId },
+        { bomon_id: boMonId },
         {
             where: {
                 monhoc_id: { [db.Sequelize.Op.in]: selectedIds },
@@ -68,6 +57,22 @@ const syncMonHocByBoMon = async ({ chuyenNganhId, khoaId, monHocIds }) => {
             }
         }
     );
+};
+
+const resolveBoMonPayload = (data = {}) => {
+    const maBoMon = (data.ma_bomon ?? data.ma_chuyennganh ?? '').trim();
+    const tenBoMon = (data.ten_bomon ?? data.ten_chuyennganh ?? '').trim();
+    const boMonId = data.bomon_id || data.chuyennganh_id || null;
+
+    return {
+        bomon_id: boMonId,
+        khoa_id: data.khoa_id || null,
+        ma_bomon: maBoMon,
+        ten_bomon: tenBoMon,
+        mota: data.mota || null,
+        truong_bomon_id: data.truong_bomon_id || null,
+        monhoc_ids: Array.isArray(data.monhoc_ids) ? data.monhoc_ids : null
+    };
 };
 
 const syncTruongBoMonRole = async ({ oldTruongBoMonId = null, newTruongBoMonId = null }) => {
@@ -300,10 +305,7 @@ const getAllBoMon = async (target_khoa_id = null, target_chuyennganh_id = null) 
             const monHocList = await db.MonHoc.findAll({
                 where: {
                     isDeleted: false,
-                    [db.Sequelize.Op.or]: [
-                        { bomon_id: { [db.Sequelize.Op.in]: boMonIds } },
-                        { chuyennganh_id: { [db.Sequelize.Op.in]: boMonIds } }
-                    ]
+                    bomon_id: { [db.Sequelize.Op.in]: boMonIds }
                 },
                 attributes: ['monhoc_id', 'ma_mon', 'ten_mon', 'bomon_id', 'chuyennganh_id'],
                 order: [['ten_mon', 'ASC']],
@@ -312,7 +314,7 @@ const getAllBoMon = async (target_khoa_id = null, target_chuyennganh_id = null) 
 
             for (const mh of monHocList) {
                 const jsonMh = mh.toJSON();
-                const keys = [jsonMh.bomon_id, jsonMh.chuyennganh_id].filter(Boolean);
+                const keys = [jsonMh.bomon_id].filter(Boolean);
 
                 for (const key of keys) {
                     if (!boMonIdSet.has(key)) continue;
@@ -391,35 +393,29 @@ const getAllBoMonRaw = async (target_khoa_id = null, target_bomon_id = null) => 
 
 const createBoMon = async (data) => {
     try {
-        if (!data.khoa_id || !data.ma_chuyennganh || !data.ten_chuyennganh) {
+        const boMonData = resolveBoMonPayload(data);
+
+        if (!boMonData.khoa_id || !boMonData.ma_bomon || !boMonData.ten_bomon) {
             return { errCode: 1, message: 'Thiếu thông tin bắt buộc: khoa, mã bộ môn, tên bộ môn.' };
         }
 
-        const khoa = await db.Khoa.findOne({ where: { khoa_id: data.khoa_id, isDeleted: false } });
+        const khoa = await db.Khoa.findOne({ where: { khoa_id: boMonData.khoa_id, isDeleted: false } });
         if (!khoa) {
             return { errCode: 2, message: 'Khoa không tồn tại.' };
         }
 
-        const checkExist = await db.ChuyenNganh.findOne({
-            where: { ma_chuyennganh: data.ma_chuyennganh.trim(), isDeleted: false }
+        const checkExist = await db.BoMon.findOne({
+            where: { ma_bomon: boMonData.ma_bomon, isDeleted: false }
         });
 
         if (checkExist) {
             return { errCode: 3, message: 'Mã bộ môn đã tồn tại!' };
         }
 
-        const created = await db.ChuyenNganh.create({
-            khoa_id: data.khoa_id,
-            ma_chuyennganh: data.ma_chuyennganh.trim(),
-            ten_chuyennganh: data.ten_chuyennganh.trim(),
-            mota: data.mota || null,
-            isDeleted: false
-        });
-
-        if (data.truong_bomon_id) {
+        if (boMonData.truong_bomon_id) {
             const candidate = await db.TaiKhoan.findOne({
                 where: {
-                    taikhoan_id: data.truong_bomon_id,
+                    taikhoan_id: boMonData.truong_bomon_id,
                     vaitro: { [db.Sequelize.Op.in]: ['giangvien', 'truongbomon'] }
                 },
                 include: [
@@ -437,35 +433,35 @@ const createBoMon = async (data) => {
                 return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
             }
 
-            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== data.khoa_id) {
+            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== boMonData.khoa_id) {
                 return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
             }
         }
 
-        const [boMonEntity] = await db.BoMon.findOrCreate({
-            where: { bomon_id: created.chuyennganh_id },
-            defaults: {
-                bomon_id: created.chuyennganh_id,
-                khoa_id: data.khoa_id,
-                ma_bomon: data.ma_chuyennganh.trim(),
-                ten_bomon: data.ten_chuyennganh.trim(),
-                truong_bomon_id: data.truong_bomon_id || null,
-                mota: data.mota || null,
-                isDeleted: false
-            }
-        });
+        const createPayload = {
+            khoa_id: boMonData.khoa_id,
+            ma_bomon: boMonData.ma_bomon,
+            ten_bomon: boMonData.ten_bomon,
+            truong_bomon_id: boMonData.truong_bomon_id,
+            mota: boMonData.mota,
+            isDeleted: false
+        };
 
-        if (data.truong_bomon_id) {
-            boMonEntity.truong_bomon_id = data.truong_bomon_id;
-            await boMonEntity.save();
-            await syncTruongBoMonRole({ newTruongBoMonId: data.truong_bomon_id });
+        if (boMonData.bomon_id) {
+            createPayload.bomon_id = boMonData.bomon_id;
         }
 
-        if (Array.isArray(data.monhoc_ids)) {
+        const boMonEntity = await db.BoMon.create(createPayload);
+
+        if (boMonData.truong_bomon_id) {
+            await syncTruongBoMonRole({ newTruongBoMonId: boMonData.truong_bomon_id });
+        }
+
+        if (Array.isArray(boMonData.monhoc_ids)) {
             await syncMonHocByBoMon({
-                chuyenNganhId: created.chuyennganh_id,
-                khoaId: data.khoa_id,
-                monHocIds: data.monhoc_ids
+                boMonId: boMonEntity.bomon_id,
+                khoaId: boMonData.khoa_id,
+                monHocIds: boMonData.monhoc_ids
             });
         }
 
@@ -480,35 +476,32 @@ const createBoMon = async (data) => {
 
 const updateBoMon = async (data) => {
     try {
-        if (!data.chuyennganh_id) {
-            return { errCode: 1, message: 'Thiếu chuyennganh_id.' };
+        const boMonData = resolveBoMonPayload(data);
+
+        if (!boMonData.bomon_id) {
+            return { errCode: 1, message: 'Thiếu bomon_id.' };
         }
-        if (!data.khoa_id || !data.ma_chuyennganh || !data.ten_chuyennganh) {
+        if (!boMonData.khoa_id || !boMonData.ma_bomon || !boMonData.ten_bomon) {
             return { errCode: 2, message: 'Thiếu thông tin bắt buộc: khoa, mã bộ môn, tên bộ môn.' };
         }
 
         const boMonEntity = await db.BoMon.findOne({
-            where: { bomon_id: data.chuyennganh_id, isDeleted: false },
+            where: { bomon_id: boMonData.bomon_id, isDeleted: false },
             raw: false
         });
 
-        const linkedChuyenNganh = await db.ChuyenNganh.findOne({
-            where: { chuyennganh_id: data.chuyennganh_id },
-            raw: false
-        });
-
-        if (!boMonEntity && !linkedChuyenNganh) {
+        if (!boMonEntity) {
             return { errCode: 3, message: 'Bộ môn không tồn tại.' };
         }
 
-        const khoa = await db.Khoa.findOne({ where: { khoa_id: data.khoa_id, isDeleted: false } });
+        const khoa = await db.Khoa.findOne({ where: { khoa_id: boMonData.khoa_id, isDeleted: false } });
         if (!khoa) {
             return { errCode: 4, message: 'Khoa không tồn tại.' };
         }
 
-        if (data.truong_bomon_id) {
+        if (boMonData.truong_bomon_id) {
             const candidate = await db.TaiKhoan.findOne({
-                where: { taikhoan_id: data.truong_bomon_id },
+                where: { taikhoan_id: boMonData.truong_bomon_id },
                 include: [
                     {
                         model: db.GiangVien,
@@ -524,84 +517,42 @@ const updateBoMon = async (data) => {
                 return { errCode: 6, message: 'Tài khoản trưởng bộ môn không hợp lệ.' };
             }
 
-            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== data.khoa_id) {
+            if (candidate.GiangVien?.khoa_id && candidate.GiangVien.khoa_id !== boMonData.khoa_id) {
                 return { errCode: 7, message: 'Trưởng bộ môn phải thuộc cùng khoa với bộ môn.' };
             }
         }
 
         const dup = await db.BoMon.findOne({
             where: {
-                ma_bomon: data.ma_chuyennganh.trim(),
+                ma_bomon: boMonData.ma_bomon,
                 isDeleted: false,
-                bomon_id: { [db.Sequelize.Op.ne]: data.chuyennganh_id }
+                bomon_id: { [db.Sequelize.Op.ne]: boMonData.bomon_id }
             }
         });
         if (dup) {
             return { errCode: 5, message: 'Mã bộ môn đã tồn tại!' };
         }
 
-        const dupChuyenNganh = await db.ChuyenNganh.findOne({
-            where: {
-                ma_chuyennganh: data.ma_chuyennganh.trim(),
-                isDeleted: false,
-                chuyennganh_id: { [db.Sequelize.Op.ne]: data.chuyennganh_id }
-            },
-            attributes: ['chuyennganh_id']
-        });
-        if (dupChuyenNganh) {
-            return { errCode: 5, message: 'Mã bộ môn đã tồn tại!' };
-        }
+        const oldTruongBoMonId = boMonEntity.truong_bomon_id || null;
 
-        if (linkedChuyenNganh) {
-            linkedChuyenNganh.khoa_id = data.khoa_id;
-            linkedChuyenNganh.ma_chuyennganh = data.ma_chuyennganh.trim();
-            linkedChuyenNganh.ten_chuyennganh = data.ten_chuyennganh.trim();
-            linkedChuyenNganh.mota = data.mota || null;
-            linkedChuyenNganh.isDeleted = false;
-            await linkedChuyenNganh.save();
-        } else {
-            await db.ChuyenNganh.create({
-                chuyennganh_id: data.chuyennganh_id,
-                khoa_id: data.khoa_id,
-                ma_chuyennganh: data.ma_chuyennganh.trim(),
-                ten_chuyennganh: data.ten_chuyennganh.trim(),
-                mota: data.mota || null,
-                isDeleted: false
-            });
-        }
-
-        const [boMonRecord] = await db.BoMon.findOrCreate({
-            where: { bomon_id: data.chuyennganh_id },
-            defaults: {
-                bomon_id: data.chuyennganh_id,
-                khoa_id: data.khoa_id,
-                ma_bomon: data.ma_chuyennganh.trim(),
-                ten_bomon: data.ten_chuyennganh.trim(),
-                mota: data.mota || null,
-                isDeleted: false
-            }
-        });
-
-        const oldTruongBoMonId = boMonRecord.truong_bomon_id || null;
-
-        boMonRecord.khoa_id = data.khoa_id;
-        boMonRecord.ma_bomon = data.ma_chuyennganh.trim();
-        boMonRecord.ten_bomon = data.ten_chuyennganh.trim();
-        boMonRecord.truong_bomon_id = data.truong_bomon_id || null;
-        boMonRecord.mota = data.mota || null;
-        boMonRecord.isDeleted = false;
-        await boMonRecord.save();
+        boMonEntity.khoa_id = boMonData.khoa_id;
+        boMonEntity.ma_bomon = boMonData.ma_bomon;
+        boMonEntity.ten_bomon = boMonData.ten_bomon;
+        boMonEntity.truong_bomon_id = boMonData.truong_bomon_id;
+        boMonEntity.mota = boMonData.mota;
+        boMonEntity.isDeleted = false;
+        await boMonEntity.save();
 
         await syncTruongBoMonRole({
             oldTruongBoMonId,
-            newTruongBoMonId: data.truong_bomon_id || null
+            newTruongBoMonId: boMonData.truong_bomon_id
         });
 
-        if (Array.isArray(data.monhoc_ids)) {
+        if (Array.isArray(boMonData.monhoc_ids)) {
             await syncMonHocByBoMon({
-                chuyenNganhId: data.chuyennganh_id,
-                khoaId: data.khoa_id,
-                monHocIds: data.monhoc_ids
+                boMonId: boMonData.bomon_id,
+                khoaId: boMonData.khoa_id,
+                monHocIds: boMonData.monhoc_ids
             });
         }
 
@@ -614,10 +565,10 @@ const updateBoMon = async (data) => {
     }
 };
 
-const deleteBoMon = async (chuyenNganhId) => {
+const deleteBoMon = async (boMonId) => {
     try {
         const boMon = await db.BoMon.findOne({
-            where: { bomon_id: chuyenNganhId, isDeleted: false }
+            where: { bomon_id: boMonId, isDeleted: false }
         });
 
         if (!boMon) {
@@ -626,12 +577,17 @@ const deleteBoMon = async (chuyenNganhId) => {
 
         await db.BoMon.update(
             { isDeleted: true },
-            { where: { bomon_id: chuyenNganhId } }
+            { where: { bomon_id: boMonId } }
         );
 
-        await db.ChuyenNganh.update(
-            { isDeleted: true },
-            { where: { chuyennganh_id: chuyenNganhId } }
+        await db.MonHoc.update(
+            { bomon_id: null },
+            {
+                where: {
+                    bomon_id: boMonId,
+                    isDeleted: false
+                }
+            }
         );
 
         return { errCode: 0, message: 'Xóa bộ môn thành công!' };

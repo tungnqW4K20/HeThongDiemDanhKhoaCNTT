@@ -78,6 +78,24 @@ const getAll = async (req, res) => {
     }
 };
 
+const capNhatThongTinLopHocPhan = async (req, res) => {
+  try {
+    const { lophocphan_id } = req.params;
+    const result = await lopHocPhanService.updateLopHocPhanInfo(lophocphan_id, req.body || {});
+
+    if (!result?.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 
 const layDanhSachLopHocLai = async (req, res) => {
   try {
@@ -258,6 +276,7 @@ const xoaSinhVienKhoiLopHocPhan = async (req, res) => {
 module.exports = { 
   getStudentsByLopHocPhan,
   getAll,
+  capNhatThongTinLopHocPhan,
   layDanhSachLopHocLai,
   laySinhVienLopHocLai,
   importSinhVienExcel,
