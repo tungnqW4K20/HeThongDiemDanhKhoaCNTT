@@ -405,19 +405,39 @@ const getLichTuanNay = async (giangvien_id, startDate, endDate) => {
 //   }
 // };
 
+
+const buildMonHocScopeWhere = (target_khoa_id = null, target_chuyennganh_id = null) => {
+  const monHocWhere = {};
+
+  if (target_khoa_id && !target_chuyennganh_id) {
+    monHocWhere.khoa_id = target_khoa_id;
+  }
+
+  if (target_chuyennganh_id) {
+    monHocWhere[Op.or] = [
+      { bomon_id: target_chuyennganh_id },
+      { chuyennganh_id: target_chuyennganh_id }
+    ];
+
+    if (target_khoa_id) {
+      monHocWhere[Op.and] = [
+        {
+          [Op.or]: [
+            { khoa_id: target_khoa_id },
+            { khoa_id: null }
+          ]
+        }
+      ];
+    }
+  }
+
+  return monHocWhere;
+};
+
 const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, target_chuyennganh_id = null) => {
   try {
     // Điều kiện lọc cho bảng Môn Học
-    let monHocWhere = {};
-    if (target_khoa_id) {
-      monHocWhere.khoa_id = target_khoa_id;
-    }
-    if (target_chuyennganh_id) {
-      monHocWhere[Op.or] = [
-        { bomon_id: target_chuyennganh_id },
-        { chuyennganh_id: target_chuyennganh_id }
-      ];
-    }
+    const monHocWhere = buildMonHocScopeWhere(target_khoa_id, target_chuyennganh_id);
 
     const rows = await db.BuoiHoc.findAll({
       attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong'],
@@ -484,17 +504,7 @@ const getLichChiTiet = async ({
   try {
     // 1. Xây dựng điều kiện lọc (Where clause)
     const whereCondition = {};
-    const monHocWhere = {};
-
-    if (target_khoa_id) {
-      monHocWhere.khoa_id = target_khoa_id;
-    }
-    if (target_chuyennganh_id) {
-      monHocWhere[Op.or] = [
-        { bomon_id: target_chuyennganh_id },
-        { chuyennganh_id: target_chuyennganh_id }
-      ];
-    }
+    const monHocWhere = buildMonHocScopeWhere(target_khoa_id, target_chuyennganh_id);
 
     const hasMonHocScope = Object.keys(monHocWhere).length > 0;
 

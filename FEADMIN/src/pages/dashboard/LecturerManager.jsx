@@ -8,8 +8,11 @@ import ImportLecturerModal from '../../components/lectures/ImportLecturerModal';
 import giangVienService from '../../service/giangVienService';
 import khoaService from '../../service/khoaService';
 import authService from '../../service/authService';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function LecturerManagerPage() {
+    const { user } = useAuth();
+    const canManageLecturer = user?.vaitro !== 'truongbomon';
     // --- STATE ---
     const [lecturers, setLecturers] = useState([]);
     const [faculties, setFaculties] = useState([]);
@@ -395,9 +398,27 @@ export default function LecturerManagerPage() {
                             </div>
                         </div>
 
-                        {/* Secondary Actions */}
-                        <div className="flex items-center gap-2 w-full xl:w-auto justify-end border-t xl:border-none pt-4 xl:pt-0">
-                            {selectedIds.length > 0 && (
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
+                            <button 
+                                onClick={fetchData} 
+                                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
+                                title="Làm mới"
+                            >
+                                <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+                            </button>
+
+                            {/* 🔥 NÚT IMPORT EXCEL */}
+                            {canManageLecturer && (
+                                <button 
+                                    onClick={() => setIsImportModalOpen(true)}
+                                className="px-3 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 text-sm font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shadow-sm"
+                            >
+                                <Upload size={16} /> <span className="hidden sm:inline">Import Excel</span>
+                            </button>
+                            )}
+
+                            {canManageLecturer && selectedIds.length > 0 && (
                                 <button 
                                     onClick={handleBulkDelete}
                                     className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-bold flex items-center gap-2 transition-all animate-in slide-in-from-right-2"
@@ -405,36 +426,29 @@ export default function LecturerManagerPage() {
                                     <Trash2 size={16} /> <span>Xóa {selectedIds.length} mục</span>
                                 </button>
                             )}
-
-                            <button 
-                                onClick={fetchData} 
-                                className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors border border-transparent hover:border-slate-200"
-                                title="Làm mới dữ liệu"
+                            
+                            {canManageLecturer && (
+                                <button 
+                                    onClick={handleAddNew}
+                                className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
                             >
                                 <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
                             </button>
+                            )}
                         </div>
                     </div>
 
                     {/* TABLE */}
-                    <div className="flex-1 min-h-[500px]">
-                        <LecturerTable 
-                            lecturers={filteredLecturers}
-                            isLoading={isLoading}
-                            onEdit={handleEdit}
-                            onDelete={handleDeleteClick}
-                            onCreateAccount={handleOpenCreateAccount}
-                            selectedIds={selectedIds}
-                            onSelectionChange={setSelectedIds}
-                        />
-                    </div>
-
-                    {/* FOOTER */}
-                    <div className="bg-gray-50 border-t border-gray-200 px-6 py-3 flex items-center justify-between">
-                        <span className="text-xs text-gray-500 font-medium">
-                            Hiển thị {filteredLecturers.length} kết quả
-                        </span>
-                    </div>
+                    <LecturerTable 
+                        lecturers={filteredLecturers}
+                        isLoading={isLoading}
+                        onEdit={canManageLecturer ? handleEdit : undefined}
+                        onDelete={canManageLecturer ? handleDeleteClick : undefined}
+                        onCreateAccount={canManageLecturer ? handleOpenCreateAccount : undefined}
+                        selectedIds={selectedIds}
+                        onSelectionChange={setSelectedIds}
+                        canManage={canManageLecturer}
+                    />
 
                 </div>
             </div>

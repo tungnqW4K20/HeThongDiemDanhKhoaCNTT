@@ -4,6 +4,30 @@ const giangVienService = require('../services/giangvien.service');
 const db = require('../models');
 const xlsx = require('xlsx');
 
+const resolveScopeForLecturer = async (user = {}) => {
+    const { role, khoa_id, chuyennganh_id, id } = user;
+
+    if (role !== 'truongbomon') {
+        return {
+            targetKhoaId: role === 'lanhdao' ? (khoa_id || null) : null,
+            targetChuyenNganhId: null
+        };
+    }
+
+    const boMon = await db.BoMon.findOne({
+        where: {
+            truong_bomon_id: id || null,
+            isDeleted: false
+        },
+        attributes: ['bomon_id', 'khoa_id']
+    });
+
+    return {
+        targetKhoaId: boMon?.khoa_id || khoa_id || null,
+        targetChuyenNganhId: boMon?.bomon_id || chuyennganh_id || null
+    };
+};
+
 
 const getPhanCongTheoHocKy = async (req, res) => {
     try {
@@ -93,9 +117,7 @@ const handleGetGiangVienByMaKhoa = async (req, res) => {
 
 const getAllGiangVien = async (req, res) => {
     try {
-         const { role, khoa_id, chuyennganh_id } = req.user;
-        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
-        const targetChuyenNganhId = role === 'truongbomon' ? chuyennganh_id : null;
+        const { targetKhoaId, targetChuyenNganhId } = await resolveScopeForLecturer(req.user || {});
         const response = await giangVienService.getAllGiangVienService(targetKhoaId, targetChuyenNganhId);
         return res.status(200).json(response);
     } catch (error) {

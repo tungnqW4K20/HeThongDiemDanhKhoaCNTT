@@ -180,17 +180,26 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
 const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh_id = null) => {
     try {
         const { hocky_id } = query;
-        
-        // Điều kiện cho bảng Môn Học
-        let monHocWhere = {};
-        if (target_khoa_id) {
-            monHocWhere.khoa_id = target_khoa_id;
+
+        const monHocWhere = {};
+        if (target_khoa_id && !target_chuyennganh_id) {
+          monHocWhere.khoa_id = target_khoa_id;
         }
         if (target_chuyennganh_id) {
           monHocWhere[Op.or] = [
             { bomon_id: target_chuyennganh_id },
             { chuyennganh_id: target_chuyennganh_id }
           ];
+          if (target_khoa_id) {
+            monHocWhere[Op.and] = [
+              {
+                [Op.or]: [
+                  { khoa_id: target_khoa_id },
+                  { khoa_id: null }
+                ]
+              }
+            ];
+          }
         }
 
         const data = await db.LopHocPhan.findAll({
