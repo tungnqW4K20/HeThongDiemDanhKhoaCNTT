@@ -1,5 +1,30 @@
 // controllers/lophocphan.controller.js
 const lopHocPhanService = require('../services/LopHocPhan.service');
+const db = require('../models');
+
+const resolveScopeForPartClass = async (user = {}) => {
+  const { role, khoa_id, chuyennganh_id, id } = user;
+
+  if (role !== 'truongbomon') {
+    return {
+      targetKhoaId: role === 'lanhdao' ? (khoa_id || null) : null,
+      targetChuyenNganhId: null
+    };
+  }
+
+  const boMon = await db.BoMon.findOne({
+    where: {
+      truong_bomon_id: id || null,
+      isDeleted: false
+    },
+    attributes: ['bomon_id', 'khoa_id']
+  });
+
+  return {
+    targetKhoaId: boMon?.khoa_id || khoa_id || null,
+    targetChuyenNganhId: boMon?.bomon_id || chuyennganh_id || null
+  };
+};
 
 const getStudentsByLopHocPhan = async (req, res) => {
   try {
@@ -49,7 +74,7 @@ const getStudentsByLopHocPhan = async (req, res) => {
 const getAll = async (req, res) => {
     try {
         const { hocky_id } = req.query;
-    const { role, khoa_id, chuyennganh_id } = req.user;
+        const { targetKhoaId, targetChuyenNganhId } = await resolveScopeForPartClass(req.user || {});
 
         // Bắt buộc phải có học kỳ mới lấy được lớp học phần
         if (!hocky_id) {
@@ -59,8 +84,6 @@ const getAll = async (req, res) => {
             });
         }
 
-        const targetKhoaId = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
-        const targetChuyenNganhId = role === 'truongbomon' ? chuyennganh_id : null;
         const result = await lopHocPhanService.getAllLopHocPhan(req.query, targetKhoaId, targetChuyenNganhId);
 
         return res.status(200).json({

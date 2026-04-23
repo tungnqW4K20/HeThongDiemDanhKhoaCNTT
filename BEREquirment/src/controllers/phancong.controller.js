@@ -4,6 +4,32 @@ const dayjs = require("dayjs");
 const xlsx = require('xlsx');
 const db = require('../models');
 
+
+const resolveScopeForSchedule = async (user = {}) => {
+  const { role, khoa_id, chuyennganh_id, id } = user;
+
+  if (role !== 'truongbomon') {
+    return {
+      target_khoa_id: role === 'lanhdao' ? (khoa_id || null) : null,
+      target_chuyennganh_id: null
+    };
+  }
+
+  const boMon = await db.BoMon.findOne({
+    where: {
+      truong_bomon_id: id || null,
+      isDeleted: false
+    },
+    attributes: ['bomon_id', 'khoa_id']
+  });
+
+  return {
+    target_khoa_id: boMon?.khoa_id || khoa_id || null,
+    target_chuyennganh_id: boMon?.bomon_id || chuyennganh_id || null
+  };
+};
+
+
 const getLichGiangDay = async (req, res) => {
     try {
         const giangvien_id = req.user.giangvien_id; 
@@ -147,15 +173,11 @@ const getAllAssignments = async (req, res) => {
   try {
     const { hocky_id, keyword } = req.query;
 
-    const { role, khoa_id, chuyennganh_id } = req.user; 
+    const { target_khoa_id, target_chuyennganh_id } = await resolveScopeForSchedule(req.user || {});
 
     if (!hocky_id) {
       return res.status(400).json({ success: false, message: "Vui lòng cung cấp hocky_id" });
     }
-
-     // Truyền thêm khoa_id xuống service nếu là lãnh đạo
-    const target_khoa_id = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
-    const target_chuyennganh_id = role === 'truongbomon' ? chuyennganh_id : null;
 
     const rows = await phanCongService.getAllByHocKy(
       hocky_id,
@@ -235,9 +257,7 @@ const getAllAssignments = async (req, res) => {
 
 const getLichChiTietHocKy = async (req, res) => {
   try {
-    const { role, khoa_id, chuyennganh_id } = req.user || {};
-    const target_khoa_id = (role === 'lanhdao' || role === 'truongbomon') ? khoa_id : null;
-    const target_chuyennganh_id = role === 'truongbomon' ? chuyennganh_id : null;
+    const { target_khoa_id, target_chuyennganh_id } = await resolveScopeForSchedule(req.user || {});
 
     const { 
         hocky_id, 
@@ -318,24 +338,25 @@ const importSchedule = async (req, res) => {
         console.log("req.body", req.body)
     const { ten_hocky, ngay_batdau, ngay_ketthuc, ngay_monday_tuan_1, hocky_id, bomon_id } = req.body;
     const { role, khoa_id, chuyennganh_id } = req.user || {};
+    const resolvedScope = await resolveScopeForSchedule(req.user || {});
         if (!ten_hocky || !ngay_batdau) {
             return res.status(400).json({ success: false, message: "Tên học kỳ và Ngày bắt đầu là bắt buộc" });
         }
 
     let targetBoMonId = bomon_id || null;
     if (role === 'truongbomon') {
-      if (!chuyennganh_id) {
+      if (!resolvedScope.target_chuyennganh_id) {
         return res.status(403).json({ success: false, message: 'Tài khoản trưởng bộ môn chưa được gán bộ môn quản lý.' });
       }
-      targetBoMonId = chuyennganh_id;
+      targetBoMonId = resolvedScope.target_chuyennganh_id;
     } else if (!targetBoMonId) {
       return res.status(400).json({ success: false, message: 'Vui lòng chọn bộ môn để import lịch dạy.' });
     }
 
     if (targetBoMonId) {
       const whereBoMon = { bomon_id: targetBoMonId, isDeleted: false };
-      if ((role === 'lanhdao' || role === 'truongbomon') && khoa_id) {
-        whereBoMon.khoa_id = khoa_id;
+      if ((role === 'lanhdao' || role === 'truongbomon') && (resolvedScope.target_khoa_id || khoa_id)) {
+        whereBoMon.khoa_id = resolvedScope.target_khoa_id || khoa_id;
       }
 
       const boMon = await db.BoMon.findOne({ where: whereBoMon, attributes: ['bomon_id'] });

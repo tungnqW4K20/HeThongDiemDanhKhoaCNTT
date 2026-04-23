@@ -9,8 +9,11 @@ import ImportLecturerModal from '../../components/lectures/ImportLecturerModal';
 import giangVienService from '../../service/giangVienService';
 import khoaService from '../../service/khoaService';
 import authService from '../../service/authService';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function LecturerManagerPage() {
+    const { user } = useAuth();
+    const canManageLecturer = user?.vaitro !== 'truongbomon';
     // --- STATE ---
     const [lecturers, setLecturers] = useState([]);
     const [faculties, setFaculties] = useState([]);
@@ -454,14 +457,16 @@ export default function LecturerManagerPage() {
                             </button>
 
                             {/* 🔥 NÚT IMPORT EXCEL */}
-                            <button 
-                                onClick={() => setIsImportModalOpen(true)}
+                            {canManageLecturer && (
+                                <button 
+                                    onClick={() => setIsImportModalOpen(true)}
                                 className="px-3 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 text-sm font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shadow-sm"
                             >
                                 <Upload size={16} /> <span className="hidden sm:inline">Import Excel</span>
                             </button>
+                            )}
 
-                            {selectedIds.length > 0 && (
+                            {canManageLecturer && selectedIds.length > 0 && (
                                 <button 
                                     onClick={handleBulkDelete}
                                     className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors animate-in fade-in"
@@ -470,12 +475,14 @@ export default function LecturerManagerPage() {
                                 </button>
                             )}
                             
-                            <button 
-                                onClick={handleAddNew}
+                            {canManageLecturer && (
+                                <button 
+                                    onClick={handleAddNew}
                                 className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
                             >
                                 <Plus size={18} /> Thêm Giảng viên
                             </button>
+                            )}
                         </div>
                     </div>
 
@@ -483,11 +490,12 @@ export default function LecturerManagerPage() {
                     <LecturerTable 
                         lecturers={filteredLecturers}
                         isLoading={isLoading}
-                        onEdit={handleEdit}
-                        onDelete={handleDeleteClick}
-                        onCreateAccount={handleOpenCreateAccount}
+                        onEdit={canManageLecturer ? handleEdit : undefined}
+                        onDelete={canManageLecturer ? handleDeleteClick : undefined}
+                        onCreateAccount={canManageLecturer ? handleOpenCreateAccount : undefined}
                         selectedIds={selectedIds}
                         onSelectionChange={setSelectedIds}
+                        canManage={canManageLecturer}
                     />
 
                 </div>
