@@ -95,6 +95,15 @@ const checkConflict = async ({ ngay, tietBD, soTiet, phong, giangvien_id, ignore
     return { conflict: false };
 };
 
+const resolveEffectiveLecturerId = ({ proposalSubstituteId, currentSubstituteId, mainLecturerId }) => {
+  const normalizedProposalSubstituteId =
+    proposalSubstituteId && proposalSubstituteId === mainLecturerId
+      ? null
+      : (proposalSubstituteId || null);
+
+  return normalizedProposalSubstituteId || currentSubstituteId || mainLecturerId || null;
+};
+
 // --- GIẢNG VIÊN GỬI ĐỀ XUẤT ---
 const guiDeXuat = async (buoi_id, data, user_gv_id) => {
     const buoi = await BuoiHoc.findByPk(buoi_id, {
@@ -174,14 +183,41 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
   });
   if (pendingProposal) {
     if (loaiDeXuat === 'chinh_sua') {
+      const giangVienChinhId = buoi.LopHocPhan.giangvien_id;
+      const normalizedGvDayThayMoiId =
+        data.giangvien_day_thay_moi_id && data.giangvien_day_thay_moi_id === giangVienChinhId
+          ? null
+          : (data.giangvien_day_thay_moi_id || null);
+
       const payload = {
         ngay_moi: data.ngay_moi || buoi.ngay,
         tiet_bat_dau_moi: data.tiet_bat_dau_moi || buoi.tiet_bat_dau,
         so_tiet_moi: data.so_tiet_moi || buoi.so_tiet,
         phong_moi: data.phong_moi || buoi.phong,
-        giangvien_day_thay_moi_id: data.giangvien_day_thay_moi_id || null,
+        giangvien_day_thay_moi_id: normalizedGvDayThayMoiId,
         ly_do: data.ly_do || pendingProposal.ly_do
       };
+
+      const effectiveLecturerId = resolveEffectiveLecturerId({
+        proposalSubstituteId: payload.giangvien_day_thay_moi_id,
+        currentSubstituteId: buoi.giangvien_day_thay_id || null,
+        mainLecturerId: giangVienChinhId
+      });
+
+      const check = await checkConflict({
+        ngay: payload.ngay_moi,
+        tietBD: payload.tiet_bat_dau_moi,
+        soTiet: payload.so_tiet_moi,
+        phong: payload.phong_moi,
+        giangvien_id: effectiveLecturerId,
+        ignore_buoi_id: buoi_id
+      });
+      if (check.conflict) {
+        const err = new Error(check.message);
+        err.statusCode = 409;
+        err.details = check.detail || null;
+        throw err;
+      }
 
       await pendingProposal.update(payload);
       return pendingProposal;
@@ -230,12 +266,23 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
     throw err;
   }
 
+    const giangVienChinhId = buoi.LopHocPhan.giangvien_id;
+    const normalizedGvDayThayMoiId =
+      data.giangvien_day_thay_moi_id && data.giangvien_day_thay_moi_id === giangVienChinhId
+        ? null
+        : (data.giangvien_day_thay_moi_id || null);
+    const effectiveLecturerId = resolveEffectiveLecturerId({
+      proposalSubstituteId: normalizedGvDayThayMoiId,
+      currentSubstituteId: buoi.giangvien_day_thay_id || null,
+      mainLecturerId: giangVienChinhId
+    });
+
     const check = await checkConflict({
         ngay: data.ngay_moi || buoi.ngay,
         tietBD: data.tiet_bat_dau_moi || buoi.tiet_bat_dau,
         soTiet: data.so_tiet_moi || buoi.so_tiet,
         phong: data.phong_moi || buoi.phong,
-        giangvien_id: data.giangvien_day_thay_moi_id || buoi.giangvien_day_thay_id || user_gv_id,
+        giangvien_id: effectiveLecturerId,
         ignore_buoi_id: buoi_id
     });
     if (check.conflict) {
@@ -253,7 +300,7 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
         tiet_bat_dau_moi: data.tiet_bat_dau_moi,
         so_tiet_moi: data.so_tiet_moi, 
         phong_moi: data.phong_moi,
-        giangvien_day_thay_moi_id: data.giangvien_day_thay_moi_id || null,
+        giangvien_day_thay_moi_id: normalizedGvDayThayMoiId,
         ly_do: data.ly_do
     });
 };
