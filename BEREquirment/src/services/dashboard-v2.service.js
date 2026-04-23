@@ -13,26 +13,49 @@ const buildBoMonFilter = (boMonId) => {
 };
 
 const buildMonHocScopeWhere = (scope = {}, boMonId = null) => {
-    const where = {};
-    const andConditions = [];
-
+    const monHocWhere = {};
     const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
     const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
 
-    if (targetKhoaId) where.khoa_id = targetKhoaId;
-
-    const scopeBoMonFilter = buildBoMonFilter(targetChuyenNganhId);
-    const selectedBoMonFilter = buildBoMonFilter(boMonId);
-    if (scopeBoMonFilter) andConditions.push(scopeBoMonFilter);
-    if (selectedBoMonFilter) andConditions.push(selectedBoMonFilter);
-
-    if (andConditions.length === 1) {
-        Object.assign(where, andConditions[0]);
-    } else if (andConditions.length > 1) {
-        where[Op.and] = andConditions;
+    if (targetKhoaId && !targetChuyenNganhId) {
+        monHocWhere.khoa_id = targetKhoaId;
     }
 
-    return where;
+    if (targetChuyenNganhId) {
+        monHocWhere[Op.or] = [
+            { bomon_id: targetChuyenNganhId },
+            { chuyennganh_id: targetChuyenNganhId }
+        ];
+
+        if (targetKhoaId) {
+            monHocWhere[Op.and] = [
+                {
+                    [Op.or]: [
+                        { khoa_id: targetKhoaId },
+                        { khoa_id: null }
+                    ]
+                }
+            ];
+        }
+    }
+
+    // Nếu front-end truyền lên 1 boMonId cụ thể (từ filter)
+    if (boMonId && boMonId !== 'all') {
+        const selectedBoMonFilter = {
+            [Op.or]: [
+                { bomon_id: boMonId },
+                { chuyennganh_id: boMonId }
+            ]
+        };
+
+        if (monHocWhere[Op.and]) {
+            monHocWhere[Op.and].push(selectedBoMonFilter);
+        } else {
+            monHocWhere[Op.and] = [selectedBoMonFilter];
+        }
+    }
+
+    return monHocWhere;
 };
 
 const hasWhereConditions = (whereObj = {}) => Reflect.ownKeys(whereObj).length > 0;
@@ -152,17 +175,7 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
         throw new Error('Tài khoản trưởng bộ môn chưa được gán bộ môn để truy cập dữ liệu');
     }
 
-    const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
-    const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
-
-    const monHocWhere = {};
-    if (targetKhoaId) monHocWhere.khoa_id = targetKhoaId;
-    if (targetChuyenNganhId) {
-        monHocWhere[Op.or] = [
-            { bomon_id: targetChuyenNganhId },
-            { chuyennganh_id: targetChuyenNganhId }
-        ];
-    }
+    const monHocWhere = buildMonHocScopeWhere(scope);
 
     const lhp = await db.LopHocPhan.findOne({
         where: { lophocphan_id },

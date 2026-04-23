@@ -1,5 +1,6 @@
 import React from 'react';
 import { Edit2, Trash2, BookOpen, Users, MapPin, Clock, Eye } from 'lucide-react';
+import { useAuth } from '../../hooks/useAuth';
 
 // Giờ bắt đầu của từng tiết: tiết 1 = 7:00, tiết 1-4 = 7:00-11:00
 const TIET_START = {
@@ -26,6 +27,7 @@ const thuTrongTuan = [
 ];
 
 const AssignmentTable = ({ assignments, onEdit, onDelete, onViewAttendance, canViewAttendance = false }) => {
+    const { user } = useAuth();
     console.log("assignments", assignments)
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white">
@@ -119,12 +121,16 @@ const AssignmentTable = ({ assignments, onEdit, onDelete, onViewAttendance, canV
                             {/* Cột Thao tác */}
                             <td className="px-6 py-4 text-center">
                                 <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => onEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg">
-                                        <Edit2 size={16} />
-                                    </button>
-                                    <button onClick={() => onDelete(item)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg">
-                                        <Trash2 size={16} />
-                                    </button>
+                                    {user?.vaitro !== 'truongbomon' && (
+                                        <>
+                                            <button onClick={() => onEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg">
+                                                <Edit2 size={16} />
+                                            </button>
+                                            <button onClick={() => onDelete(item)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </td>
                         </tr>

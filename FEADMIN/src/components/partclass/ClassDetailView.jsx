@@ -10,9 +10,11 @@ import ImportStudentModal from './ImportStudentModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import hocPhanService from '../../service/lophocphanService';
 import classService from '../../service/classService';
+import { useAuth } from '../../hooks/useAuth';
 
 
 const ClassDetailView = ({ classInfo, onBack }) => {
+  const { user } = useAuth();
   const [detailInfo, setDetailInfo] = useState(classInfo);
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -342,12 +344,14 @@ const ClassDetailView = ({ classInfo, onBack }) => {
           <ArrowLeft size={18} /> Quay lại danh sách lớp
         </button>
 
-        <button
-          onClick={openEditClassModal}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#3B5998]/20 text-[#3B5998] hover:bg-[#3B5998]/5 font-semibold text-sm"
-        >
-          <Pencil size={16} /> Sửa thông tin lớp học phần
-        </button>
+        {user?.vaitro !== 'truongbomon' && (
+            <button
+            onClick={openEditClassModal}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#3B5998]/20 text-[#3B5998] hover:bg-[#3B5998]/5 font-semibold text-sm"
+            >
+            <Pencil size={16} /> Sửa thông tin lớp học phần
+            </button>
+        )}
       </div>
 
       {/* PHẦN 1: THÔNG TIN TỔNG QUAN (GIỮ NGUYÊN) */}
@@ -445,25 +449,29 @@ const ClassDetailView = ({ classInfo, onBack }) => {
               />
             </div>
             {/* Nút thao tác */}
-            <button 
-              onClick={() => setIsImportModalOpen(true)}
-              className="p-2 bg-green-50 text-green-600 rounded-xl border border-green-100 hover:bg-green-100 transition-colors shadow-sm"
-              title="Import Excel"
-            >
-              <FileSpreadsheet size={20} />
-            </button>
-            <button 
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#3B5998] text-white rounded-xl hover:bg-[#2e4676] transition-all shadow-md text-sm font-bold"
-            >
-              <Plus size={18} /> Thêm SV từ lớp hành chính
-            </button>
-            <button
-              onClick={() => setIsSearchAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-[#3B5998] text-[#3B5998] rounded-xl hover:bg-[#3B5998]/5 transition-all shadow-sm text-sm font-bold"
-            >
-              <Plus size={18} /> Thêm sinh viên
-            </button>
+            {user?.vaitro !== 'truongbomon' && (
+              <>
+                <button 
+                  onClick={() => setIsImportModalOpen(true)}
+                  className="p-2 bg-green-50 text-green-600 rounded-xl border border-green-100 hover:bg-green-100 transition-colors shadow-sm"
+                  title="Import Excel"
+                >
+                  <FileSpreadsheet size={20} />
+                </button>
+                <button 
+                  onClick={() => setIsAddModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-[#3B5998] text-white rounded-xl hover:bg-[#2e4676] transition-all shadow-md text-sm font-bold"
+                >
+                  <Plus size={18} /> Thêm SV từ lớp hành chính
+                </button>
+                <button
+                  onClick={() => setIsSearchAddModalOpen(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white border border-[#3B5998] text-[#3B5998] rounded-xl hover:bg-[#3B5998]/5 transition-all shadow-sm text-sm font-bold"
+                >
+                  <Plus size={18} /> Thêm sinh viên
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -513,15 +521,17 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => handleDeleteClick(sv)}
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="Gỡ khỏi lớp học phần"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                      {user?.vaitro !== 'truongbomon' && (
+                          <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleDeleteClick(sv)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                              title="Gỡ khỏi lớp học phần"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                      )}
                     </td>
                   </tr>
                 ))
