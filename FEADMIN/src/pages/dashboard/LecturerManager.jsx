@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Plus, Filter, X, Trash2, Building2, RefreshCw, Upload, KeyRound } from 'lucide-react'; // Đã thêm icon Upload
 import LecturerTable from '../../components/lectures/LecturerTable';
 import LecturerStats from '../../components/lectures/LecturerStats';
 import LecturerModal from '../../components/lectures/LecturerModal';
 import DeleteConfirmModalLectures from '../../components/lectures/DeleteConfirmModal';
-import ImportLecturerModal from '../../components/lectures/ImportLecturerModal'; 
+import ImportLecturerModal from '../../components/lectures/ImportLecturerModal'; // Component Import Mới
 import giangVienService from '../../service/giangVienService';
 import khoaService from '../../service/khoaService';
 import authService from '../../service/authService';
@@ -27,8 +28,8 @@ export default function LecturerManagerPage() {
     // Modal States
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
-    const [importLoading, setImportLoading] = useState(false); 
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false); // State Modal Import
+    const [importLoading, setImportLoading] = useState(false); // Loading state cho Import
     
     const [currentLecturer, setCurrentLecturer] = useState(null);
 
@@ -60,6 +61,9 @@ export default function LecturerManagerPage() {
         setIsLoading(true);
         try {
             const response = await giangVienService.getAll();
+            // Xử lý dữ liệu trả về linh hoạt
+            // axiosClient của bạn đã bóc tách data, nên response chính là object { success: true, data: [] }
+            // Hoặc đôi khi server trả mảng trực tiếp
             const resData = response.data || response;
             
             if (Array.isArray(resData)) {
@@ -168,7 +172,7 @@ export default function LecturerManagerPage() {
         };
     }, [lecturers]);
 
-    // --- HANDLERS ---
+    // --- HANDLERS (CRUD) ---
     const handleAddNew = () => {
         setCurrentLecturer(null);
         setIsFormModalOpen(true);
@@ -202,26 +206,32 @@ export default function LecturerManagerPage() {
         try {
             let res;
             if (hasAccount) {
+                // Cập nhật tài khoản hiện có
                 res = await authService.updateLecturerAccount(accountTarget.TaiKhoan.taikhoan_id, {
                     username: accountForm.username,
                     new_password: accountForm.password || undefined
                 });
             } else {
+                // Tạo tài khoản mới
                 res = await authService.createLecturerAccount({
                     username: accountForm.username,
                     password: accountForm.password,
                     ma_gv: accountTarget.ma_gv
                 });
             }
-            if (res.success || res.errCode === 0) {
-                alert(hasAccount ? '✅ Cập nhật tài khoản thành công' : '✅ Tạo tài khoản thành công');
+            const resData = res;
+            if (resData.success || resData.errCode === 0) {
+                alert(hasAccount
+                    ? `✅ Cập nhật tài khoản thành công cho GV ${accountTarget.ho} ${accountTarget.ten}`
+                    : `✅ Tạo tài khoản thành công cho GV ${accountTarget.ho} ${accountTarget.ten}`);
                 setIsCreateAccountModalOpen(false);
                 fetchData();
             } else {
-                alert('⚠️ ' + (res.message || 'Thất bại'));
+                alert('⚠️ ' + (resData.message || (hasAccount ? 'Cập nhật thất bại' : 'Tạo tài khoản thất bại')));
             }
         } catch (error) {
-            alert('❌ Lỗi: ' + (error.response?.data?.message || error.message));
+            const msg = error.response?.data?.message || error.message;
+            alert('❌ Lỗi: ' + msg);
         } finally {
             setAccountLoading(false);
         }
@@ -229,19 +239,33 @@ export default function LecturerManagerPage() {
 
     const handleSave = async (formData) => {
         try {
-            const res = currentLecturer 
-                ? await giangVienService.update(currentLecturer.giangvien_id, formData)
-                : await giangVienService.create(formData);
-            
-            if (res.success || res.errCode === 0) { 
-                alert(currentLecturer ? "Cập nhật thành công!" : "Thêm mới thành công!"); 
-                fetchData(); 
-                setIsFormModalOpen(false);
+            if (currentLecturer) {
+                const res = await giangVienService.update(currentLecturer.giangvien_id, formData);
+                const resData = res;
+                
+                if (resData.success || resData.errCode === 0) { 
+                    alert("Cập nhật thành công!"); 
+                    fetchData(); 
+                    setIsFormModalOpen(false);
+                } else {
+                    alert(resData.message || "Lỗi cập nhật");
+                }
             } else {
-                alert(res.message || "Lỗi thao tác");
+                const res = await giangVienService.create(formData);
+                const resData = res;
+                
+                if (resData.success || resData.errCode === 0) {
+                    alert("Thêm mới thành công!");
+                    fetchData(); 
+                    setIsFormModalOpen(false);
+                } else {
+                    alert(resData.message || "Lỗi thêm mới");
+                }
             }
         } catch (error) {
-            alert("Có lỗi xảy ra: " + (error.response?.data?.message || error.message));
+            console.error("Lỗi khi lưu giảng viên:", error);
+            const msg = error.response?.data?.message || error.message;
+            alert("Có lỗi xảy ra: " + msg);
         }
     };
 
@@ -249,13 +273,16 @@ export default function LecturerManagerPage() {
         if (currentLecturer) {
             try {
                 const res = await giangVienService.delete(currentLecturer.giangvien_id);
-                if (res.success || res.errCode === 0) {
+                const resData = res;
+                
+                if (resData.success || resData.errCode === 0) {
                     fetchData();
                     setSelectedIds(prev => prev.filter(id => id !== currentLecturer.giangvien_id));
                 } else {
-                    alert(res.message || "Xóa thất bại");
+                    alert(resData.message || "Xóa thất bại");
                 }
             } catch (error) {
+                console.error("Lỗi khi xóa:", error);
                 alert("Không thể xóa giảng viên này.");
             } finally {
                 setIsDeleteModalOpen(false);
@@ -267,70 +294,77 @@ export default function LecturerManagerPage() {
     const handleBulkDelete = async () => {
         if (window.confirm(`Bạn có chắc muốn xóa ${selectedIds.length} giảng viên đã chọn?`)) {
             try {
-                await Promise.all(selectedIds.map(id => giangVienService.delete(id)));
+                const deletePromises = selectedIds.map(id => giangVienService.delete(id));
+                await Promise.all(deletePromises);
                 fetchData(); 
                 setSelectedIds([]);
             } catch (error) {
+                console.error("Lỗi khi xóa nhiều:", error);
                 alert("Có lỗi xảy ra khi xóa danh sách.");
             }
         }
     };
 
+    // 🔥 IMPORT HANDLER (TÍCH HỢP API)
     const handleImportFile = async (file) => {
-        if (!file) return;
-        setImportLoading(true);
-        try {
-            const formData = new FormData();
-            formData.append('file', file);
-            const result = await giangVienService.importExcel(formData);
-            if (result && (result.success === true || result.errCode === 0)) {
-                await fetchData(); 
-                const stats = result.data;
-                let detailMsg = stats ? `\n- Tổng: ${stats.total_rows}\n- Thêm mới: ${stats.inserted}\n- Bỏ qua: ${stats.duplicates_skipped}` : "";
-                alert(`✅ ${result.message || "Import thành công"}${detailMsg}`);
-                setIsImportModalOpen(false);
-            } else {
-                alert(`⚠️ Thông báo: ${result.message || "Lỗi định dạng"}`);
+    if (!file) return;
+    setImportLoading(true);
+    
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const response = await giangVienService.importExcel(formData);
+        
+        // 1. Xác định đúng Object chứa field 'success'
+        // Trong trường hợp của bạn, 'response' chính là cái JSON chứa {success, message, data}
+        // Chúng ta KHÔNG lấy response.data ở đây vì nó sẽ lấy nhầm vào object thống kê
+        const result = response; 
+
+        console.log("Dữ liệu kiểm tra:", result);
+
+        // 2. Kiểm tra điều kiện thành công (Dùng check linh hoạt hơn)
+        if (result && (result.success === true || result.errCode === 0)) {
+            
+            // Load lại danh sách giảng viên trên màn hình
+            await fetchData(); 
+            
+            // Lấy thông tin thống kê từ object data bên trong
+            const stats = result.data; // Đây mới là {total_rows, inserted, ...}
+            
+            let detailMsg = "";
+            if (stats) {
+                detailMsg = `\n- Tổng số dòng: ${stats.total_rows}` +
+                            `\n- Thêm mới: ${stats.inserted}` +
+                            `\n- Bỏ qua (trùng): ${stats.duplicates_skipped}`;
             }
-        } catch (error) {
-            alert(`❌ Lỗi hệ thống: ${error.response?.data?.message || error.message}`);
-        } finally {
-            setImportLoading(false);
+
+            alert(`✅ ${result.message || "Import thành công"}${detailMsg}`);
+            setIsImportModalOpen(false);
+            
+        } else {
+            // Nếu result.success là false hoặc không tồn tại
+            const msg = result.message || "Dữ liệu không hợp lệ hoặc lỗi định dạng.";
+            alert(`⚠️ Thông báo: ${msg}`);
         }
-    };
+    } catch (error) {
+        console.error("Lỗi Import:", error);
+        // Lấy lỗi từ server trả về nếu có
+        const serverError = error.response?.data?.message || error.message || "Lỗi kết nối server";
+        alert(`❌ Lỗi hệ thống: ${serverError}`);
+    } finally {
+        setImportLoading(false);
+    }
+};
 
     return (
-        <div className="min-h-screen bg-[#F0F2F5] p-4 md:p-8 font-sans text-slate-900">
-            <div className="max-w-[1440px] mx-auto">
+        <div className="animate-in fade-in duration-500 text-slate-900">
+            <div className="mb-8">
                 
-                {/* HEADER SECTION - NEW LAYOUT */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            {/* <div className="p-2 bg-[#3B5998] rounded-lg text-white">
-                                <Building2 size={24} />
-                            </div> */}
-                            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998] tracking-tight">Quản lý Giảng viên</h1>
-                        </div>
-                        <p className="text-slate-500 text-sm md:text-base">Hệ thống quản lý hồ sơ, chuyên môn và tài khoản giảng viên toàn trường.</p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        <button 
-                            onClick={() => setIsImportModalOpen(true)}
-                            className="flex-1 sm:flex-none px-5 py-2.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm"
-                        >
-                            <Upload size={18} className="text-blue-600" /> 
-                            <span>Import Excel</span>
-                        </button>
-                        
-                        <button 
-                            onClick={handleAddNew}
-                            className="flex-1 sm:flex-none px-6 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white font-bold rounded-xl shadow-md shadow-blue-900/10 hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
-                        >
-                            <Plus size={20} strokeWidth={3} /> 
-                            <span>Thêm Giảng viên mới</span>
-                        </button>
+                        <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý Giảng viên</h1>
+                        <p className="text-gray-500 mt-1 text-sm">Quản lý hồ sơ giảng viên, thông tin liên hệ và tài khoản.</p>
                     </div>
                 </div>
 
@@ -340,45 +374,59 @@ export default function LecturerManagerPage() {
                     emailActivatedPercent={stats.emailActivatedPercent}
                 />
 
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                     
                     {/* TOOLBAR */}
-                    <div className="p-5 border-b border-slate-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
+                    <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
                         
                         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
                             {/* Search */}
                             <div className="relative w-full sm:w-80 group">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <Search className="h-4 w-4 text-slate-400 group-focus-within:text-[#3B5998]" />
+                                    <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998] transition-colors" />
                                 </div>
                                 <input
                                     type="text"
-                                    className="block w-full pl-10 pr-10 py-2.5 border border-slate-200 rounded-xl bg-slate-50 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] text-sm transition-all"
-                                    placeholder="Tìm tên, mã GV, email..."
+                                    className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-900 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm transition-all"
+                                    placeholder="Tìm tên, mã GV, email, khoa..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                                 {searchTerm && (
-                                    <button onClick={() => setSearchTerm('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
-                                        <X size={16} />
+                                    <button 
+                                        onClick={() => setSearchTerm('')}
+                                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
+                                    >
+                                        <X size={14} />
                                     </button>
                                 )}
                             </div>
 
                             {/* Filter Faculty */}
-                            <div className="flex items-center gap-2 w-full sm:w-auto">
-                                <div className="relative flex-1 sm:w-56">
-                                    <select
-                                        value={selectedFaculty}
-                                        onChange={(e) => setSelectedFaculty(e.target.value)}
-                                        className="block w-full pl-3 pr-10 py-2.5 border border-slate-200 rounded-xl bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] text-sm appearance-none cursor-pointer hover:border-slate-300 transition-all"
-                                    >
-                                        <option value="all">Tất cả Khoa / Viện</option>
-                                        {faculties.map(khoa => <option key={khoa.khoa_id} value={khoa.ten_khoa}>{khoa.ten_khoa}</option>)}
-                                    </select>
-                                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                        <Filter size={14} className="text-slate-400" />
-                                    </div>
+                            <div className="relative w-full sm:w-60">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Building2 className="h-4 w-4 text-gray-400" />
+                                </div>
+                                <select
+                                    value={selectedFaculty}
+                                    onChange={(e) => setSelectedFaculty(e.target.value)}
+                                    className="block w-full pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
+                                >
+                                    <option value="all">Tất cả Khoa / Viện</option>
+                                    {faculties.map(khoa => (
+                                        <option key={khoa.khoa_id} value={khoa.ten_khoa}>
+                                            {khoa.ten_khoa}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <Filter size={14} className="text-gray-400" />
+                                </div>
+                            </div>
+
+                            <div className="relative w-full sm:w-60">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Filter className="h-4 w-4 text-gray-400" />
                                 </div>
                                 <select
                                     value={selectedBoMon}
@@ -387,7 +435,7 @@ export default function LecturerManagerPage() {
                                 >
                                     <option value="all">Tất cả Bộ môn</option>
                                     {boMonOptions.map((bm) => (
-                                        <option key={bm.id} value={bm.name}>
+                                        <option key={bm.id} value={bm.id}>
                                             {bm.name}
                                         </option>
                                     ))}
@@ -421,9 +469,9 @@ export default function LecturerManagerPage() {
                             {canManageLecturer && selectedIds.length > 0 && (
                                 <button 
                                     onClick={handleBulkDelete}
-                                    className="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 rounded-xl text-sm font-bold flex items-center gap-2 transition-all animate-in slide-in-from-right-2"
+                                    className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors animate-in fade-in"
                                 >
-                                    <Trash2 size={16} /> <span>Xóa {selectedIds.length} mục</span>
+                                    <Trash2 size={16} /> <span className="hidden sm:inline">Xóa ({selectedIds.length})</span>
                                 </button>
                             )}
                             
@@ -432,7 +480,7 @@ export default function LecturerManagerPage() {
                                     onClick={handleAddNew}
                                 className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
                             >
-                                <RefreshCw size={18} className={isLoading ? "animate-spin" : ""} />
+                                <Plus size={18} /> Thêm Giảng viên
                             </button>
                             )}
                         </div>
@@ -453,7 +501,9 @@ export default function LecturerManagerPage() {
                 </div>
             </div>
 
-            {/* MODALS */}
+            {/* --- MODALS --- */}
+            
+            {/* 1. Modal Thêm/Sửa */}
             <LecturerModal 
                 isOpen={isFormModalOpen}
                 onClose={() => setIsFormModalOpen(false)}
@@ -462,6 +512,7 @@ export default function LecturerManagerPage() {
                 faculties={faculties}
             />
 
+            {/* 2. Modal Xóa */}
             <DeleteConfirmModalLectures
                 isOpen={isDeleteModalOpen}
                 onClose={() => setIsDeleteModalOpen(false)}
@@ -469,6 +520,7 @@ export default function LecturerManagerPage() {
                 subjectName={currentLecturer ? `${currentLecturer.ho} ${currentLecturer.ten}` : ''}
             />
 
+            {/* 3. 🔥 MODAL IMPORT (Mới) */}
             <ImportLecturerModal
                 isOpen={isImportModalOpen}
                 onClose={() => setIsImportModalOpen(false)}
@@ -477,10 +529,10 @@ export default function LecturerManagerPage() {
             />
 
             {/* 4. MODAL TẠO TÀI KHOẢN GIẢNG VIÊN */}
-            {isCreateAccountModalOpen && accountTarget && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div 
-                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            {isCreateAccountModalOpen && accountTarget && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/45 backdrop-blur-sm p-4">
+                    <div
+                        className="absolute inset-0"
                         onClick={() => !accountLoading && setIsCreateAccountModalOpen(false)}
                     />
                     <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
@@ -489,10 +541,13 @@ export default function LecturerManagerPage() {
                                 <KeyRound size={22} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-bold text-slate-800">
-                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Cập nhật tài khoản' : 'Cấp tài khoản mới'}
+                                <h3 className="text-base font-bold text-gray-900">
+                                    {accountTarget.TaiKhoan?.taikhoan_id ? 'Cập nhật tài khoản' : 'Tạo tài khoản đăng nhập'}
                                 </h3>
-                                <p className="text-sm text-slate-500 italic">GV: {accountTarget.ho} {accountTarget.ten}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">
+                                    GV: <span className="font-semibold text-gray-700">{accountTarget.ho} {accountTarget.ten}</span>
+                                    {accountTarget.ma_gv && <span className="ml-1 text-gray-400">({accountTarget.ma_gv})</span>}
+                                </p>
                             </div>
                         </div>
 
@@ -538,7 +593,7 @@ export default function LecturerManagerPage() {
                                         <button
                                             type="submit"
                                             disabled={accountLoading}
-                                            className="flex-[2] py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                            className="flex-1 py-2.5 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                         >
                                             {accountLoading ? (
                                                 <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
