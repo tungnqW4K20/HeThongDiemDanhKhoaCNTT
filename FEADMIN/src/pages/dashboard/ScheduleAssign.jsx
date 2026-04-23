@@ -2,23 +2,23 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { 
+import {
     Search, Plus, Loader2, Upload, ClipboardCheck, X, AlertTriangle
-} from 'lucide-react'; 
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 // Components
 import SemesterSelector from '../../components/assign/SemesterSelector';
-import WeekSelector from '../../components/assign/WeekSelector'; 
+import WeekSelector from '../../components/assign/WeekSelector';
 import AssignmentTable from '../../components/assign/AssignmentTable';
 import AssignmentModal from '../../components/assign/AssignmentModal';
 import DeleteConfirmModalSchedule from '../../components/assign/DeleteConfirmModal';
-import ImportScheduleModal from '../../components/assign/ImportScheduleModal'; 
+import ImportScheduleModal from '../../components/assign/ImportScheduleModal';
 import ImportResultModal from '../../components/common/ImportResultModal';
 
 // Services
 import phanCongService from '../../service/phancongService';
-import hocKyService from '../../service/hockyService'; 
+import hocKyService from '../../service/hockyService';
 import dashboardService from '../../service/dashboardService';
 import khoaService from '../../service/khoaService';
 import { useAuth } from '../../hooks/useAuth';
@@ -131,8 +131,8 @@ export default function AssignmentPage() {
     // --- STATE DỮ LIỆU ---
     const [currentSemesterId, setCurrentSemesterId] = useState('');
     const [semesters, setSemesters] = useState([]);
-    const [assignments, setAssignments] = useState([]); 
-    const [weeks, setWeeks] = useState([]); 
+    const [assignments, setAssignments] = useState([]);
+    const [weeks, setWeeks] = useState([]);
     const [selectedWeek, setSelectedWeek] = useState(1);
     const [pendingWeekSelection, setPendingWeekSelection] = useState(null);
 
@@ -144,7 +144,7 @@ export default function AssignmentPage() {
     const [importLoading, setImportLoading] = useState(false);
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false); 
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isImportResultModalOpen, setIsImportResultModalOpen] = useState(false);
     const [importResultSummary, setImportResultSummary] = useState(null);
     const [importSuccessRows, setImportSuccessRows] = useState([]);
@@ -164,7 +164,7 @@ export default function AssignmentPage() {
                     hocKyService.getAll(),
                     khoaService.getAllBoMonRaw()
                 ]);
-                const listHocKy = hocKyRes.data || []; 
+                const listHocKy = hocKyRes.data || [];
                 if (listHocKy.length > 0) {
                     setSemesters(listHocKy);
                     setCurrentSemesterId(pickDefaultSemesterIdByTime(listHocKy));
@@ -362,36 +362,36 @@ export default function AssignmentPage() {
     // }, [assignments, selectedWeek, weeks, searchTerm, currentSemesterId]);
 
     const filteredAssignments = useMemo(() => {
-    if (!currentSemesterId || weeks.length === 0) return [];
-    
-    const currentWeekData = weeks.find(w => w.id === selectedWeek);
-    if (!currentWeekData) return [];
+        if (!currentSemesterId || weeks.length === 0) return [];
 
-    return assignments.filter(item => {
-        // Tách ngày YYYY-MM-DD từ DB để tránh lỗi múi giờ
-        const [y, m, d] = item.ngay.split('-').map(Number);
-        const itemDate = new Date(y, m - 1, d);
+        const currentWeekData = weeks.find(w => w.id === selectedWeek);
+        if (!currentWeekData) return [];
 
-        // So sánh nằm trong khoảng thời gian của tuần đã chọn
-        const isInSelectedWeek = itemDate >= currentWeekData.startDate && itemDate <= currentWeekData.endDate;
-        
-        if (!isInSelectedWeek) return false;
+        return assignments.filter(item => {
+            // Tách ngày YYYY-MM-DD từ DB để tránh lỗi múi giờ
+            const [y, m, d] = item.ngay.split('-').map(Number);
+            const itemDate = new Date(y, m - 1, d);
 
-        const searchStr = searchTerm.toLowerCase();
-        const itemBoMonId = item.bo_mon_id || item.chuyennganh_id || null;
-        const matchesBoMon = selectedBoMon === 'all' || itemBoMonId === selectedBoMon;
+            // So sánh nằm trong khoảng thời gian của tuần đã chọn
+            const isInSelectedWeek = itemDate >= currentWeekData.startDate && itemDate <= currentWeekData.endDate;
 
-        if (!matchesBoMon) return false;
+            if (!isInSelectedWeek) return false;
 
-        return (
-            item.ten_mon?.toLowerCase().includes(searchStr) ||
-            item.ten_giang_vien?.toLowerCase().includes(searchStr) ||
-            item.phong?.toLowerCase().includes(searchStr) ||
-            item.ma_mon?.toLowerCase().includes(searchStr) ||
-            item.cac_lop_hanh_chinh?.toLowerCase().includes(searchStr)
-        );
-    });
-}, [assignments, selectedWeek, weeks, searchTerm, currentSemesterId, selectedBoMon]);
+            const searchStr = searchTerm.toLowerCase();
+            const itemBoMonId = item.bo_mon_id || item.chuyennganh_id || null;
+            const matchesBoMon = selectedBoMon === 'all' || itemBoMonId === selectedBoMon;
+
+            if (!matchesBoMon) return false;
+
+            return (
+                item.ten_mon?.toLowerCase().includes(searchStr) ||
+                item.ten_giang_vien?.toLowerCase().includes(searchStr) ||
+                item.phong?.toLowerCase().includes(searchStr) ||
+                item.ma_mon?.toLowerCase().includes(searchStr) ||
+                item.cac_lop_hanh_chinh?.toLowerCase().includes(searchStr)
+            );
+        });
+    }, [assignments, selectedWeek, weeks, searchTerm, currentSemesterId, selectedBoMon]);
 
     // --- 5. CÁC HANDLERS (Giữ nguyên toàn bộ logic cũ) ---
     const handleAddNew = () => { setCurrentAssignment(null); setIsFormModalOpen(true); };
@@ -413,7 +413,7 @@ export default function AssignmentPage() {
             alert(res.message || (currentAssignment?.buoi_id ? 'Không thể cập nhật lịch dạy.' : 'Không thể tạo lịch dạy.'));
         } catch (error) {
             alert(error?.response?.data?.message || (currentAssignment?.buoi_id ? 'Lỗi cập nhật phân công' : 'Lỗi lưu phân công'));
-        } 
+        }
         finally { setIsLoading(false); }
     };
 
@@ -482,7 +482,7 @@ export default function AssignmentPage() {
                 }
             ]);
             setIsImportResultModalOpen(true);
-        } 
+        }
         finally { setImportLoading(false); }
     };
 
@@ -564,123 +564,123 @@ export default function AssignmentPage() {
                 <ProposalView onBack={() => setShowProposals(false)} />
             ) : (
                 <div className="animate-in fade-in duration-500">
-                        {/* Header của Assignment */}
-                        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
-                            <div>
-                                <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Lịch trình giảng dạy</h1>
-                                <p className="text-gray-500 mt-1 text-sm font-medium">Theo dõi và quản lý lịch học chi tiết từng ngày trong tuần.</p>
+                    {/* Header của Assignment */}
+                    <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
+                        <div>
+                            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Lịch trình giảng dạy</h1>
+                            <p className="text-gray-500 mt-1 text-sm font-medium">Theo dõi và quản lý lịch học chi tiết từng ngày trong tuần.</p>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <SemesterSelector
+                                semesters={semesters}
+                                currentSemesterId={currentSemesterId}
+                                onChange={setCurrentSemesterId}
+                            />
+                            <WeekSelector
+                                weeks={weeks}
+                                selectedWeekId={selectedWeek}
+                                onChange={setSelectedWeek}
+                                onPrev={handleWeekPrev}
+                                onNext={handleWeekNext}
+                                canGoPrev={canGoPrevWeek}
+                                canGoNext={canGoNextWeek}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
+                        <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3 justify-between">
+                                <div className="relative w-full sm:w-80 group">
+                                    <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998]" />
+                                    <input
+                                        type="text"
+                                        className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white transition-all outline-none"
+                                        placeholder="Tìm môn, giảng viên..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                <select
+                                    value={selectedBoMon}
+                                    onChange={(e) => setSelectedBoMon(e.target.value)}
+                                    className="w-full sm:w-60 px-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm text-gray-700 outline-none"
+                                >
+                                    <option value="all">Tất cả Bộ môn</option>
+                                    {boMonOptions.map((bm) => (
+                                        <option key={bm.id} value={bm.id}>{bm.name}</option>
+                                    ))}
+                                </select>
                             </div>
-                            
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <SemesterSelector 
-                                    semesters={semesters}
-                                    currentSemesterId={currentSemesterId}
-                                    onChange={setCurrentSemesterId}
-                                />
-                                <WeekSelector 
-                                    weeks={weeks}
-                                    selectedWeekId={selectedWeek}
-                                    onChange={setSelectedWeek}
-                                    onPrev={handleWeekPrev}
-                                    onNext={handleWeekNext}
-                                    canGoPrev={canGoPrevWeek}
-                                    canGoNext={canGoNextWeek}
-                                />
+
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                {user?.vaitro !== 'truongbomon' && (
+                                    <>
+                                        <button
+                                            onClick={() => setShowProposals(true)}
+                                            className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <ClipboardCheck size={18} /> Xét duyệt đề xuất
+                                        </button>
+
+                                        <button
+                                            onClick={() => setIsImportModalOpen(true)}
+                                            className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <Upload size={18} /> Import Excel
+                                        </button>
+
+                                        <button
+                                            onClick={handleAddNew}
+                                            className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <Plus size={20} /> Thêm lịch dạy
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[600px]">
-                            <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                                <div className="w-full sm:w-auto flex flex-col sm:flex-row items-center gap-3 justify-between">
-                                    <div className="relative w-full sm:w-80 group">
-                                        <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998]" />
-                                        <input
-                                            type="text"
-                                            className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white transition-all outline-none"
-                                            placeholder="Tìm môn, giảng viên..."
-                                            value={searchTerm}
-                                            onChange={(e) => setSearchTerm(e.target.value)}
-                                        />
-                                    </div>
-                                    <select
-                                        value={selectedBoMon}
-                                        onChange={(e) => setSelectedBoMon(e.target.value)}
-                                        className="w-full sm:w-60 px-3 py-2.5 border border-gray-200 rounded-xl bg-white text-sm text-gray-700 outline-none"
-                                    >
-                                        <option value="all">Tất cả Bộ môn</option>
-                                        {boMonOptions.map((bm) => (
-                                            <option key={bm.id} value={bm.id}>{bm.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                    {user?.vaitro !== 'truongbomon' && (
-                                        <>
-                                            <button 
-                                                onClick={() => setShowProposals(true)}
-                                                className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                            >
-                                                <ClipboardCheck size={18} /> Xét duyệt đề xuất
-                                            </button>
-
-                                            <button 
-                                                onClick={() => setIsImportModalOpen(true)} 
-                                                className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                            >
-                                                <Upload size={18} /> Import Excel
-                                            </button>
-                                            
-                                            <button 
-                                                onClick={handleAddNew} 
-                                                className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                            >
-                                                <Plus size={20} /> Thêm lịch dạy
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex-1 overflow-auto">
-                                <AssignmentTable 
-                                    assignments={filteredAssignments}
-                                    onEdit={handleEdit}
-                                    onDelete={handleDeleteClick}
-                                    onViewAttendance={handleViewAttendanceProcess}
-                                    canViewAttendance={canViewAttendanceProcess}
-                                />
-                            </div>
-
-                            <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 flex items-center justify-between">
-                                <span className="text-sm text-gray-600 font-semibold italic">
-                                    * Hiển thị {filteredAssignments.length} buổi học trong tuần đã chọn
-                                </span>
-                            </div>
+                        <div className="flex-1 overflow-auto">
+                            <AssignmentTable
+                                assignments={filteredAssignments}
+                                onEdit={handleEdit}
+                                onDelete={handleDeleteClick}
+                                onViewAttendance={handleViewAttendanceProcess}
+                                canViewAttendance={canViewAttendanceProcess}
+                            />
                         </div>
+
+                        <div className="bg-gray-50 border-t border-gray-100 px-6 py-4 flex items-center justify-between">
+                            <span className="text-sm text-gray-600 font-semibold italic">
+                                * Hiển thị {filteredAssignments.length} buổi học trong tuần đã chọn
+                            </span>
+                        </div>
+                    </div>
                 </div>
             )}
 
             {/* Các Modal (đặt ở ngoài để dùng chung hoặc riêng cho view Assignment) */}
             {!showProposals && (
                 <>
-                    <AssignmentModal 
-                        isOpen={isFormModalOpen} 
-                        onClose={() => setIsFormModalOpen(false)} 
-                        onSave={handleSave} 
-                        initialData={currentAssignment} 
+                    <AssignmentModal
+                        isOpen={isFormModalOpen}
+                        onClose={() => setIsFormModalOpen(false)}
+                        onSave={handleSave}
+                        initialData={currentAssignment}
                     />
-                    <DeleteConfirmModalSchedule 
-                        isOpen={isDeleteModalOpen} 
-                        onClose={() => setIsDeleteModalOpen(false)} 
-                        onConfirm={handleConfirmDelete} 
-                        subjectName={currentAssignment?.ten_mon} 
+                    <DeleteConfirmModalSchedule
+                        isOpen={isDeleteModalOpen}
+                        onClose={() => setIsDeleteModalOpen(false)}
+                        onConfirm={handleConfirmDelete}
+                        subjectName={currentAssignment?.ten_mon}
                     />
-                    <ImportScheduleModal 
-                        isOpen={isImportModalOpen} 
-                        onClose={() => setIsImportModalOpen(false)} 
-                        onImport={handleImportFile} 
-                        isLoading={importLoading} 
+                    <ImportScheduleModal
+                        isOpen={isImportModalOpen}
+                        onClose={() => setIsImportModalOpen(false)}
+                        onImport={handleImportFile}
+                        isLoading={importLoading}
                     />
 
                     <ImportResultModal

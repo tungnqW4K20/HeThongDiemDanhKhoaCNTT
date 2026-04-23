@@ -32,8 +32,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // 1. TYPE DEFINITIONS & CONSTANTS
 // =================================================================
 
-type ScheduleStatus = 'PAST' | 'HAPPENING' | 'FUTURE';
-
 type PhanCong = {
   id: string;
   ngay: string;
@@ -58,7 +56,6 @@ type PhanCong = {
 
 type HocKy = { id: string; name: string; };
 type WeekOption = { id: number; label: string; detail: string; startDate?: Date; endDate?: Date; };
-type SubjectGroup = { tenMon: string; schedules: PhanCong[]; };
 
 const COLORS = {
   primary: '#3B5998',
@@ -133,9 +130,8 @@ export default function LichDayChuyenNghiepScreen() {
   const router = useRouter();
   const { user } = useAuth();
   
-  const [HOC_KY, setHOC_KY] = useState<HocKy[]>([]);
+  const [currentSemester, setCurrentSemester] = useState<HocKy | null>(null);
   const [PHAN_CONG_DATA, setPH_CONG_DATA] = useState<PhanCong[]>([]);
-  const [activeSemester, setActiveSemester] = useState<string | undefined>();
   const [weeks, setWeeks] = useState<WeekOption[]>([]);
   const [selectedWeek, setSelectedWeek] = useState<WeekOption | null>(null);
   const [isWeekModalVisible, setWeekModalVisible] = useState(false);
@@ -143,7 +139,7 @@ export default function LichDayChuyenNghiepScreen() {
   const [loading, setLoading] = useState(false);
   const isFirstLoad = useRef(true);
 
-  // Logic Ghi đè thông tin từ đề xuất
+  // Logic Ghi đè thông tin từ đề xuất (Dạy thay, bù, đổi phòng...)
   const applyApprovedProposalOverrides = useCallback((lichData: any[], deXuatData: any[]) => {
     if (!Array.isArray(lichData) || !Array.isArray(deXuatData)) return lichData;
     const approvedMap = new Map<string, any>();
@@ -162,19 +158,26 @@ export default function LichDayChuyenNghiepScreen() {
         so_tiet: dx.so_tiet_moi ?? item.so_tiet,
         phong_hoc: dx.phong_moi || item.phong_hoc,
         is_override: true,
-        loai_de_xuat: dx.loai_de_xuat // Lưu lại loại: mo_lai, day_thay, ...
+        loai_de_xuat: dx.loai_de_xuat 
       };
     });
   }, []);
 
   const fetchMainData = useCallback(async () => {
-    if (!activeSemester) return;
+    if (!currentSemester) return;
     try {
+      setLoading(true);
       const [res, dxRes] = await Promise.all([
-        phanCongService.getLichGiangDay(activeSemester),
+        phanCongService.getLichGiangDay(currentSemester.id),
         apiClient('/de-xuat/my-proposals')
       ]);
-      if (!res.success) return;
+
+      if (!res.success) {
+        setPH_CONG_DATA([]);
+        setLoading(false);
+        return;
+      }
+
       const rawData = applyApprovedProposalOverrides(res.data, dxRes?.data || []);
       const thuArr = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
       
@@ -196,53 +199,89 @@ export default function LichDayChuyenNghiepScreen() {
           loai_de_xuat: item.loai_de_xuat
         };
       });
+
       setPH_CONG_DATA(mapped.sort((a, b) => a.startDateTime.getTime() - b.startDateTime.getTime()));
 
-      if (res.hocKy && isFirstLoad.current) {
-        const listWeeks = generateWeeks(res.hocKy.ngay_monday_tuan_1, res.hocKy.ngay_ketthuc, res.hocKy.tuan_bat_dau_co_lich || 1);
+      // Tạo danh sách tuần dựa trên dữ liệu học kỳ nhận được
+      if (res.hocKy && (isFirstLoad.current || weeks.length === 0)) {
+        const listWeeks = generateWeeks(
+          res.hocKy.ngay_monday_tuan_1, 
+          res.hocKy.ngay_ketthuc, 
+          res.hocKy.tuan_bat_dau_co_lich || 1
+        );
         setWeeks(listWeeks);
         const now = new Date();
         const cur = listWeeks.find(w => w.startDate && w.endDate && now >= w.startDate && now <= w.endDate);
         setSelectedWeek(cur || listWeeks[0]);
         isFirstLoad.current = false;
       }
-    } catch (e) { console.error(e); }
-  }, [activeSemester, applyApprovedProposalOverrides]);
+      setLoading(false);
+    } catch (e) { 
+      console.error(e); 
+      setLoading(false);
+    }
+  }, [currentSemester, applyApprovedProposalOverrides, weeks.length]);
 
-  // Khởi tạo học kỳ theo thời gian thực
+  // Khởi tạo học kỳ: Tự động tìm học kỳ hiện tại/sắp tới
   useEffect(() => {
     (async () => {
       const res = await hocKyService.getAllHocKy();
       if (res.success && res.data.length > 0) {
         const now = new Date();
-        const filtered = res.data.filter((item: any) => now >= parseDateSafe(item.ngay_monday_tuan_1) && now <= parseDateSafe(item.ngay_ketthuc));
-        const final = filtered.length > 0 ? filtered : res.data;
-        const mapped = final.map((item: any) => ({ id: item.hocky_id, name: item.ten_hocky }));
-        setHOC_KY(mapped); setActiveSemester(mapped[0]?.id);
+        
+        // 1. Sắp xếp danh sách học kỳ theo ngày bắt đầu tăng dần
+        const sorted = [...res.data].sort((a, b) => 
+          parseDateSafe(a.ngay_batdau).getTime() - parseDateSafe(b.ngay_batdau).getTime()
+        );
+
+        // 2. Tìm học kỳ đang diễn ra (Now nằm giữa Start và End)
+        let selected = sorted.find(item => {
+          const start = parseDateSafe(item.ngay_batdau);
+          const end = parseDateSafe(item.ngay_ketthuc);
+          return now >= start && now <= end;
+        });
+
+        // 3. Nếu không có học kỳ đang diễn ra, tìm học kỳ tiếp theo gần nhất
+        if (!selected) {
+          selected = sorted.find(item => parseDateSafe(item.ngay_batdau) > now);
+        }
+
+        // 4. Nếu vẫn không thấy, lấy học kỳ cuối cùng trong danh sách
+        if (!selected) {
+          selected = sorted[sorted.length - 1];
+        }
+
+        setCurrentSemester({ id: selected.hocky_id, name: selected.ten_hocky });
       }
     })();
   }, []);
 
   useFocusEffect(useCallback(() => { fetchMainData(); }, [fetchMainData]));
-  useEffect(() => { if (activeSemester) { setLoading(true); fetchMainData().finally(() => setLoading(false)); } }, [activeSemester, fetchMainData]);
 
+  // Logic lọc dữ liệu theo tuần và nhóm theo môn học
   const groupedSchedule = useMemo(() => {
     let filtered = PHAN_CONG_DATA;
     if (selectedWeek?.id !== 0 && selectedWeek?.startDate && selectedWeek?.endDate) {
-      const s = selectedWeek.startDate.getTime(); const e = selectedWeek.endDate.getTime();
-      filtered = PHAN_CONG_DATA.filter(item => item.startDateTime.getTime() >= s && item.startDateTime.getTime() <= e);
+      const s = selectedWeek.startDate.getTime(); 
+      const e = selectedWeek.endDate.getTime();
+      filtered = PHAN_CONG_DATA.filter(item => 
+        item.startDateTime.getTime() >= s && item.startDateTime.getTime() <= e
+      );
     }
     const groups: Record<string, PhanCong[]> = {};
-    filtered.forEach(item => { if (!groups[item.tenMon]) groups[item.tenMon] = []; groups[item.tenMon].push(item); });
+    filtered.forEach(item => { 
+      if (!groups[item.tenMon]) groups[item.tenMon] = []; 
+      groups[item.tenMon].push(item); 
+    });
     return Object.keys(groups).map(key => ({ tenMon: key, schedules: groups[key] }));
   }, [PHAN_CONG_DATA, selectedWeek]);
 
+  // Hàm render hàng lịch dạy (Giữ nguyên logic màu sắc, icon, khóa nút)
   const renderScheduleRow = (item: PhanCong) => {
     const now = new Date();
     const isPast = now > item.endDateTime;
     const isNow = now >= item.startDateTime && now <= item.endDateTime;
 
-    // --- PHÂN LOẠI LOGIC NGHIỆP VỤ ---
     const isReopened = item.loai_de_xuat === 'mo_lai' || (item.is_override && item.ghi_chu?.toLowerCase().includes('mở lại'));
     const isCompleted = item.trang_thai === 'completed';
     const isCancelled = item.trang_thai === 'cancelled';
@@ -251,17 +290,11 @@ export default function LichDayChuyenNghiepScreen() {
     const isMySub = item.is_my_substitute_session || (item.giangvien_day_thay_id === currentGiangVienId);
     const blockedByOtherSub = !!item.has_substitute && !isMySub;
 
-    // --- LOGIC KHÓA NÚT (isDisabled) ---
-    // 1. Khóa nếu đã bị hủy.
-    // 2. Khóa nếu bị giảng viên khác dạy thay.
-    // 3. Khóa nếu là buổi quá hạn MÀ không được mở lại VÀ không phải là buổi dạy thay của mình.
-    // 4. Khóa nếu đã điểm danh xong MÀ không có lệnh mở lại.
     const isDisabled = isCancelled || 
                        blockedByOtherSub || 
                        (isPast && !isReopened && !isMySub) || 
                        (isCompleted && !isReopened);
 
-    // --- LOGIC HIỂN THỊ LABEL (ƯU TIÊN DẠY THAY HÀNG ĐẦU) ---
     let iconName: any = 'ellipse-outline';
     let iconColor = COLORS.lightGray;
     let statusLabel = '';
@@ -298,7 +331,9 @@ export default function LichDayChuyenNghiepScreen() {
         </View>
         <View style={{ flex: 1 }}>
           <View style={styles.rowHeader}>
-            <Text style={[styles.textNgay, (isPast && !isReopened && !isMySub && !isCompleted) && styles.textPast]}>{item.thu}, {item.ngay}</Text>
+            <Text style={[styles.textNgay, (isPast && !isReopened && !isMySub && !isCompleted) && styles.textPast]}>
+              {item.thu}, {item.ngay}
+            </Text>
             {statusLabel !== '' && <Text style={[styles.labelNow, { color: labelColor }]}>{statusLabel}</Text>}
           </View>
           <Text style={[styles.textLop, (isPast && !isReopened && !isMySub && !isCompleted) && styles.textPast]}>{item.tenLop}</Text>
@@ -318,48 +353,97 @@ export default function LichDayChuyenNghiepScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      
+      {/* HEADER */}
       <View style={styles.customHeader}>
-        <View><Text style={styles.welcomeText}>Xin chào Giảng viên,</Text><Text style={styles.headerTitle}>Lịch Giảng Dạy</Text></View>
-        <TouchableOpacity style={styles.notificationBtn}><Ionicons name="notifications-outline" size={24} color={COLORS.text} /><View style={styles.dot} /></TouchableOpacity>
-      </View>
-      <View style={styles.container}>
-        <View style={styles.semesterWrapper}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {HOC_KY.map(hk => (
-              <TouchableOpacity key={hk.id} style={[styles.chip, activeSemester === hk.id && styles.chipActive]} onPress={() => setActiveSemester(hk.id)}>
-                <Text style={[styles.chipText, activeSemester === hk.id && { color: '#fff' }]}>{hk.name}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
+        <View>
+          <Text style={styles.welcomeText}>Xin chào Giảng viên,</Text>
+          <Text style={styles.headerTitle}>Lịch Giảng Dạy</Text>
         </View>
+        <TouchableOpacity style={styles.notificationBtn}>
+          <Ionicons name="notifications-outline" size={24} color={COLORS.text} />
+          <View style={styles.dot} />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.container}>
+        {/* SEMESTER CHIP (Chỉ hiện học kỳ hiện tại) */}
+        <View style={styles.semesterWrapper}>
+            <View style={[styles.chip, styles.chipActive]}>
+                <Text style={[styles.chipText, { color: '#fff' }]}>
+                  {currentSemester ? currentSemester.name : "Đang tải..."}
+                </Text>
+            </View>
+        </View>
+
+        {/* WEEK SELECTOR */}
         <TouchableOpacity style={styles.weekBtn} onPress={() => setWeekModalVisible(true)}>
           <View style={styles.weekIcon}><Ionicons name="calendar" size={18} color={COLORS.primary} /></View>
-          <View style={{ flex: 1 }}><Text style={styles.weekLabel}>Tuần học hiển thị</Text><Text style={styles.weekValue}>{selectedWeek ? `${selectedWeek.label} ${selectedWeek.detail}` : "Đang tải tuần học..."}</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.weekLabel}>Tuần học hiển thị</Text>
+            <Text style={styles.weekValue}>{selectedWeek ? `${selectedWeek.label} ${selectedWeek.detail}` : "Đang tải..."}</Text>
+          </View>
           <Ionicons name="chevron-down" size={20} color={COLORS.lightGray} />
         </TouchableOpacity>
-        {loading ? <ActivityIndicator style={{ marginTop: 40 }} color={COLORS.primary} /> : (
+
+        {/* MAIN LIST */}
+        {loading ? (
+          <ActivityIndicator style={{ marginTop: 40 }} color={COLORS.primary} />
+        ) : (
           <FlatList
-            data={groupedSchedule} keyExtractor={it => it.tenMon}
-            contentContainerStyle={{ paddingBottom: 20 }}
+            data={groupedSchedule}
+            keyExtractor={it => it.tenMon}
+            contentContainerStyle={{ paddingBottom: 100 }}
             renderItem={({ item }) => (
                 <View style={styles.card}>
-                  <TouchableOpacity style={styles.cardHeader} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setExpandedSubject(expandedSubject === item.tenMon ? null : item.tenMon); }}>
-                    <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.tenMon}</Text><Text style={styles.cardSub}>{item.schedules.length} buổi dạy</Text></View>
+                  <TouchableOpacity 
+                    style={styles.cardHeader} 
+                    onPress={() => { 
+                      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); 
+                      setExpandedSubject(expandedSubject === item.tenMon ? null : item.tenMon); 
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{item.tenMon}</Text>
+                      <Text style={styles.cardSub}>{item.schedules.length} buổi dạy</Text>
+                    </View>
                     <Ionicons name={expandedSubject === item.tenMon ? "chevron-up" : "chevron-down"} size={20} color={COLORS.primary} />
                   </TouchableOpacity>
-                  {expandedSubject === item.tenMon && <View style={styles.cardBody}>{item.schedules.map(renderScheduleRow)}</View>}
+                  {expandedSubject === item.tenMon && (
+                    <View style={styles.cardBody}>
+                      {item.schedules.map(renderScheduleRow)}
+                    </View>
+                  )}
                 </View>
             )}
-            ListEmptyComponent={<View style={styles.emptyContainer}><Ionicons name="calendar-outline" size={60} color="#ddd" /><Text style={styles.empty}>Không có lịch dạy trong tuần này</Text></View>}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Ionicons name="calendar-outline" size={60} color="#ddd" />
+                <Text style={styles.empty}>Không có lịch dạy trong tuần này</Text>
+              </View>
+            }
           />
         )}
+
+        {/* WEEK MODAL */}
         <Modal visible={isWeekModalVisible} transparent animationType="slide">
           <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setWeekModalVisible(false)}>
             <View style={styles.modal}>
-              <View style={styles.modalHeader}><View style={styles.modalHandle} /><Text style={styles.modalTitle}>Chọn tuần học</Text></View>
-              <FlatList data={weeks} keyExtractor={it => it.id.toString()} renderItem={({ item }) => (
-                  <TouchableOpacity style={[styles.modalItem, selectedWeek?.id === item.id && { backgroundColor: COLORS.activeWeek }]} onPress={() => { setSelectedWeek(item); setWeekModalVisible(false); }}>
-                    <Text style={[styles.modalItemText, selectedWeek?.id === item.id && { color: COLORS.primary, fontWeight: 'bold' }]}>{item.label}</Text>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.modalTitle}>Chọn tuần học</Text>
+              </View>
+              <FlatList 
+                data={weeks} 
+                keyExtractor={it => it.id.toString()} 
+                renderItem={({ item }) => (
+                  <TouchableOpacity 
+                    style={[styles.modalItem, selectedWeek?.id === item.id && { backgroundColor: COLORS.activeWeek }]} 
+                    onPress={() => { setSelectedWeek(item); setWeekModalVisible(false); }}
+                  >
+                    <Text style={[styles.modalItemText, selectedWeek?.id === item.id && { color: COLORS.primary, fontWeight: 'bold' }]}>
+                      {item.label}
+                    </Text>
                     <Text style={styles.modalItemDetail}>{item.detail}</Text>
                     {selectedWeek?.id === item.id && <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />}
                   </TouchableOpacity>
@@ -372,18 +456,29 @@ export default function LichDayChuyenNghiepScreen() {
   );
 }
 
+// =================================================================
+// 4. STYLES
+// =================================================================
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.background },
-  customHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 40, paddingBottom: 20, backgroundColor: COLORS.background },
+  customHeader: { 
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', 
+    paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 40, 
+    paddingBottom: 20, backgroundColor: COLORS.background 
+  },
   welcomeText: { fontSize: 13, color: COLORS.lightGray },
   headerTitle: { fontSize: 22, fontWeight: 'bold', color: COLORS.text },
-  notificationBtn: { width: 44, height: 44, backgroundColor: '#fff', borderRadius: 12, justifyContent: 'center', alignItems: 'center', elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 },
+  notificationBtn: { 
+    width: 44, height: 44, backgroundColor: '#fff', borderRadius: 12, 
+    justifyContent: 'center', alignItems: 'center', elevation: 3, 
+    shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4 
+  },
   dot: { position: 'absolute', top: 12, right: 12, width: 7, height: 7, backgroundColor: '#FF5252', borderRadius: 4, borderWidth: 1.5, borderColor: '#fff' },
   container: { flex: 1, paddingHorizontal: 16 },
-  semesterWrapper: { height: 45, marginBottom: 10, marginTop: 5 },
-  chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', marginRight: 8, borderWidth: 1, borderColor: '#eee' },
+  semesterWrapper: { height: 45, marginBottom: 10, marginTop: 5, flexDirection: 'row' },
+  chip: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20, backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee', justifyContent: 'center' },
   chipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  chipText: { fontSize: 13, color: '#666' },
+  chipText: { fontSize: 14, fontWeight: '600', color: '#666' },
   weekBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', padding: 12, borderRadius: 12, marginBottom: 15, elevation: 1 },
   weekIcon: { width: 32, height: 32, backgroundColor: '#F0F7FF', borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
   weekLabel: { fontSize: 10, color: COLORS.lightGray, textTransform: 'uppercase' },
