@@ -614,28 +614,30 @@ export default function AssignmentPage() {
                                     </select>
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                                    <button 
-                                        onClick={() => setShowProposals(true)}
-                                        className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                    >
-                                        <ClipboardCheck size={18} /> Xét duyệt đề xuất
-                                    </button>
+                                {user?.vaitro !== 'truongbomon' && (
+                                    <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                        <button 
+                                            onClick={() => setShowProposals(true)}
+                                            className="flex-1 sm:flex-none px-4 py-2.5 bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <ClipboardCheck size={18} /> Xét duyệt đề xuất
+                                        </button>
 
-                                    <button 
-                                        onClick={() => setIsImportModalOpen(true)} 
-                                        className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                    >
-                                        <Upload size={18} /> Import Excel
-                                    </button>
-                                    
-                                    <button 
-                                        onClick={handleAddNew} 
-                                        className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                    >
-                                        <Plus size={20} /> Thêm lịch dạy
-                                    </button>
-                                </div>
+                                        <button 
+                                            onClick={() => setIsImportModalOpen(true)} 
+                                            className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <Upload size={18} /> Import Excel
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={handleAddNew} 
+                                            className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                        >
+                                            <Plus size={20} /> Thêm lịch dạy
+                                        </button>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex-1 overflow-auto">

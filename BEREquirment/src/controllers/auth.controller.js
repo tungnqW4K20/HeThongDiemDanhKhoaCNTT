@@ -6,8 +6,8 @@ const register = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      message: result.isNewLecturer 
-        ? "Đã tạo mới hồ sơ và tài khoản giảng viên." 
+      message: result.isNewLecturer
+        ? "Đã tạo mới hồ sơ và tài khoản giảng viên."
         : "Đã tạo tài khoản cho giảng viên hiện hữu trên hệ thống.",
       data: result
     });
@@ -74,49 +74,53 @@ const login = async (req, res) => {
   } catch (error) {
     console.error("Login Error:", error.message);
 
-    if (error.message.includes('không chính xác')) {
-      return res.status(401).json({ success: false, message: error.message });
-    }
+    // Trả về message cụ thể cho các lỗi nghiệp vụ
+    const isKnownError = error.message.includes('không chính xác') || 
+                        error.message.includes('Vui lòng nhập') ||
+                        error.message.includes('không thuộc vai trò');
 
-    return res.status(500).json({
+    return res.status(isKnownError ? 401 : 500).json({
       success: false,
-      message: 'Lỗi máy chủ nội bộ khi đăng nhập.'
+      message: isKnownError ? error.message : 'Lỗi máy chủ nội bộ khi đăng nhập.'
     });
   }
 };
 
 const loginAdmin = async (req, res, next) => {
-    try {
-        const { username, password } = req.body;
-         if (!username || !password) {
-             return res.status(400).json({
-                 success: false,
-                 message: 'Vui lòng nhập email/username và mật khẩu.'
-             });
-        }
-
-        const loginData = { 
-            username, 
-            password 
-        };
-        const result = await authService.loginAdmin(loginData);
-
-        res.status(200).json({
-            success: true,
-            message: 'Đăng nhập thành công!',
-            data: result // Chứa token và customer info
-        });
-    } catch (error) {
-         console.error("Login Error:", error.message);
-        if (error.message.includes('không chính xác')) {
-            return res.status(401).json({ success: false, message: error.message }); // 401 Unauthorized
-        }
-         if (error.message.includes('Vui lòng nhập')) {
-             return res.status(400).json({ success: false, message: error.message }); // 400 Bad Request
-        }
-        res.status(500).json({ success: false, message: 'Lỗi máy chủ nội bộ khi đăng nhập.' });
-        // next(error);
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng nhập email/username và mật khẩu.'
+      });
     }
+
+    const loginData = {
+      username,
+      password
+    };
+    const result = await authService.loginAdmin(loginData);
+
+    res.status(200).json({
+      success: true,
+      message: 'Đăng nhập thành công!',
+      data: result // Chứa token và customer info
+    });
+  } catch (error) {
+    console.error("Login Admin Error:", error.message);
+    
+    // Trả về message cụ thể cho các lỗi nghiệp vụ (sai pass, thiếu quyền, chưa gán bộ môn...)
+    const isKnownError = error.message.includes('không chính xác') || 
+                        error.message.includes('Vui lòng nhập') ||
+                        error.message.includes('không có quyền') ||
+                        error.message.includes('chưa được gán');
+
+    return res.status(isKnownError ? 401 : 500).json({ 
+        success: false, 
+        message: isKnownError ? error.message : 'Lỗi máy chủ nội bộ khi đăng nhập.' 
+    });
+  }
 };
 
 const refreshToken = async (req, res, next) => {
@@ -154,18 +158,18 @@ const createAdmin = async (req, res) => {
 
   } catch (error) {
     console.error("Create Admin Error:", error.message);
-    
+
     // Xử lý các lỗi cụ thể
     if (error.message.includes("Mã bí mật")) {
-        return res.status(403).json({ success: false, message: error.message });
+      return res.status(403).json({ success: false, message: error.message });
     }
     if (error.message.includes("tồn tại")) {
-        return res.status(409).json({ success: false, message: error.message });
+      return res.status(409).json({ success: false, message: error.message });
     }
 
-    return res.status(500).json({ 
-        success: false, 
-        message: "Lỗi server: " + error.message 
+    return res.status(500).json({
+      success: false,
+      message: "Lỗi server: " + error.message
     });
   }
 };
@@ -235,12 +239,12 @@ const changePassword = async (req, res) => {
 };
 
 module.exports = {
-    register,
-    login,
-    loginAdmin,
-    refreshToken,
-    createAdmin,
-    adminTaoTaiKhoanGV,
-    adminUpdateAccountGV,
-    changePassword
+  register,
+  login,
+  loginAdmin,
+  refreshToken,
+  createAdmin,
+  adminTaoTaiKhoanGV,
+  adminUpdateAccountGV,
+  changePassword
 };

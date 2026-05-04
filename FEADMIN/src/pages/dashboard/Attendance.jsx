@@ -1,6 +1,7 @@
 'use strict';
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 import { 
   LayoutDashboard, CheckCircle2, Clock, AlertOctagon, 
@@ -129,37 +130,160 @@ const ImportModal = ({ isOpen, onClose, sessionData }) => {
     const [file, setFile] = useState(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const fileInputRef = useRef(null);
+
     if (!isOpen) return null;
+    if (typeof document === 'undefined') return null;
+
     const handleFileChange = (e) => { if (e.target.files[0]) setFile(e.target.files[0]); };
+    
+    const handleDownloadTemplate = () => {
+      const worksheetData = [
+        ["TRƯỜNG ĐHSPKT HƯNG YÊN", "", "", "", "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"],
+        ["KHOA CÔNG NGHỆ THÔNG TIN", "", "", "", "Độc lập - Tự do - Hạnh phúc"],
+        ["", "", "", "", ""],
+        ["", "", "", "MẪU IMPORT ĐIỂM DANH SINH VIÊN"],
+        [],
+        [`Lớp học phần: ${sessionData?.ten_mon || 'N/A'}`],
+        [`Mã lớp: ${sessionData?.ma_lop_hp || ''}`],
+        [`Ngày điểm danh: ${sessionData?.ngay || ''}`],
+        [],
+        ["STT", "Mã SV", "Họ Tên", "Lớp HC", "Trạng thái", "Ghi chú"]
+      ];
+
+      // Dữ liệu mẫu
+      const sampleData = [
+        [1, "12345678", "Nguyễn Văn A", "125251", "Có mặt", ""],
+        [2, "12345679", "Trần Thị B", "125251", "Vắng không phép", "Nghỉ không lý do"],
+        [3, "12345680", "Lê Văn C", "125251", "Vắng có phép", "Ốm có giấy xác nhận"],
+        [4, "12345681", "Phạm Thị D", "125251", "Đi muộn", "Vào muộn 15p"]
+      ];
+
+      const finalData = [...worksheetData, ...sampleData];
+      const ws = XLSX.utils.aoa_to_sheet(finalData);
+
+      // Widths
+      ws['!cols'] = [
+        { wch: 5 }, { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
+      ];
+
+      // Merges
+      ws['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 2 } },
+        { s: { r: 0, c: 4 }, e: { r: 0, c: 5 } },
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 2 } },
+        { s: { r: 1, c: 4 }, e: { r: 1, c: 5 } },
+        { s: { r: 3, c: 3 }, e: { r: 3, c: 5 } },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Mau_Diem_Danh");
+      XLSX.writeFile(wb, `Mau_Import_Diem_Danh_${sessionData?.ma_lop_hp || 'Template'}.xlsx`);
+    };
+
     const handleSave = () => {
       setIsProcessing(true);
-      setTimeout(() => { setIsProcessing(false); alert(`Đã cập nhật dữ liệu cho lớp ${sessionData?.ma_lop_hp}`); onClose(); }, 1500);
+      setTimeout(() => { 
+        setIsProcessing(false); 
+        alert(`Đã cập nhật dữ liệu cho lớp ${sessionData?.ma_lop_hp}`); 
+        onClose(); 
+      }, 1500);
     };
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+
+    return createPortal(
+      <div className="fixed inset-0 z-9999 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-slate-200">
           <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <div><h3 className="text-lg font-bold text-slate-800">Import điểm danh</h3><p className="text-xs text-slate-500 mt-0.5">Thủ công từ file Excel</p></div>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-full"><X size={20} /></button>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
+                <FileSpreadsheet size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Import điểm danh</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Tải lên file Excel mẫu đã điền thông tin</p>
+              </div>
+            </div>
+            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-xl transition-colors">
+              <X size={20} />
+            </button>
           </div>
-          <div className="p-6 space-y-6">
-            <div onClick={() => !file && fileInputRef.current.click()} className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer relative group ${file ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-300 hover:border-[#3B5998] hover:bg-slate-50'}`}>
+
+          <div className="p-6 space-y-5">
+            {/* Template Download Section */}
+            <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center">
+                  <Download size={20} />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-blue-800">Bạn chưa có file mẫu?</p>
+                  <p className="text-[11px] text-blue-600 font-medium">Tải ngay mẫu chuẩn để nhập dữ liệu</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleDownloadTemplate}
+                className="px-4 py-2 bg-white text-blue-600 text-xs font-bold border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+              >
+                Tải file mẫu
+              </button>
+            </div>
+
+            {/* Dropzone */}
+            <div 
+              onClick={() => !file && fileInputRef.current.click()} 
+              className={`
+                border-2 border-dashed rounded-2xl p-10 text-center transition-all cursor-pointer relative group
+                ${file ? 'border-emerald-200 bg-emerald-50/30' : 'border-slate-200 hover:border-[#3B5998] hover:bg-slate-50/50'}
+              `}
+            >
               <input ref={fileInputRef} type="file" className="hidden" accept=".xlsx, .xls" onChange={handleFileChange} />
               {file ? (
-                <div><div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3"><CheckCircle2 size={24} /></div><p className="text-sm font-bold text-slate-800 line-clamp-1">{file.name}</p></div>
+                <div className="animate-in zoom-in duration-300">
+                  <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
+                    <CheckCircle2 size={32} />
+                  </div>
+                  <p className="text-sm font-bold text-slate-800 mb-1">{file.name}</p>
+                  <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(2)} KB • Sẵn sàng import</p>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                    className="mt-4 text-xs font-bold text-rose-500 hover:text-rose-600 underline"
+                  >
+                    Chọn file khác
+                  </button>
+                </div>
               ) : (
-                <div className="py-4"><div className="w-14 h-14 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform"><UploadCloud size={28} /></div><p className="text-sm font-bold text-slate-700">Tải file lên</p></div>
+                <div className="py-2">
+                  <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 group-hover:text-[#3B5998] group-hover:bg-blue-50 transition-all duration-300">
+                    <UploadCloud size={32} />
+                  </div>
+                  <p className="text-sm font-bold text-slate-700">Kéo thả file hoặc click để tải lên</p>
+                  <p className="text-xs text-slate-400 mt-2">Hỗ trợ định dạng .xlsx, .xls</p>
+                </div>
               )}
             </div>
           </div>
-          <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-            <button onClick={onClose} className="px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-white hover:shadow-sm rounded-lg">Hủy bỏ</button>
-            <button onClick={handleSave} disabled={!file || isProcessing} className={`px-6 py-2.5 text-sm font-bold text-white bg-[#3B5998] rounded-lg shadow-md flex items-center gap-2 transition-all ${(!file || isProcessing) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#2d4373]'}`}>
-              {isProcessing ? <RefreshCw size={16} className="animate-spin"/> : <UploadCloud size={16} />} {isProcessing ? 'Đang xử lý...' : 'Xác nhận'}
+
+          <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3 px-8">
+            <button 
+              onClick={onClose} 
+              className="px-6 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+            >
+              Hủy bỏ
+            </button>
+            <button 
+              onClick={handleSave} 
+              disabled={!file || isProcessing} 
+              className={`
+                px-8 py-2.5 text-sm font-bold text-white bg-[#3B5998] rounded-xl shadow-lg shadow-[#3B5998]/20 flex items-center gap-2 transition-all
+                ${(!file || isProcessing) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#2d4373] active:scale-95'}
+              `}
+            >
+              {isProcessing ? <RefreshCw size={18} className="animate-spin"/> : <FileSpreadsheet size={18} />} 
+              {isProcessing ? 'Đang xử lý...' : 'Xác nhận Import'}
             </button>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
 };
 
@@ -588,7 +712,8 @@ const AttendancePagegggg = () => {
                                 setAttendanceData(list.map((r, i) => ({
                                   ...r,
                                   id: r.sinhvien_id || i,
-                                  ten: r.ho_ten || r.ten || ''
+                                  ten: r.ho_ten || r.ten || '',
+                                  trangthai: r.trangthai || 'present'
                                 })));
                                 setManageSession(item);
                                 setManageModalOpen(true);
@@ -611,53 +736,110 @@ const AttendancePagegggg = () => {
       </div>
 
       {/* Manage attendance modal */}
-      {manageModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl w-[90%] max-w-4xl max-h-[70vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">Quản lý điểm danh - {manageSession?.ten_mon || manageSession?.ma_lop_hp}</h3>
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1 rounded border" onClick={() => setManageModalOpen(false)}>Đóng</button>
-                <button className="px-3 py-1 bg-[#3B5998] text-white rounded" onClick={async () => {
-                  // save attendanceData
-                  if (!manageSession) return;
-                  const danh_sach = attendanceData.map(sv => ({ sinhvien_id: sv.sinhvien_id, trangthai: sv.trangthai || 'present', ghichu: sv.ghichu || '' }));
-                  try {
-                    await diemdanhService.save({ lophocphan_id: manageSession.lophocphan_id, ngay: manageSession.ngay, danh_sach });
-                    alert('Lưu điểm danh thành công');
-                    setManageModalOpen(false);
-                  } catch (err) { console.error(err); alert('Lưu thất bại'); }
-                }}>Lưu</button>
-              </div>
-            </div>
-            <div className="min-h-[200px] overflow-auto">
-              <AttendanceTable data={attendanceData} onEdit={(row) => setEditingRow(row)} />
-            </div>
-            {editingRow && (
-              <div className="fixed inset-0 z-60 flex items-center justify-center">
-                <div className="bg-white p-4 rounded-lg shadow-lg w-96">
-                  <h4 className="font-bold mb-2">Sửa: {editingRow.ho_ten}</h4>
-                  <label className="block text-xs text-gray-500">Trạng thái</label>
-                  <select className="w-full border rounded px-2 py-1 mb-2" value={editingRow.trangthai || 'present'} onChange={(e) => setEditingRow({...editingRow, trangthai: e.target.value})}>
-                    <option value="present">Có mặt</option>
-                    <option value="absent">Vắng</option>
-                    <option value="late">Đi muộn</option>
-                    <option value="excused">Có phép</option>
-                  </select>
-                  <label className="block text-xs text-gray-500">Ghi chú</label>
-                  <input className="w-full border rounded px-2 py-1 mb-3" value={editingRow.ghichu || ''} onChange={(e) => setEditingRow({...editingRow, ghichu: e.target.value})} />
-                  <div className="flex justify-end gap-2">
-                    <button className="px-3 py-1 rounded border" onClick={() => setEditingRow(null)}>Hủy</button>
-                    <button className="px-3 py-1 bg-[#3B5998] text-white rounded" onClick={() => {
-                      setAttendanceData(prev => prev.map(r => r.sinhvien_id === editingRow.sinhvien_id ? editingRow : r));
-                      setEditingRow(null);
-                    }}>Áp dụng</button>
-                  </div>
+      {manageModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-9999 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200">
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-[#3B5998]/10 text-[#3B5998] rounded-2xl flex items-center justify-center">
+                  <CheckCircle2 size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-800">Quản lý điểm danh</h3>
+                  <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                    {manageSession?.ten_mon} • <span className="text-[#3B5998] font-bold">{manageSession?.ma_lop_hp}</span>
+                  </p>
                 </div>
               </div>
-            )}
+              <button 
+                onClick={() => setManageModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-hidden flex flex-col p-6 bg-slate-50/30">
+              <AttendanceTable 
+                data={attendanceData} 
+                onUpdateStatus={(svId, status) => {
+                  setAttendanceData(prev => prev.map(sv => sv.sinhvien_id === svId ? { ...sv, trangthai: status } : sv));
+                }}
+                onUpdateNote={(svId, note) => {
+                  setAttendanceData(prev => prev.map(sv => sv.sinhvien_id === svId ? { ...sv, ghichu: note } : sv));
+                }}
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="p-5 border-t border-slate-100 bg-slate-50 flex justify-between items-center px-8">
+              <div className="text-sm text-slate-500 font-medium italic">
+                * Dữ liệu chỉ được cập nhật chính thức sau khi nhấn "Lưu thay đổi"
+              </div>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setManageModalOpen(false)} 
+                  className="px-6 py-2.5 text-sm font-bold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+                >
+                  Đóng
+                </button>
+                <button 
+                  className="px-8 py-2.5 bg-[#3B5998] text-white text-sm font-bold rounded-xl shadow-lg shadow-[#3B5998]/20 hover:bg-[#2d4373] active:scale-95 transition-all flex items-center gap-2"
+                  onClick={async () => {
+                    if (!manageSession) return;
+                    const danh_sach = attendanceData.map(sv => ({ 
+                      sinhvien_id: sv.sinhvien_id, 
+                      trangthai: sv.trangthai || 'present', 
+                      ghichu: sv.ghichu || '' 
+                    }));
+                    try {
+                      setIsLoading(true);
+                      await diemdanhService.save({ 
+                        lophocphan_id: manageSession.lophocphan_id, 
+                        ngay: manageSession.ngay, 
+                        danh_sach 
+                      });
+                      
+                      // Cập nhật lại attendanceMap để UI ngoài table cũng update
+                      const statsRes = await diemdanhService.get({ 
+                        lophocphan_id: manageSession.lophocphan_id, 
+                        ngay: manageSession.ngay 
+                      });
+                      const payload = statsRes?.data || statsRes;
+                      const data = payload?.data || payload;
+                      const list = data?.danh_sach_sinh_vien || data?.danh_sach || [];
+                      const key = `${manageSession.lophocphan_id}-${manageSession.ngay}`;
+                      
+                      setAttendanceMap(prev => ({
+                        ...prev,
+                        [key]: {
+                          key,
+                          total: list.length,
+                          present: list.filter(sv => ['present', 'late', 'excused'].includes(sv.trangthai)).length,
+                          marked: list.filter(sv => sv.trangthai).length
+                        }
+                      }));
+
+                      alert('Lưu điểm danh thành công');
+                      setManageModalOpen(false);
+                    } catch (err) { 
+                      console.error(err); 
+                      alert('Lưu thất bại'); 
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                >
+                  <RefreshCw size={16} className={_isLoading ? "animate-spin" : ""} />
+                  {_isLoading ? "Đang lưu..." : "Lưu thay đổi"}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <ImportModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} sessionData={selectedSession} />
