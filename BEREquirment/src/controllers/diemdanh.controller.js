@@ -63,7 +63,7 @@ class DiemDanhController {
     }
   }
 
-  static async layDanhSach(req, res) {
+  static async layDanhSachMacDinh(req, res) {
     try {
       const { lophocphan_id, ngay } = req.query;
       if (!lophocphan_id || !ngay) return res.status(400).json({ error: 'Thiếu tham số' });

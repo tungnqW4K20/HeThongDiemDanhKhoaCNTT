@@ -50,9 +50,14 @@ class DiemDanhService {
       };
     });
 
+    const total = ketQua.length;
+    const marked = ketQua.filter(item => item.trangthai).length;
+    const present = ketQua.filter(item => ['present', 'late', 'excused'].includes(item.trangthai)).length;
+
     return {
       thong_tin_buoi: buoiHoc || { trangthai: 'chưa tạo' },
-      danh_sach_sinh_vien: ketQua
+      danh_sach_sinh_vien: ketQua,
+      thong_ke: { total, marked, present }
     };
   }
 
@@ -205,7 +210,11 @@ class DiemDanhService {
     };
   });
 
-  return { thong_tin_buoi: buoiHoc || { trangthai: 'chưa tạo' }, danh_sach_sinh_vien: ketQua };
+  const total = ketQua.length;
+  const marked = ketQua.filter(item => item.trangthai).length;
+  const present = ketQua.filter(item => ['present', 'late', 'excused'].includes(item.trangthai)).length;
+
+  return { thong_tin_buoi: buoiHoc || { trangthai: 'chưa tạo' }, danh_sach_sinh_vien: ketQua, thong_ke: { total, marked, present } };
 }
 
 

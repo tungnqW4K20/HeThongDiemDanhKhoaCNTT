@@ -26,6 +26,7 @@ const Sidebar = () => {
 
   const adminMenuItems = [
     { path: '/', label: 'Tổng quan', icon: LayoutDashboard },
+    { path: '/attendance', label: 'Quản lý điểm danh', icon: BookOpenCheck },
     { path: '/semester', label: 'Quản lý học kỳ', icon: CalendarRange },
     { path: '/lecturers', label: 'Quản lý giảng viên', icon: GraduationCap },
     { path: '/classes', label: 'Quản lý lớp hành chính', icon: Layers },

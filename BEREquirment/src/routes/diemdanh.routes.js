@@ -8,7 +8,7 @@ router.get('/', DiemDanhController.layDanhSach);
 
 router.post('/', DiemDanhController.luuKetQua);
 
-router.get('/macdinh', DiemDanhController.layDanhSach);
+router.get('/macdinh', DiemDanhController.layDanhSachMacDinh);
 
 module.exports = router;
 

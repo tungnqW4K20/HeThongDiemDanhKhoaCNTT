@@ -22,16 +22,17 @@ const StatusBadge = ({ status }) => {
   );
 };
 
-const AttendanceTable = ({ data }) => {
+const AttendanceTable = ({ data, onEdit }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
   // Logic lọc dữ liệu
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      const matchSearch = item.ma_sv.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.ten.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchFilter = filterStatus === 'all' || item.trangthai.toLowerCase() === filterStatus;
+      const maSv = (item.ma_sv || '').toLowerCase();
+      const tenSv = (item.ten || item.ho_ten || '').toLowerCase();
+      const matchSearch = maSv.includes(searchTerm.toLowerCase()) || tenSv.includes(searchTerm.toLowerCase());
+      const matchFilter = filterStatus === 'all' || (item.trangthai || '').toLowerCase() === filterStatus;
       return matchSearch && matchFilter;
     });
   }, [data, searchTerm, filterStatus]);
@@ -39,11 +40,11 @@ const AttendanceTable = ({ data }) => {
   // Trạng thái trống (Chưa có file)
   if (data.length === 0) {
     return (
-      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 h-[600px] flex flex-col items-center justify-center text-gray-400">
+      <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 h-[400px] flex flex-col items-center justify-center text-gray-400">
         <div className="bg-gray-50 p-6 rounded-full mb-4">
           <FileSpreadsheet size={48} className="opacity-20" />
         </div>
-        <p>Chưa có dữ liệu. Vui lòng upload file Excel.</p>
+        <p>Chưa có dữ liệu điểm danh.</p>
       </div>
     );
   }
@@ -94,7 +95,7 @@ const AttendanceTable = ({ data }) => {
               <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
                 <td className="p-4">
                   <div className="flex flex-col">
-                    <span className="font-semibold text-gray-800">{row.ten}</span>
+                    <span className="font-semibold text-gray-800">{row.ten || row.ho_ten}</span>
                     <span className="text-xs text-gray-500 font-mono">{row.ma_sv}</span>
                   </div>
                 </td>
@@ -113,6 +114,7 @@ const AttendanceTable = ({ data }) => {
                 </td>
                 <td className="p-4 text-right">
                     <button 
+                      onClick={() => onEdit && onEdit(row)}
                       className="text-xs font-medium hover:underline transition-opacity opacity-0 group-hover:opacity-100"
                       style={{ color: THEME_COLOR }}
                     >
