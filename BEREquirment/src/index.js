@@ -27,6 +27,7 @@ const DashboardRoute = require('./routes/dashboard.route')
 
 const DeXuatRoute = require('./routes/dexuat.route')
 const NamHocRoute = require('./routes/namhoc.routes')
+const TaiKhoanRoutes = require('./routes/taikhoan.routes');
 
 
 
@@ -60,6 +61,7 @@ db.sequelize.authenticate()
     app.use('/api/thong-ke', DashboardRoute);
     app.use('/api/de-xuat', DeXuatRoute);
     app.use('/api/nam-hoc', NamHocRoute)
+    app.use('/api/tai-khoan', TaiKhoanRoutes);
 
 
 

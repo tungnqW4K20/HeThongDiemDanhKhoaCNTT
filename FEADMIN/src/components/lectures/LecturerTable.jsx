@@ -236,8 +236,26 @@ const LecturerTable = ({
                     </td>
 
                     <td className="px-4 py-3 align-middle">
-                      <div className="flex flex-col gap-1 text-sm text-gray-700">
-                        {gv.DanhSachBoMon && gv.DanhSachBoMon.length > 0 ? (
+                      <div className="flex flex-col gap-1.5">
+                        {/* Hiển thị vai trò Trưởng bộ môn nếu có */}
+                        {gv.TaiKhoan?.vaitro === 'truongbomon' && (
+                          <div className="flex flex-wrap gap-1 mb-1">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-100 uppercase tracking-wider">
+                              Trưởng bộ môn
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Danh sách các bộ môn quản lý hoặc thuộc về */}
+                        {gv.TaiKhoan?.vaitro === 'truongbomon' && gv.TaiKhoan?.DanhSachBoMonQuanLy?.length > 0 ? (
+                           <div className="flex flex-wrap gap-1">
+                              {gv.TaiKhoan.DanhSachBoMonQuanLy.map(bm => (
+                                <span key={bm.bomon_id} className="text-xs text-[#3B5998] font-semibold bg-blue-50 px-2 py-0.5 rounded">
+                                  {bm.ten_bomon}
+                                </span>
+                              ))}
+                           </div>
+                        ) : gv.DanhSachBoMon && gv.DanhSachBoMon.length > 0 ? (
                           <div className="flex items-start gap-2 text-sm text-gray-600">
                             <span className="line-clamp-2 max-w-[200px]" title={gv.DanhSachBoMon.map(bm => bm.ten_bomon).join(', ')}>
                               {gv.DanhSachBoMon.map(bm => bm.ten_bomon).join(', ')}

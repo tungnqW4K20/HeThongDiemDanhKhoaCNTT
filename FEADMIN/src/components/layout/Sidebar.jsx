@@ -1,4 +1,4 @@
-﻿import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   GraduationCap,
@@ -12,7 +12,8 @@ import {
   CalendarRange,
   Building2,
   ListTree,
-  KeyRound
+  KeyRound,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -29,6 +30,7 @@ const Sidebar = () => {
     { path: '/attendance', label: 'Quản lý điểm danh', icon: BookOpenCheck },
     { path: '/semester', label: 'Quản lý học kỳ', icon: CalendarRange },
     { path: '/lecturers', label: 'Quản lý giảng viên', icon: GraduationCap },
+    { path: '/users', label: 'Quản lý người dùng', icon: Shield },
     { path: '/classes', label: 'Quản lý lớp hành chính', icon: Layers },
     { path: '/subjects', label: 'Quản lý môn học', icon: BookOpenCheck },
     { path: '/schedule', label: 'Phân công lịch dạy', icon: CalendarDays },

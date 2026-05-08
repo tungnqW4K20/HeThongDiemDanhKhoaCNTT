@@ -18,6 +18,7 @@ import PartClassManagerPage from './pages/dashboard/PartClassManagerPage';
 import AttendanceStats from './pages/dashboard/AttendanceStats';
 import CoSoManagerPage from './pages/dashboard/CoSoManager';
 import ChangePasswordPage from './pages/dashboard/ChangePasswordPage';
+import TaiKhoanManager from './pages/dashboard/TaiKhoanManager';
 
 function App() {
   return (
@@ -46,6 +47,7 @@ function App() {
                   <Route path="/bo-mon" element={<BoMonManagerPage />} />
                   <Route path="/chuyen-nganh" element={<ChuyenNganhManagerPage />} />
                   <Route path="/co-so" element={<CoSoManagerPage />} />
+                  <Route path="/users" element={<TaiKhoanManager />} />
                 </Route>
               </Route>
             </Route>

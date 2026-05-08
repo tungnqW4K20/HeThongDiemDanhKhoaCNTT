@@ -146,10 +146,14 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
                     model: db.TaiKhoan,
                     as: 'TaiKhoan',
                     required: false,
-                    where: {
-                        vaitro: { [Op.in]: ['giangvien', 'truongbomon'] }
-                    },
-                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
+                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id'],
+                    include: [
+                        {
+                            model: db.BoMon,
+                            as: 'DanhSachBoMonQuanLy',
+                            attributes: ['bomon_id', 'ten_bomon']
+                        }
+                    ]
                 },
                 {
                     model: db.BoMon,
@@ -221,10 +225,14 @@ const getGiangVienById = async (giangvien_id) => {
                     model: db.TaiKhoan,
                     as: 'TaiKhoan',
                     required: false,
-                    where: {
-                        vaitro: { [Op.in]: ['giangvien', 'truongbomon'] }
-                    },
-                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
+                    attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id'],
+                    include: [
+                        {
+                            model: db.BoMon,
+                            as: 'DanhSachBoMonQuanLy',
+                            attributes: ['bomon_id', 'ten_bomon']
+                        }
+                    ]
                 },
                 {
                     model: db.BoMon,

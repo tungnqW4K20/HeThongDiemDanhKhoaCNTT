@@ -102,16 +102,27 @@ const LecturerModal = ({ isOpen, onClose, onSave, initialData, faculties = [], b
               {/* Mã GV */}
               <div className="md:col-span-1">
                 <label className="block text-xs font-bold text-gray-600 mb-1.5">Mã Giảng viên <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  value={formData.ma_gv}
-                  onChange={(e) => setFormData({ ...formData, ma_gv: e.target.value })}
-                  disabled={!!initialData} // Không cho sửa mã GV khi update
-                  placeholder="VD: GV001"
-                  className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 transition-all text-sm font-mono font-medium
-                            ${errors.ma_gv ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}
-                            ${initialData ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                />
+                <div className="flex flex-col gap-2">
+                  <input
+                    type="text"
+                    value={formData.ma_gv}
+                    onChange={(e) => setFormData({ ...formData, ma_gv: e.target.value })}
+                    disabled={!!initialData} // Không cho sửa mã GV khi update
+                    placeholder="VD: GV001"
+                    className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 transition-all text-sm font-mono font-medium
+                              ${errors.ma_gv ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}
+                              ${initialData ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                  />
+                  {/* Hiển thị vai trò nếu có tài khoản liên kết */}
+                  {initialData?.TaiKhoan && (
+                    <div className="flex">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider
+                        ${initialData.TaiKhoan.vaitro === 'truongbomon' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>
+                        {initialData.TaiKhoan.vaitro === 'truongbomon' ? 'Trưởng bộ môn' : 'Giảng viên'}
+                      </span>
+                    </div>
+                  )}
+                </div>
                 {errors.ma_gv && <p className="text-red-500 text-xs mt-1">{errors.ma_gv}</p>}
               </div>
 
