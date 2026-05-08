@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Shield, User, Key, Link as LinkIcon, Search, Check, ChevronDown, BookOpen } from 'lucide-react';
+import { X, Save, Shield, User, Key, Link as LinkIcon, Search, Check, ChevronDown, BookOpen, Building2 } from 'lucide-react';
 
 const SearchSelect = ({ options, value, onChange, placeholder }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -111,13 +111,14 @@ const SearchSelect = ({ options, value, onChange, placeholder }) => {
     );
 };
 
-const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], boMons = [] }) => {
+const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], boMons = [], faculties = [] }) => {
     const [formData, setFormData] = useState({
         username: '',
         password: '',
         vaitro: 'giangvien',
         ref_id: '',
-        managed_bomon_ids: []
+        managed_bomon_ids: [],
+        managed_khoa_id: ''
     });
     const [errors, setErrors] = useState({});
 
@@ -129,7 +130,8 @@ const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], b
                 password: '', 
                 vaitro: initialData.vaitro || 'giangvien',
                 ref_id: initialData.ref_id || '',
-                managed_bomon_ids: managed_ids
+                managed_bomon_ids: managed_ids,
+                managed_khoa_id: initialData.KhoaQuanLy?.khoa_id || ''
             });
         } else {
             setFormData({
@@ -137,7 +139,8 @@ const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], b
                 password: '',
                 vaitro: 'giangvien',
                 ref_id: '',
-                managed_bomon_ids: []
+                managed_bomon_ids: [],
+                managed_khoa_id: ''
             });
         }
         setErrors({});
@@ -149,6 +152,9 @@ const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], b
         if (!initialData && !formData.password.trim()) newErrors.password = 'Mật khẩu là bắt buộc';
         if (formData.vaitro === 'truongbomon' && formData.managed_bomon_ids.length === 0) {
             newErrors.managed_bomon_ids = 'Vui lòng chọn ít nhất một bộ môn quản lý';
+        }
+        if (formData.vaitro === 'lanhdao' && !formData.managed_khoa_id) {
+            newErrors.managed_khoa_id = 'Vui lòng chọn khoa quản lý';
         }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
@@ -256,6 +262,28 @@ const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], b
                                     )}
                                 </div>
                                 {errors.managed_bomon_ids && <p className="text-red-500 text-[10px] mt-1 font-medium italic">{errors.managed_bomon_ids}</p>}
+                            </div>
+                        )}
+
+                        {/* Quản lý khoa (Chỉ dành cho Lãnh đạo) */}
+                        {formData.vaitro === 'lanhdao' && (
+                            <div className="animate-in slide-in-from-top-2 duration-300">
+                                <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider flex items-center gap-2">
+                                    <Building2 size={14} className="text-[#3B5998]" />
+                                    Khoa quản lý
+                                </label>
+                                <select
+                                    value={formData.managed_khoa_id}
+                                    onChange={(e) => setFormData({ ...formData, managed_khoa_id: e.target.value })}
+                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 transition-all text-sm bg-white
+                                        ${errors.managed_khoa_id ? 'border-red-300 focus:border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}`}
+                                >
+                                    <option value="">-- Chọn khoa --</option>
+                                    {faculties.map(k => (
+                                        <option key={k.khoa_id} value={k.khoa_id}>{k.ten_khoa}</option>
+                                    ))}
+                                </select>
+                                {errors.managed_khoa_id && <p className="text-red-500 text-[10px] mt-1 font-medium italic">{errors.managed_khoa_id}</p>}
                             </div>
                         )}
 

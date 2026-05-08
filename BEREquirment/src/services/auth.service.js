@@ -235,11 +235,18 @@ const loginAdmin = async ({ username, password }) => {
   }
   const account = await TaiKhoan.findOne({ 
     where: { username },
-    include: [{
-      model: db.GiangVien,
-      as: 'GiangVien', // Alias này phải khớp với model TaiKhoan đã định nghĩa
-      attributes: ['khoa_id']
-    }]
+    include: [
+      {
+        model: db.GiangVien,
+        as: 'GiangVien',
+        attributes: ['khoa_id']
+      },
+      {
+        model: db.Khoa,
+        as: 'KhoaQuanLy',
+        attributes: ['khoa_id']
+      }
+    ]
   });
   if (!account) {
     throw new Error('Username hoặc mật khẩu không chính xác.');
@@ -316,7 +323,7 @@ const loginAdmin = async ({ username, password }) => {
     role: account.vaitro,
     khoa_id:
       account.vaitro === 'lanhdao'
-        ? account.GiangVien?.khoa_id
+        ? (account.KhoaQuanLy?.khoa_id || account.GiangVien?.khoa_id || null)
         : account.vaitro === 'truongbomon'
           ? (truongBoMon?.khoa_id || null)
           : null,

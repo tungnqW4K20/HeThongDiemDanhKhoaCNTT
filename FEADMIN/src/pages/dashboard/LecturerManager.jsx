@@ -13,7 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 
 export default function LecturerManagerPage() {
     const { user } = useAuth();
-    const canManageLecturer = user?.vaitro !== 'truongbomon';
+    const canManageLecturer = user?.vaitro === 'admin';
     // --- STATE ---
     const [lecturers, setLecturers] = useState([]);
     const [faculties, setFaculties] = useState([]);
@@ -85,7 +85,7 @@ export default function LecturerManagerPage() {
             const res = await khoaService.getAll();
             const resData = res.data || res;
             if (Array.isArray(resData)) {
-                setFaculties(resData);
+                setFaculties(resData.filter(Boolean));
             } else if (resData && Array.isArray(resData.data)) {
                 setFaculties(resData.data.filter(Boolean));
             } else {
@@ -120,7 +120,7 @@ export default function LecturerManagerPage() {
     const filteredLecturers = useMemo(() => {
         return lecturers.filter(gv => {
             const searchLower = searchTerm.toLowerCase();
-            const khoaName = gv.Khoa ? gv.Khoa.ten_khoa : '';
+            const khoaName = gv.Khoa?.ten_khoa || gv.TaiKhoan?.KhoaQuanLy?.ten_khoa || '';
             const boMonId =
                 gv.bomon_id ||
                 gv.BoMon?.bomon_id ||
@@ -415,7 +415,7 @@ export default function LecturerManagerPage() {
                                     className="block w-full pl-10 pr-8 py-2 border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#3B5998] focus:border-[#3B5998] sm:text-sm appearance-none cursor-pointer hover:bg-gray-50 transition-colors"
                                 >
                                     <option value="all">Tất cả Khoa / Viện</option>
-                                    {faculties.map(khoa => (
+                                    {faculties.filter(Boolean).map(khoa => (
                                         <option key={khoa.khoa_id} value={khoa.ten_khoa}>
                                             {khoa.ten_khoa}
                                         </option>

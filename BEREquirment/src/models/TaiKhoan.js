@@ -19,6 +19,11 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'truong_bomon_id',
         as: 'DanhSachBoMonQuanLy'
       });
+      
+      TaiKhoan.hasOne(models.Khoa, {
+        foreignKey: 'lanh_dao_id',
+        as: 'KhoaQuanLy'
+      });
     }
   }
 

@@ -16,6 +16,11 @@ const getAllTaiKhoan = async () => {
                     model: db.BoMon,
                     as: 'DanhSachBoMonQuanLy',
                     attributes: ['bomon_id', 'ten_bomon']
+                },
+                {
+                    model: db.Khoa,
+                    as: 'KhoaQuanLy',
+                    attributes: ['khoa_id', 'ten_khoa']
                 }
             ],
             order: [['ngay_tao', 'DESC']]
@@ -68,6 +73,14 @@ const createTaiKhoan = async (data) => {
             await db.BoMon.update(
                 { truong_bomon_id: newAccount.taikhoan_id },
                 { where: { bomon_id: { [Op.in]: data.managed_bomon_ids } } }
+            );
+        }
+
+        // Nếu là lãnh đạo, cập nhật bảng Khoa
+        if (data.vaitro === 'lanhdao' && data.managed_khoa_id) {
+            await db.Khoa.update(
+                { lanh_dao_id: newAccount.taikhoan_id },
+                { where: { khoa_id: data.managed_khoa_id } }
             );
         }
 
@@ -131,11 +144,24 @@ const updateTaiKhoan = async (id, data) => {
             { where: { truong_bomon_id: id } }
         );
 
-        // BƯỚC 2: Gán liên kết mới nếu là trưởng bộ môn
+        // BƯỚC 2: Gán liên kết mới
         if (data.vaitro === 'truongbomon' && data.managed_bomon_ids && Array.isArray(data.managed_bomon_ids)) {
             await db.BoMon.update(
                 { truong_bomon_id: id },
                 { where: { bomon_id: { [Op.in]: data.managed_bomon_ids } } }
+            );
+        }
+
+        // Cập nhật quản lý khoa
+        await db.Khoa.update(
+            { lanh_dao_id: null },
+            { where: { lanh_dao_id: id } }
+        );
+
+        if (data.vaitro === 'lanhdao' && data.managed_khoa_id) {
+            await db.Khoa.update(
+                { lanh_dao_id: id },
+                { where: { khoa_id: data.managed_khoa_id } }
             );
         }
 

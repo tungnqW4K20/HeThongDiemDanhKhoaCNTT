@@ -27,6 +27,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'khoa_id',
         as: 'DanhSachBoMon'
       });
+      Khoa.belongsTo(models.TaiKhoan, {
+        foreignKey: 'lan_dao_id',
+        as: 'LanhDao'
+      });
     }
   }
 
@@ -55,6 +59,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.BOOLEAN,
         defaultValue: false, // Mặc định là chưa xóa
         allowNull: false
+      },
+      lanh_dao_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'TaiKhoan', key: 'taikhoan_id' }
       },
       
     },

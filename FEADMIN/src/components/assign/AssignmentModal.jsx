@@ -621,21 +621,29 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                     <label className="text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wide flex items-center justify-between">
                         Lịch học hàng tuần
                         <span className="text-xs font-normal text-gray-400 flex items-center gap-1">
-                            <Lock size={10} /> Tự động theo ngày
+                            {initialData ? (
+                                <><Lock size={10} /> Cố định khi sửa</>
+                            ) : (
+                                <><Calendar size={10} className="text-[#3B5998]" /> Chọn thứ trong tuần</>
+                            )}
                         </span>
                     </label>
                     <div className="grid grid-cols-7 gap-1">
                         {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
                             const isSelected = formData.thu === day;
+                            const isDisabled = !!initialData;
                             return (
                                 <button
                                     key={day}
                                     type="button"
-                                    disabled={true} // <-- DISABLE TOÀN BỘ NÚT
-                                    className={`py-2 text-xs font-bold rounded-md border transition-all shadow-sm cursor-default
+                                    disabled={isDisabled}
+                                    onClick={() => setFormData({ ...formData, thu: day })}
+                                    className={`py-2 text-xs font-bold rounded-md border transition-all shadow-sm
                                         ${isSelected
                                             ? 'bg-[#3B5998] text-white border-[#3B5998] ring-2 ring-offset-1 ring-[#3B5998]' 
-                                            : 'bg-gray-50 text-gray-300 border-gray-100' // Style cho nút không chọn
+                                            : isDisabled 
+                                                ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                                                : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50 hover:border-[#3B5998]/50'
                                         }`}
                                 >
                                     {day === 'Sun' ? 'CN' : `T${['Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(day) + 2}`}

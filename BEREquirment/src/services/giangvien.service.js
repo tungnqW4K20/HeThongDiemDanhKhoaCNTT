@@ -152,6 +152,11 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
                             model: db.BoMon,
                             as: 'DanhSachBoMonQuanLy',
                             attributes: ['bomon_id', 'ten_bomon']
+                        },
+                        {
+                            model: db.Khoa,
+                            as: 'KhoaQuanLy',
+                            attributes: ['khoa_id', 'ten_khoa']
                         }
                     ]
                 },
@@ -231,6 +236,11 @@ const getGiangVienById = async (giangvien_id) => {
                             model: db.BoMon,
                             as: 'DanhSachBoMonQuanLy',
                             attributes: ['bomon_id', 'ten_bomon']
+                        },
+                        {
+                            model: db.Khoa,
+                            as: 'KhoaQuanLy',
+                            attributes: ['khoa_id', 'ten_khoa']
                         }
                     ]
                 },

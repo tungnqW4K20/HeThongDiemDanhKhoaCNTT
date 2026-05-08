@@ -112,6 +112,98 @@ const buildBuoiHocList = ({ lophocphan_id, ngay_batdau, thuInt, so_tuan, gio_bat
 };
 
 /**
+ * Kiểm tra xung đột lịch trình (Conflict Detection)
+ * Thừa hưởng logic từ Proposal System
+ */
+const checkScheduleConflict = async ({ hocky_id, giangvien_id, phong, lop_hanhchinh_ids, buoiHocList, excludeLopHocPhanId = null }) => {
+  const Op = db.Sequelize.Op;
+  const dates = buoiHocList.map(b => b.ngay);
+  
+  // Lấy tất cả các buổi học trong các ngày dự kiến của học kỳ này
+  const sessions = await db.BuoiHoc.findAll({
+    where: {
+      ngay: { [Op.in]: dates },
+      trangthai: { [Op.ne]: 'cancelled' }
+    },
+    include: [{
+      model: db.LopHocPhan,
+      as: 'LopHocPhan',
+      where: {
+        hocky_id,
+        ...(excludeLopHocPhanId && { lophocphan_id: { [Op.ne]: excludeLopHocPhanId } })
+      },
+      include: [
+        { model: db.GiangVien, attributes: ['ho', 'ten', 'ma_gv'] },
+        { model: db.MonHoc, attributes: ['ten_mon', 'ma_mon'] },
+        {
+          model: db.LopHanhChinh,
+          as: 'DanhSachLopHanhChinh',
+          attributes: ['lop_hanhchinh_id', 'ten_lop'],
+          through: { attributes: [] }
+        }
+      ]
+    }]
+  });
+
+  for (const newSession of buoiHocList) {
+    const potentialConflicts = sessions.filter(s => s.ngay === newSession.ngay);
+    const newTietBD = Number(newSession.tiet_bat_dau);
+    const newTietKT = Number(newSession.tiet_bat_dau) + Number(newSession.so_tiet) - 1;
+
+    for (const existing of potentialConflicts) {
+      const exTietBD = Number(existing.tiet_bat_dau);
+      const exTietKT = Number(existing.tiet_bat_dau) + Number(existing.so_tiet) - 1;
+      
+      // Kiểm tra giao thoa tiết học
+      const isOverlapping = newTietBD <= exTietKT && exTietBD <= newTietKT;
+
+      if (isOverlapping) {
+        const lhp = existing.LopHocPhan;
+        const gv = lhp.GiangVien;
+        const mon = lhp.MonHoc;
+        const existingLopNames = lhp.DanhSachLopHanhChinh.map(l => l.ten_lop).join(', ');
+        const existingLopIds = lhp.DanhSachLopHanhChinh.map(l => l.lop_hanhchinh_id);
+
+        const commonLops = lop_hanhchinh_ids.filter(id => existingLopIds.includes(id));
+
+        // 1. Kiểm tra trùng Giảng viên
+        const existingGVId = existing.giangvien_day_thay_id || lhp.giangvien_id;
+        if (giangvien_id && existingGVId === giangvien_id) {
+          return {
+            conflict: true,
+            message: `Xung đột Giảng viên: ${gv.ho} ${gv.ten} đã có lịch dạy môn "${mon.ten_mon}" (${existingLopNames}) vào tiết ${exTietBD}-${exTietKT} ngày ${newSession.ngay}.`,
+            detail: { type: 'lecturer', conflictSession: existing }
+          };
+        }
+
+        // 2. Kiểm tra trùng Phòng
+        if (phong && existing.phong === phong) {
+          return {
+            conflict: true,
+            message: `Xung đột Phòng: Phòng ${phong} đã bận bởi môn "${mon.ten_mon}" (${existingLopNames}) vào tiết ${exTietBD}-${exTietKT} ngày ${newSession.ngay}.`,
+            detail: { type: 'room', conflictSession: existing }
+          };
+        }
+
+        // 3. Kiểm tra trùng Lớp hành chính
+        if (commonLops.length > 0) {
+          const conflictLopNames = lhp.DanhSachLopHanhChinh
+            .filter(l => commonLops.includes(l.lop_hanhchinh_id))
+            .map(l => l.ten_lop)
+            .join(', ');
+          return {
+            conflict: true,
+            message: `Xung đột Lớp học: Lớp ${conflictLopNames} đã có lịch học môn "${mon.ten_mon}" vào tiết ${exTietBD}-${exTietKT} ngày ${newSession.ngay}.`,
+            detail: { type: 'class', conflictSession: existing }
+          };
+        }
+      }
+    }
+  }
+  return { conflict: false };
+};
+
+/**
  * Tạo phân công và tự động sinh buổi học
  * POST /api/phan-cong-auto/create
  * Body: {
@@ -1041,6 +1133,24 @@ const taoLopHocPhanVaBuoiHoc = async (req, res) => {
       phong
     });
 
+    // 6. Kiểm tra xung đột lịch trình trước khi lưu
+    const conflictCheck = await checkScheduleConflict({
+      hocky_id,
+      giangvien_id,
+      phong,
+      lop_hanhchinh_ids,
+      buoiHocList: buoiList
+    });
+
+    if (conflictCheck.conflict) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        message: conflictCheck.message,
+        detail: conflictCheck.detail
+      });
+    }
+
     await db.BuoiHoc.bulkCreate(buoiList, { transaction });
 
     await transaction.commit();
@@ -1141,6 +1251,37 @@ const capNhatLichDayThuCong = async (req, res) => {
     const ten_lop_ghep = dsLHC.map((l) => l.ten_lop).join('_');
     const ten_lophocphan = monHoc.ten_mon || `${monHoc.ma_mon}_${ten_lop_ghep}`;
     const ma_lop = dsLHC.map((l) => l.ten_lop).join(' ');
+
+    // === KIỂM TRA XUNG ĐỘT TRƯỚC KHI CẬP NHẬT ===
+    const mockBuoiList = buildBuoiHocList({
+      lophocphan_id,
+      ngay_batdau,
+      thuInt,
+      so_tuan: parsedSoTuan,
+      gio_batdau: startTime,
+      gio_ketthuc: endTime,
+      tiet_bat_dau: parsedTietBatDau,
+      so_tiet: parsedSoTiet,
+      phong
+    });
+
+    const conflictCheck = await checkScheduleConflict({
+      hocky_id,
+      giangvien_id,
+      phong,
+      lop_hanhchinh_ids,
+      buoiHocList: mockBuoiList,
+      excludeLopHocPhanId: lophocphan_id // Loại trừ chính lớp đang sửa
+    });
+
+    if (conflictCheck.conflict) {
+      await transaction.rollback();
+      return res.status(409).json({
+        success: false,
+        message: conflictCheck.message,
+        detail: conflictCheck.detail
+      });
+    }
 
     await db.LopHocPhan.update({
       monhoc_id,

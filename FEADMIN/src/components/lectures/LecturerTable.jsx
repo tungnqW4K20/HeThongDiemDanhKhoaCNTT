@@ -90,8 +90,8 @@ const LecturerTable = ({
           valA = `${(a.ten || '').toLowerCase()}${(a.ho || '').toLowerCase()}`;
           valB = `${(b.ten || '').toLowerCase()}${(b.ho || '').toLowerCase()}`;
         } else if (sortConfig.key === 'khoa') {
-          valA = (a.Khoa?.ten_khoa || '').toLowerCase();
-          valB = (b.Khoa?.ten_khoa || '').toLowerCase();
+          valA = (a.Khoa?.ten_khoa || a.TaiKhoan?.KhoaQuanLy?.ten_khoa || '').toLowerCase();
+          valB = (b.Khoa?.ten_khoa || b.TaiKhoan?.KhoaQuanLy?.ten_khoa || '').toLowerCase();
         } else {
           valA = (a[sortConfig.key] || '').toString().toLowerCase();
           valB = (b[sortConfig.key] || '').toString().toLowerCase();
@@ -227,11 +227,21 @@ const LecturerTable = ({
                     </td>
 
                     <td className="px-4 py-3 align-middle">
-                      <div className="flex items-center gap-2 text-sm text-gray-700">
-                        <Building2 size={15} className="text-gray-400 shrink-0" />
-                        <span className="truncate max-w-[180px]" title={gv.Khoa?.ten_khoa}>
-                          {gv.Khoa?.ten_khoa || 'Chưa phân công Khoa'}
-                        </span>
+                      <div className="flex flex-col gap-1.5">
+                        {/* Badge Lãnh đạo khoa */}
+                        {gv.TaiKhoan?.vaitro === 'lanhdao' && (
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-600 border border-purple-100 uppercase tracking-wider">
+                              Lãnh đạo khoa
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                          <Building2 size={15} className="text-gray-400 shrink-0" />
+                          <span className="truncate max-w-[180px]" title={gv.Khoa?.ten_khoa || gv.TaiKhoan?.KhoaQuanLy?.ten_khoa}>
+                            {gv.Khoa?.ten_khoa || gv.TaiKhoan?.KhoaQuanLy?.ten_khoa || 'Chưa phân công Khoa'}
+                          </span>
+                        </div>
                       </div>
                     </td>
 

@@ -26,6 +26,7 @@ const TaiKhoanManager = () => {
     const [accounts, setAccounts] = useState([]);
     const [lecturers, setLecturers] = useState([]);
     const [boMons, setBoMons] = useState([]);
+    const [faculties, setFaculties] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     
     // Filters state
@@ -44,10 +45,11 @@ const TaiKhoanManager = () => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [accRes, gvRes, bmRes] = await Promise.all([
+            const [accRes, gvRes, bmRes, kRes] = await Promise.all([
                 taiKhoanService.getAll(),
                 giangVienService.getAll(),
-                khoaService.getAllBoMon()
+                khoaService.getAllBoMon(),
+                khoaService.getAll()
             ]);
             
             if (accRes.errCode === 0) setAccounts(accRes.data);
@@ -57,6 +59,12 @@ const TaiKhoanManager = () => {
             const bmData = bmRes.data?.data || bmRes.data || bmRes;
             if (Array.isArray(bmData)) {
                 setBoMons(bmData);
+            }
+
+            // Handle Khoa response
+            const kData = kRes.data?.data || kRes.data || kRes;
+            if (Array.isArray(kData)) {
+                setFaculties(kData);
             }
         } catch (error) {
             console.error("Fetch data error:", error);
@@ -271,7 +279,7 @@ const TaiKhoanManager = () => {
                                 <tr>
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20">Tài khoản</th>
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20 text-center">Vai trò</th>
-                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20">Bộ môn quản lý</th>
+                                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20">Đơn vị quản lý</th>
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20">Liên kết nhân sự</th>
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20">Ngày tạo</th>
                                     <th className="px-6 py-4 text-xs font-bold uppercase tracking-wide text-[#3B5998] border-b border-[#3B5998]/20 text-center">Thao tác</th>
@@ -330,6 +338,10 @@ const TaiKhoanManager = () => {
                                                         <span className="text-gray-400 italic text-[11px]">Chưa phân bộ môn</span>
                                                     )}
                                                 </div>
+                                            ) : acc.vaitro === 'lanhdao' ? (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                                                    {acc.KhoaQuanLy?.ten_khoa || 'Chưa phân khoa'}
+                                                </span>
                                             ) : (
                                                 <span className="text-gray-300 text-xs">—</span>
                                             )}
@@ -401,6 +413,7 @@ const TaiKhoanManager = () => {
                 initialData={currentAccount}
                 lecturers={lecturers}
                 boMons={boMons}
+                faculties={faculties}
             />
 
             <DeleteConfirmModal
