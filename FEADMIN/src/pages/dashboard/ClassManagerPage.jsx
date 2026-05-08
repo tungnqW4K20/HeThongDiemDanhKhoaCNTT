@@ -3,11 +3,13 @@ import { Upload } from 'lucide-react';
 import classService from '../../service/classService';
 import cosoService from '../../service/cosoService';
 import khoaService from '../../service/khoaService';
+import { useAuth } from '../../hooks/useAuth';
 import ClassListView from '../../components/class/ClassListView';
 import ClassDetailView from '../../components/class/ClassDetailView';
 import ImportClassModal from '../../components/class/ImportClassModal';
 
 export default function ClassManagerPage() {
+  const { user } = useAuth();
   const [selectedClass, setSelectedClass] = useState(null);
   const [classesData, setClassesData] = useState([]);
   const [campusOptions, setCampusOptions] = useState([]);
@@ -21,7 +23,11 @@ export default function ClassManagerPage() {
   const fetchClasses = async () => {
     setLoading(true);
     try {
-      const res = await classService.getAll();
+      const params = {};
+      if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+        params.khoa_id = user.khoa_id;
+      }
+      const res = await classService.getAll(params);
       const responseBody = res.data; 
       const listClasses = responseBody && responseBody.data ? responseBody.data : [];
 
@@ -44,6 +50,7 @@ export default function ClassManagerPage() {
           count: item.si_so || 0,
           status: 'Active'
         }));
+        
         setClassesData(formattedData);
       } else {
         setClassesData([]);
@@ -59,7 +66,7 @@ export default function ClassManagerPage() {
   useEffect(() => {
     fetchClasses();
     fetchFilterOptions();
-  }, []);
+  }, [user]);
 
   const fetchFilterOptions = async () => {
     try {
@@ -79,10 +86,13 @@ export default function ClassManagerPage() {
           : []
       );
 
+      let kList = Array.isArray(khoaList) ? khoaList : [];
+      if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+        kList = kList.filter(k => k.khoa_id === user.khoa_id);
+      }
+
       setDepartmentOptions(
-        Array.isArray(khoaList)
-          ? khoaList.map((item) => item.ten_khoa).filter(Boolean)
-          : []
+        kList.map((item) => item.ten_khoa).filter(Boolean)
       );
 
       setMajorOptions(
@@ -155,6 +165,7 @@ export default function ClassManagerPage() {
                     campusOptions={campusOptions}
                     departmentOptions={departmentOptions}
                     majorOptions={majorOptions}
+                    canEdit={user?.vaitro !== 'lanhdao'}
                     onSelect={setSelectedClass}
                     onAddClass={handleCreateClass}
                     onImportClick={() => setIsImportModalOpen(true)}
@@ -163,6 +174,7 @@ export default function ClassManagerPage() {
             ) : (
                 <ClassDetailView 
                   classInfo={selectedClass} 
+                  canEdit={user?.vaitro !== 'lanhdao'}
                   onBack={() => setSelectedClass(null)} 
                 />
             )}

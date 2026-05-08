@@ -18,7 +18,7 @@ import cosoService from '../../service/cosoService';
 import giangVienService from '../../service/giangVienService';
 import SearchableSelect from '../common/SearchableSelect';
 
-const ClassDetailView = ({ classInfo, onBack }) => {
+const ClassDetailView = ({ classInfo, onBack, canEdit = true }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [studentsList, setStudentsList] = useState([]); 
   const [classMeta, setClassMeta] = useState(classInfo || {});
@@ -497,24 +497,28 @@ const ClassDetailView = ({ classInfo, onBack }) => {
           Quay lại danh sách
         </button>
         <div className="flex gap-3">
-          <button
-            onClick={openEditClassModal}
-            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 flex items-center gap-2"
-          >
-            <Edit2 size={16}/> Sửa thông tin lớp
-          </button>
-            <button 
-                onClick={() => setImportModalOpen(true)}
-                className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
-            >
-                <Upload size={16}/> Import Excel
-            </button>
-            <button 
-                onClick={() => setAddModalOpen(true)}
-                className="px-4 py-2 bg-[#3B5998] text-white text-sm font-medium rounded-lg hover:bg-[#2e4676] flex items-center gap-2 transition-colors shadow-sm"
-            >
-                <Plus size={16}/> Thêm sinh viên
-            </button>
+          {canEdit && (
+            <>
+              <button
+                onClick={openEditClassModal}
+                className="px-4 py-2 bg-white border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 flex items-center gap-2"
+              >
+                <Edit2 size={16}/> Sửa thông tin lớp
+              </button>
+                <button 
+                    onClick={() => setImportModalOpen(true)}
+                    className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
+                >
+                    <Upload size={16}/> Import Excel
+                </button>
+                <button 
+                    onClick={() => setAddModalOpen(true)}
+                    className="px-4 py-2 bg-[#3B5998] text-white text-sm font-medium rounded-lg hover:bg-[#2e4676] flex items-center gap-2 transition-colors shadow-sm"
+                >
+                    <Plus size={16}/> Thêm sinh viên
+                </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -623,13 +627,13 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                 <th className="px-6 py-3 font-bold text-[#3B5998] text-xs uppercase tracking-wider w-[20%]">Liên hệ</th>
                 <th className="px-6 py-3 font-bold text-[#3B5998] text-xs uppercase tracking-wider w-[15%]">Ngày sinh</th>
                 <th className="px-6 py-3 font-bold text-[#3B5998] text-xs uppercase tracking-wider w-[10%]">Trạng thái</th>
-                <th className="px-6 py-3 font-bold text-[#3B5998] text-xs uppercase tracking-wider w-[15%] text-center">Chức năng</th>
+                {canEdit && <th className="px-6 py-3 font-bold text-[#3B5998] text-xs uppercase tracking-wider w-[15%] text-center">Chức năng</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 text-sm">
               {loading ? (
                 <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center">
+                    <td colSpan={canEdit ? 6 : 5} className="px-6 py-8 text-center">
                         <div className="flex justify-center items-center gap-2 text-gray-500">
                              <Loader2 className="animate-spin" size={20} /> Đang tải dữ liệu...
                         </div>
@@ -665,29 +669,31 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                           {sv.trang_thai || 'Đang học'}
                       </Badge>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <button 
-                          onClick={() => handleEditClick(sv)}
-                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Sửa thông tin"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => handleDeleteClick(sv)}
-                          className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Xóa sinh viên"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+                    {canEdit && (
+                      <td className="px-6 py-4">
+                        <div className="flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => handleEditClick(sv)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Sửa thông tin"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteClick(sv)}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Xóa sinh viên"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="px-6 py-8 text-center text-gray-500 italic">
+                  <td colSpan={canEdit ? 6 : 5} className="px-6 py-8 text-center text-gray-500 italic">
                     Lớp chưa có sinh viên nào hoặc không tìm thấy kết quả.
                   </td>
                 </tr>

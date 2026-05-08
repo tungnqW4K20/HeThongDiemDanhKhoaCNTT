@@ -436,8 +436,25 @@ const buildMonHocScopeWhere = (target_khoa_id = null, target_chuyennganh_id = nu
 
 const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, target_chuyennganh_id = null) => {
   try {
-    // Điều kiện lọc cho bảng Môn Học
-    const monHocWhere = buildMonHocScopeWhere(target_khoa_id, target_chuyennganh_id);
+    const lhpWhere = { hocky_id };
+    
+    // Áp dụng scoping tương tự như LopHocPhan
+    if (target_khoa_id) {
+        if (target_chuyennganh_id) {
+            // Role Trưởng bộ môn: Lọc theo bộ môn của môn học
+            lhpWhere[Op.or] = [
+                { '$LopHocPhan.MonHoc.bomon_id$': target_chuyennganh_id },
+                { '$LopHocPhan.MonHoc.chuyennganh_id$': target_chuyennganh_id }
+            ];
+        } else {
+            // Role Lãnh đạo khoa: Lọc theo khoa của môn học HOẶC lớp hành chính thuộc khoa
+            lhpWhere[Op.or] = [
+                { '$LopHocPhan.MonHoc.khoa_id$': target_khoa_id },
+                { '$LopHocPhan.MonHoc.BoMon.khoa_id$': target_khoa_id },
+                { '$LopHocPhan.DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
+            ];
+        }
+    }
 
     const rows = await db.BuoiHoc.findAll({
       attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong'],
@@ -452,8 +469,7 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
             {
               model: db.MonHoc,
               attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
-              where: monHocWhere, // LỌC KHOA TẠI ĐÂY
-              required: Object.keys(monHocWhere).length > 0
+              include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
             },
             {
               model: db.GiangVien,
@@ -462,7 +478,7 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
             {
               model: db.LopHanhChinh,
               as: 'DanhSachLopHanhChinh',
-              attributes: ['lop_hanhchinh_id', 'ten_lop'],
+              attributes: ['lop_hanhchinh_id', 'ten_lop', 'khoa_id'],
               through: { attributes: [] },
               required: false
             }
@@ -474,13 +490,36 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
           attributes: ['ho', 'ten']
         }
       ],
-      where: keyword ? {
-        [Op.or]: [
-          { '$LopHocPhan.MonHoc.ten_mon$': { [Op.like]: `%${keyword}%` } },
-          { '$LopHocPhan.GiangVien.ten$': { [Op.like]: `%${keyword}%` } },
-          { ghi_chu: { [Op.like]: `%${keyword}%` } }
+      where: {
+        [Op.and]: [
+            // Lọc theo từ khóa nếu có
+            keyword ? {
+                [Op.or]: [
+                    { '$LopHocPhan.MonHoc.ten_mon$': { [Op.like]: `%${keyword}%` } },
+                    { '$LopHocPhan.GiangVien.ten$': { [Op.like]: `%${keyword}%` } },
+                    { ghi_chu: { [Op.like]: `%${keyword}%` } }
+                ]
+            } : {},
+            // Lọc theo Scope Khoa/Bộ môn
+            target_khoa_id ? (
+                target_chuyennganh_id 
+                ? {
+                    [Op.or]: [
+                        { '$LopHocPhan.MonHoc.bomon_id$': target_chuyennganh_id },
+                        { '$LopHocPhan.MonHoc.chuyennganh_id$': target_chuyennganh_id }
+                    ]
+                }
+                : {
+                    [Op.or]: [
+                        { '$LopHocPhan.MonHoc.khoa_id$': target_khoa_id },
+                        { '$LopHocPhan.MonHoc.BoMon.khoa_id$': target_khoa_id },
+                        { '$LopHocPhan.DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
+                    ]
+                }
+            ) : {}
         ]
-      } : {},
+      },
+      subQuery: false,
       order: [['ngay', 'ASC'], ['tiet_bat_dau', 'ASC']]
     });
 
@@ -524,8 +563,44 @@ const getLichChiTiet = async ({
     const offset = (_page - 1) * _limit;
 
     // 3. Query
+    const lhpWhere = hocky_id ? { hocky_id } : {};
+    if (target_khoa_id) {
+        if (target_chuyennganh_id) {
+            lhpWhere[Op.or] = [
+                { '$LopHocPhan.MonHoc.bomon_id$': target_chuyennganh_id },
+                { '$LopHocPhan.MonHoc.chuyennganh_id$': target_chuyennganh_id }
+            ];
+        } else {
+            lhpWhere[Op.or] = [
+                { '$LopHocPhan.MonHoc.khoa_id$': target_khoa_id },
+                { '$LopHocPhan.MonHoc.BoMon.khoa_id$': target_khoa_id },
+                { '$LopHocPhan.DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
+            ];
+        }
+    }
+
     const { count, rows } = await db.BuoiHoc.findAndCountAll({
-      where: whereCondition,
+      where: {
+        [Op.and]: [
+            whereCondition,
+            target_khoa_id ? (
+                target_chuyennganh_id 
+                ? {
+                    [Op.or]: [
+                        { '$LopHocPhan.MonHoc.bomon_id$': target_chuyennganh_id },
+                        { '$LopHocPhan.MonHoc.chuyennganh_id$': target_chuyennganh_id }
+                    ]
+                }
+                : {
+                    [Op.or]: [
+                        { '$LopHocPhan.MonHoc.khoa_id$': target_khoa_id },
+                        { '$LopHocPhan.MonHoc.BoMon.khoa_id$': target_khoa_id },
+                        { '$LopHocPhan.DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
+                    ]
+                }
+            ) : {}
+        ]
+      },
       limit: _limit,
       offset: offset,
       order: [
@@ -533,19 +608,19 @@ const getLichChiTiet = async ({
         ['batdau', 'ASC']
       ],
       distinct: true, // Quan trọng để đếm đúng khi có include
+      subQuery: false,
       include: [
         {
           model: db.LopHocPhan,
           as: 'LopHocPhan',
-          where: hocky_id ? { hocky_id } : undefined, // Lọc học kỳ tại đây
+          where: hocky_id ? { hocky_id } : {}, // Lọc theo học kỳ tại đây
           // 🔥 TỐI ƯU: Chỉ lấy cột cần thiết
           attributes: ['lophocphan_id', 'ten_lophocphan', 'gio_batdau', 'gio_ketthuc', 'phong', 'thu'],
           include: [
             {
               model: db.MonHoc,
-              attributes: ['ten_mon', 'ma_mon'], // Chỉ lấy tên và mã
-              where: hasMonHocScope ? monHocWhere : undefined,
-              required: hasMonHocScope
+              attributes: ['ten_mon', 'ma_mon', 'khoa_id'], // Chỉ lấy tên và mã
+              include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
             },
             {
               model: db.GiangVien,
@@ -555,7 +630,7 @@ const getLichChiTiet = async ({
             {
               model: db.LopHanhChinh,
               as: 'DanhSachLopHanhChinh',
-              attributes: ['ten_lop'],
+              attributes: ['ten_lop', 'khoa_id'],
               through: { attributes: [] } // Bỏ qua bảng trung gian
             }
           ]

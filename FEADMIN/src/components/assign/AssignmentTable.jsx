@@ -39,7 +39,9 @@ const AssignmentTable = ({ assignments, onEdit, onDelete, onViewAttendance, canV
                     <th className="px-6 py-4 text-left text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[30%]">Môn học / Lớp</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[25%]">Giảng viên</th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[20%]">Thời gian / Phòng</th>
-                    <th className="px-6 py-4 text-center text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[15%]">Thao tác</th>
+                    {user?.vaitro === 'admin' && (
+                        <th className="px-6 py-4 text-center text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[15%]">Thao tác</th>
+                    )}
                 </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
@@ -119,25 +121,23 @@ const AssignmentTable = ({ assignments, onEdit, onDelete, onViewAttendance, canV
                             </td>
 
                             {/* Cột Thao tác */}
-                            <td className="px-6 py-4 text-center">
-                                <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    {user?.vaitro !== 'truongbomon' && (
-                                        <>
-                                            <button onClick={() => onEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg">
-                                                <Edit2 size={16} />
-                                            </button>
-                                            <button onClick={() => onDelete(item)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg">
-                                                <Trash2 size={16} />
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-                            </td>
+                            {user?.vaitro === 'admin' && (
+                                <td className="px-6 py-4 text-center">
+                                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => onEdit(item)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-lg">
+                                            <Edit2 size={16} />
+                                        </button>
+                                        <button onClick={() => onDelete(item)} className="p-1.5 text-red-600 hover:bg-red-100 rounded-lg">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </td>
+                            )}
                         </tr>
                     ))
                 ) : (
                     <tr>
-                        <td colSpan="5" className="px-6 py-20 text-center">
+                        <td colSpan={user?.vaitro === 'admin' ? "5" : "4"} className="px-6 py-20 text-center">
                              <div className="flex flex-col items-center text-gray-400">
                                 <BookOpen size={48} strokeWidth={1} className="mb-2" />
                                 <p className="text-base font-medium">Tuần này không có lịch học</p>

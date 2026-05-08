@@ -8,7 +8,8 @@ const resolveScopeForPartClass = async (user = {}) => {
   if (role !== 'truongbomon') {
     return {
       targetKhoaId: role === 'lanhdao' ? (khoa_id || null) : null,
-      targetChuyenNganhId: null
+      targetChuyenNganhId: null,
+      userGiangVienId: user.giangvien_id || null
     };
   }
 
@@ -22,7 +23,8 @@ const resolveScopeForPartClass = async (user = {}) => {
 
   return {
     targetKhoaId: boMon?.khoa_id || khoa_id || null,
-    targetChuyenNganhId: boMon?.bomon_id || chuyennganh_id || null
+    targetChuyenNganhId: boMon?.bomon_id || chuyennganh_id || null,
+    userGiangVienId: user.giangvien_id || null
   };
 };
 
@@ -51,32 +53,11 @@ const getStudentsByLopHocPhan = async (req, res) => {
   }
 };
 
-
-// const getAll = async (req, res) => {
-//     try {
-//         const query = req.query;
-//         const result = await lopHocPhanService.getAllLopHocPhan(query);
-
-//         return res.status(200).json({
-//             success: true,
-//             message: 'Lấy danh sách lớp học phần thành công',
-//             data: result.data
-//         });
-//     } catch (error) {
-//         console.error('Controller Error:', error);
-//         return res.status(500).json({
-//             success: false,
-//             message: 'Lỗi server',
-//             error: error.message
-//         });
-//     }
-// };
 const getAll = async (req, res) => {
     try {
         const { hocky_id } = req.query;
-        const { targetKhoaId, targetChuyenNganhId } = await resolveScopeForPartClass(req.user || {});
+        const { targetKhoaId, targetChuyenNganhId, userGiangVienId } = await resolveScopeForPartClass(req.user || {});
 
-        // Bắt buộc phải có học kỳ mới lấy được lớp học phần
         if (!hocky_id) {
             return res.status(400).json({
                 success: false,
@@ -84,7 +65,7 @@ const getAll = async (req, res) => {
             });
         }
 
-        const result = await lopHocPhanService.getAllLopHocPhan(req.query, targetKhoaId, targetChuyenNganhId);
+        const result = await lopHocPhanService.getAllLopHocPhan(req.query, targetKhoaId, targetChuyenNganhId, userGiangVienId);
 
         return res.status(200).json({
             success: true,

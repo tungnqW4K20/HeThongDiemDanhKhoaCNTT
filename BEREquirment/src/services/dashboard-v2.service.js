@@ -18,7 +18,13 @@ const buildMonHocScopeWhere = (scope = {}, boMonId = null) => {
     const targetChuyenNganhId = scope.role === 'truongbomon' ? scope.chuyennganh_id : null;
 
     if (targetKhoaId && !targetChuyenNganhId) {
-        monHocWhere.khoa_id = targetKhoaId;
+        // Lãnh đạo khoa: Lọc theo khoa_id của môn học HOẶC khoa_id của bộ môn (sẽ được xử lý ở include BoMon)
+        // Lưu ý: Ở đây ta chỉ set khoa_id cho MonHoc, phần OR BoMon.khoa_id sẽ xử lý bằng $path$ ở main where nếu cần.
+        // Tuy nhiên, để đơn giản và tương thích với cấu trúc hiện tại của service này:
+        monHocWhere[Op.or] = [
+            { khoa_id: targetKhoaId },
+            { '$BoMon.khoa_id$': targetKhoaId }
+        ];
     }
 
     if (targetChuyenNganhId) {
@@ -26,17 +32,6 @@ const buildMonHocScopeWhere = (scope = {}, boMonId = null) => {
             { bomon_id: targetChuyenNganhId },
             { chuyennganh_id: targetChuyenNganhId }
         ];
-
-        if (targetKhoaId) {
-            monHocWhere[Op.and] = [
-                {
-                    [Op.or]: [
-                        { khoa_id: targetKhoaId },
-                        { khoa_id: null }
-                    ]
-                }
-            ];
-        }
     }
 
     // Nếu front-end truyền lên 1 boMonId cụ thể (từ filter)
@@ -50,8 +45,15 @@ const buildMonHocScopeWhere = (scope = {}, boMonId = null) => {
 
         if (monHocWhere[Op.and]) {
             monHocWhere[Op.and].push(selectedBoMonFilter);
+        } else if (Object.keys(monHocWhere).length > 0) {
+             const existingOr = monHocWhere[Op.or];
+             delete monHocWhere[Op.or];
+             monHocWhere[Op.and] = [
+                 { [Op.or]: existingOr },
+                 selectedBoMonFilter
+             ];
         } else {
-            monHocWhere[Op.and] = [selectedBoMonFilter];
+            monHocWhere[Op.or] = selectedBoMonFilter[Op.or];
         }
     }
 
@@ -105,21 +107,36 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
     if (!targetId) return { success: true, data: [] };
 
     const monHocWhere = buildMonHocScopeWhere(scope, bomon_id || null);
+    const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
 
     const data = await db.LopHocPhan.findAll({
-        where: { hocky_id: targetId },
+        where: { 
+            [Op.and]: [
+                { hocky_id: targetId },
+                // Nếu là lãnh đạo khoa, hỗ trợ xem thêm nếu có lớp hành chính thuộc khoa học môn khoa khác
+                (scope.role === 'lanhdao' && targetKhoaId) ? {
+                    [Op.or]: [
+                        { '$MonHoc.khoa_id$': targetKhoaId },
+                        { '$MonHoc.BoMon.khoa_id$': targetKhoaId },
+                        { '$DanhSachLopHanhChinh.khoa_id$': targetKhoaId }
+                    ]
+                } : {}
+            ]
+        },
         attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'loai_hoc_phan'],
+        subQuery: false,
         include: [
             {
                 model: db.MonHoc,
                 attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
-                where: hasWhereConditions(monHocWhere) ? monHocWhere : undefined,
-                required: hasWhereConditions(monHocWhere)
+                where: (scope.role === 'truongbomon' || (bomon_id && bomon_id !== 'all')) ? monHocWhere : undefined,
+                required: (scope.role === 'truongbomon' || (bomon_id && bomon_id !== 'all')),
+                include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
             },
             {
                 model: db.LopHanhChinh,
                 as: 'DanhSachLopHanhChinh',
-                attributes: ['lop_hanhchinh_id', 'chuyennganh_id'],
+                attributes: ['lop_hanhchinh_id', 'chuyennganh_id', 'khoa_id'],
                 through: { attributes: [] },
                 required: false
             },
@@ -184,8 +201,9 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
             {
                 model: db.MonHoc,
                 attributes: ['monhoc_id', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
-                where: hasWhereConditions(monHocWhere) ? monHocWhere : undefined,
-                required: hasWhereConditions(monHocWhere)
+                where: scope.role === 'truongbomon' ? monHocWhere : undefined,
+                required: scope.role === 'truongbomon',
+                include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
             },
             {
                 model: db.GiangVien,
@@ -194,7 +212,7 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
             {
                 model: db.LopHanhChinh,
                 as: 'DanhSachLopHanhChinh',
-                attributes: ['ten_lop'],
+                attributes: ['ten_lop', 'khoa_id'],
                 through: { attributes: [] },
                 required: false
             }
@@ -297,8 +315,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
     });
 
     const monHocWhere = buildMonHocScopeWhere(scope, bomon_id || null);
-    const lopHocPhanWhere = {};
-    if (hocky_id) lopHocPhanWhere.hocky_id = hocky_id;
+    const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
 
     const buoiHocDateFilter = hasRange
         ? { [Op.between]: [startDate, endDate] }
@@ -306,23 +323,35 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
 
     const dailyBuoiHoc = await db.BuoiHoc.findAll({
         where: {
-            ngay: buoiHocDateFilter,
-            trangthai: { [Op.ne]: 'cancelled' }
+            [Op.and]: [
+                { ngay: buoiHocDateFilter },
+                { trangthai: { [Op.ne]: 'cancelled' } },
+                // Lãnh đạo khoa: Lọc theo khoa của môn học HOẶC lớp hành chính thuộc khoa
+                (scope.role === 'lanhdao' && targetKhoaId) ? {
+                    [Op.or]: [
+                        { '$LopHocPhan.MonHoc.khoa_id$': targetKhoaId },
+                        { '$LopHocPhan.MonHoc.BoMon.khoa_id$': targetKhoaId },
+                        { '$LopHocPhan.DanhSachLopHanhChinh.khoa_id$': targetKhoaId }
+                    ]
+                } : {}
+            ]
         },
         attributes: ['buoi_id', 'lophocphan_id', 'ngay', 'trangthai', 'tiet_bat_dau', 'so_tiet', 'phong'],
+        subQuery: false,
         include: [
             {
                 model: db.LopHocPhan,
                 as: 'LopHocPhan',
                 required: true,
-                where: lopHocPhanWhere,
+                where: hocky_id ? { hocky_id } : {},
                 attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'hocky_id', 'giangvien_id', 'tuan_hoc'],
                 include: [
                     {
                         model: db.MonHoc,
                         attributes: ['monhoc_id', 'bomon_id', 'chuyennganh_id', 'khoa_id'],
-                        where: hasWhereConditions(monHocWhere) ? monHocWhere : undefined,
-                        required: hasWhereConditions(monHocWhere)
+                        where: (scope.role === 'truongbomon' || (bomon_id && bomon_id !== 'all')) ? monHocWhere : undefined,
+                        required: (scope.role === 'truongbomon' || (bomon_id && bomon_id !== 'all')),
+                        include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
                     },
                     {
                         model: db.GiangVien,
@@ -331,7 +360,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                     {
                         model: db.LopHanhChinh,
                         as: 'DanhSachLopHanhChinh',
-                        attributes: ['ten_lop'],
+                        attributes: ['ten_lop', 'khoa_id'],
                         through: { attributes: [] },
                         required: false
                     }

@@ -7,6 +7,7 @@ import ClassDetailView from '../../components/partclass/ClassDetailView';
 import hocPhanService from '../../service/lophocphanService';
 import hocKyService from '../../service/hockyService';
 import khoaService from '../../service/khoaService';
+import { useAuth } from '../../hooks/useAuth';
 
 // Components
 
@@ -78,6 +79,7 @@ const parseWeekList = (rawWeeks) => {
 
 
 const PartClassManagement = () => {
+  const { user } = useAuth();
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
   const [classList, setClassList] = useState([]);
@@ -129,6 +131,7 @@ const PartClassManagement = () => {
           facultyName: item.MonHoc?.Khoa?.ten_khoa || '',
           departmentId: item.MonHoc?.BoMon?.bomon_id || item.MonHoc?.chuyennganh_id || item.MonHoc?.bomon_id || null,
           departmentName: item.MonHoc?.BoMon?.ten_bomon || '',
+          khoaId: item.MonHoc?.khoa_id || item.MonHoc?.Khoa?.khoa_id || item.MonHoc?.BoMon?.khoa_id,
           
           // Lớp hành chính (Mảng tên các lớp)
           adminClasses: item.DanhSachLopHanhChinh?.map(lop => lop.ten_lop) || [],
@@ -143,6 +146,7 @@ const PartClassManagement = () => {
           dayOfWeek: item.thu || 'TBD',
           room: item.phong || 'P.000',
         }));
+
         setClassList(mapped);
       }
     } catch (err) { console.error("Lỗi lớp học phần:", err); }
@@ -158,7 +162,13 @@ const PartClassManagement = () => {
       try {
         const res = await khoaService.getAllBoMonRaw();
         const list = Array.isArray(res?.data) ? res.data : [];
-        const normalized = list
+        
+        let filteredList = list;
+        if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+          filteredList = list.filter(item => item.khoa_id === user.khoa_id);
+        }
+
+        const normalized = filteredList
           .filter((item) => item?.bomon_id && (item?.ten_bomon || item?.ma_bomon))
           .map((item) => ({
             id: item.bomon_id,
@@ -172,7 +182,7 @@ const PartClassManagement = () => {
     };
 
     fetchBoMonOptions();
-  }, []);
+  }, [user]);
 
   return (
     <div className="animate-in fade-in duration-500">

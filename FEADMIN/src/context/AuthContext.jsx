@@ -40,7 +40,19 @@ export const AuthProvider = ({ children }) => {
 
       if (token && savedUser && !isTokenExpired(token)) {
         try {
-          const parsedUser = JSON.parse(savedUser);
+          let parsedUser = JSON.parse(savedUser);
+          
+          // Tự động bổ sung khoa_id/chuyennganh_id từ Token nếu trong localStorage chưa có
+          const payload = parseJwtPayload(token);
+          if (payload) {
+            if (!parsedUser.khoa_id && payload.khoa_id) {
+              parsedUser.khoa_id = payload.khoa_id;
+            }
+            if (!parsedUser.chuyennganh_id && payload.chuyennganh_id) {
+              parsedUser.chuyennganh_id = payload.chuyennganh_id;
+            }
+          }
+
           setUser(parsedUser);
           setIsAuthenticated(true);
         } catch {

@@ -85,10 +85,16 @@ const db = require('../models');
 //     };
 //   }
 // };
-const getAllLop = async () => {
+const getAllLop = async (khoa_id) => {
   try {
+    const where = { isDeleted: false };
+    if (khoa_id) {
+      where.khoa_id = khoa_id;
+    }
+
     // 1️⃣ Lấy dữ liệu
     const lopList = await db.LopHanhChinh.findAll({
+      where,
       order: [
         ['nien_khoa', 'DESC'],
         ['ten_lop', 'ASC']

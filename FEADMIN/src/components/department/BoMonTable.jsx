@@ -1,7 +1,7 @@
 import React from 'react';
 import { Edit2, Trash2, Loader2 } from 'lucide-react';
 
-const BoMonTable = ({ data, loading, onEdit, onDelete }) => {
+const BoMonTable = ({ data, loading, onEdit, onDelete, canEdit = true }) => {
   if (loading) {
     return (
       <div className="py-24 flex flex-col items-center justify-center text-gray-400">
@@ -22,7 +22,7 @@ const BoMonTable = ({ data, loading, onEdit, onDelete }) => {
             <th className="px-6 py-4 font-bold text-[#3B5998] text-xs uppercase tracking-wider">Khoa quản lý</th>
             <th className="px-6 py-4 font-bold text-[#3B5998] text-xs uppercase tracking-wider">Môn học thuộc bộ môn</th>
             <th className="px-6 py-4 font-bold text-[#3B5998] text-xs uppercase tracking-wider">Trưởng bộ môn</th>
-            <th className="px-6 py-4 font-bold text-[#3B5998] text-xs uppercase tracking-wider text-center w-32">Hành động</th>
+            {canEdit && <th className="px-6 py-4 font-bold text-[#3B5998] text-xs uppercase tracking-wider text-center w-32">Hành động</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -61,29 +61,31 @@ const BoMonTable = ({ data, loading, onEdit, onDelete }) => {
                     {item.TruongBoMon?.GiangVien?.ma_gv || item.TruongBoMon?.username || ''}
                   </div>
                 </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-center gap-1">
-                    <button
-                      onClick={() => onEdit(item)}
-                      className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                      title="Sửa thông tin"
-                    >
-                      <Edit2 size={18} />
-                    </button>
-                    <button
-                      onClick={() => onDelete(item)}
-                      className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                      title="Xóa bộ môn"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
-                </td>
+                {canEdit && (
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => onEdit(item)}
+                        className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                        title="Sửa thông tin"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
+                        onClick={() => onDelete(item)}
+                        className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
+                        title="Xóa bộ môn"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan="7" className="px-6 py-12 text-center text-gray-400 italic">
+              <td colSpan={canEdit ? 7 : 6} className="px-6 py-12 text-center text-gray-400 italic">
                 Không tìm thấy dữ liệu bộ môn
               </td>
             </tr>

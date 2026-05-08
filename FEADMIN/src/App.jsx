@@ -42,9 +42,9 @@ function App() {
                 <Route path="/semester" element={<SemesterManagerPage />} />
                 <Route path="/department" element={<KhoaManager />} />
                 <Route path="/part-class" element={<PartClassManagerPage />} />
+                <Route path="/bo-mon" element={<BoMonManagerPage />} />
 
                 <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
-                  <Route path="/bo-mon" element={<BoMonManagerPage />} />
                   <Route path="/chuyen-nganh" element={<ChuyenNganhManagerPage />} />
                   <Route path="/co-so" element={<CoSoManagerPage />} />
                   <Route path="/users" element={<TaiKhoanManager />} />

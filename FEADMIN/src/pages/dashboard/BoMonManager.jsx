@@ -4,8 +4,10 @@ import khoaService from '../../service/khoaService';
 import BoMonTable from '../../components/department/BoMonTable';
 import BoMonModal from '../../components/department/BoMonModal';
 import DeleteConfirmModal from '../../components/department/DeleteConfirmModal';
+import { useAuth } from '../../hooks/useAuth';
 
 const BoMonManagerPage = () => {
+  const { user } = useAuth();
   const [data, setData] = useState([]);
   const [khoaList, setKhoaList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -26,8 +28,16 @@ const BoMonManagerPage = () => {
       const boMonOk = boMonRes && (boMonRes.errCode === 0 || boMonRes.success === true);
       const khoaOk = khoaRes && (khoaRes.errCode === 0 || khoaRes.success === true);
 
-      setData(boMonOk ? (boMonRes.data || []) : []);
-      setKhoaList(khoaOk ? (khoaRes.data || []) : []);
+      let boMonList = boMonOk ? (boMonRes.data || []) : [];
+      let kList = khoaOk ? (khoaRes.data || []) : [];
+
+      if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+        boMonList = boMonList.filter(bm => bm.khoa_id === user.khoa_id);
+        kList = kList.filter(k => k.khoa_id === user.khoa_id);
+      }
+
+      setData(boMonList);
+      setKhoaList(kList);
     } catch (error) {
       console.error('Lỗi fetch dữ liệu bộ môn:', error);
     } finally {
@@ -37,7 +47,7 @@ const BoMonManagerPage = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [user]);
 
   const filteredData = useMemo(() => {
     const normalized = searchTerm.trim().toLowerCase();
@@ -84,15 +94,17 @@ const BoMonManagerPage = () => {
           >
             <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
           </button>
-          <button
-            onClick={() => {
-              setSelectedBoMon(null);
-              setIsModalOpen(true);
-            }}
-            className="px-5 py-2.5 bg-[#3B5998] text-white rounded-lg flex items-center gap-2 hover:bg-[#2e4676] transition-all shadow-md font-bold text-sm"
-          >
-            <Plus size={20} /> Thêm Bộ môn
-          </button>
+          {user?.vaitro !== 'lanhdao' && (
+            <button
+              onClick={() => {
+                setSelectedBoMon(null);
+                setIsModalOpen(true);
+              }}
+              className="px-5 py-2.5 bg-[#3B5998] text-white rounded-lg flex items-center gap-2 hover:bg-[#2e4676] transition-all shadow-md font-bold text-sm"
+            >
+              <Plus size={20} /> Thêm Bộ môn
+            </button>
+          )}
         </div>
       </div>
 
@@ -121,6 +133,7 @@ const BoMonManagerPage = () => {
         <BoMonTable
           data={filteredData}
           loading={loading}
+          canEdit={user?.vaitro !== 'lanhdao'}
           onEdit={(item) => {
             setSelectedBoMon(item);
             setIsModalOpen(true);

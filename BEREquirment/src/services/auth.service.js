@@ -341,7 +341,11 @@ const loginAdmin = async ({ username, password }) => {
   return {
     token,
     refreshToken, 
-    user: accData
+    user: {
+      ...accData,
+      khoa_id: payload.khoa_id,
+      chuyennganh_id: payload.chuyennganh_id
+    }
   };
 };
 

@@ -102,6 +102,7 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
         }
 
         if (target_chuyennganh_id) {
+            // 1. Tìm giảng viên qua Lớp học phần (đang dạy môn của bộ môn)
             const lopHocPhan = await db.LopHocPhan.findAll({
                 attributes: ['giangvien_id'],
                 where: { giangvien_id: { [Op.ne]: null } },
@@ -118,7 +119,17 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
                 }]
             });
 
-            const idList = [...new Set(lopHocPhan.map((item) => item.giangvien_id).filter(Boolean))];
+            // 2. Tìm giảng viên trực tiếp thuộc bộ môn (qua bảng trung gian GiangVien_BoMon)
+            const gvBoMon = await db.GiangVien_BoMon.findAll({
+                where: { bomon_id: target_chuyennganh_id },
+                attributes: ['giangvien_id']
+            });
+
+            const idListLHP = lopHocPhan.map((item) => item.giangvien_id).filter(Boolean);
+            const idListGVBM = gvBoMon.map((item) => item.giangvien_id).filter(Boolean);
+            
+            const idList = [...new Set([...idListLHP, ...idListGVBM])];
+
             if (idList.length === 0) {
                 return { errCode: 0, message: 'OK', data: [] };
             }
@@ -126,9 +137,13 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
             whereCondition.giangvien_id = { [Op.in]: idList };
 
             if (target_khoa_id) {
-                whereCondition[Op.or] = [
-                    { khoa_id: target_khoa_id },
-                    { khoa_id: null }
+                whereCondition[Op.and] = [
+                    {
+                        [Op.or]: [
+                            { khoa_id: target_khoa_id },
+                            { khoa_id: null }
+                        ]
+                    }
                 ];
             }
         }

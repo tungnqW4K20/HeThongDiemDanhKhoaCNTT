@@ -7,7 +7,8 @@ const lopService = require('../services/lop.service');
 
 const getAll = async (req, res, next) => {
     try {
-        const data = await lopService.getAllLop();
+        const { khoa_id } = req.query;
+        const data = await lopService.getAllLop(khoa_id);
 
         res.status(200).json({
             success: true,

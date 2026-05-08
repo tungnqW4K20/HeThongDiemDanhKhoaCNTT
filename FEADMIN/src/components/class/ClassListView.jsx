@@ -10,6 +10,7 @@ const ClassListView = ({
   onSelect,
   onAddClass,
   onImportClick,
+  canEdit = true,
   campusOptions: externalCampusOptions = [],
   departmentOptions: externalDepartmentOptions = [],
   majorOptions: externalMajorOptions = []
@@ -155,7 +156,7 @@ const ClassListView = ({
                 </button>
 
                 {/* ======= NÚT IMPORT EXCEL ======= */}
-                {onImportClick && (
+                {canEdit && onImportClick && (
                     <button 
                       onClick={onImportClick}
                       className="px-3 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
@@ -165,12 +166,14 @@ const ClassListView = ({
                 )}
 
                 {/* Add Button */}
-                <button 
-                  onClick={() => setIsAddModalOpen(true)}
-                  className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2 whitespace-nowrap"
-                >
-                  + Thêm lớp
-                </button>
+                {canEdit && (
+                  <button 
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2 whitespace-nowrap"
+                  >
+                    + Thêm lớp
+                  </button>
+                )}
           </div>
         </div>
 
@@ -257,7 +260,7 @@ const ClassListView = ({
                 <th className="px-6 py-4 text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[30%]">Niên khóa </th>
                 {/* Đã xóa cột Giảng viên CN ở đây */}
                 <th className="px-6 py-4 text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[20%] text-center">Sĩ số</th>
-                <th className="px-6 py-4 text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[15%] text-right">Tác vụ</th>
+                {canEdit && <th className="px-6 py-4 text-xs font-bold text-[#3B5998] uppercase tracking-wider w-[15%] text-right">Tác vụ</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -305,17 +308,19 @@ const ClassListView = ({
                     </td>
 
                     {/* Cột 4: Tác vụ */}
-                    <td className="px-6 py-4 text-right">
-                      <button className="text-gray-400 hover:text-[#3B5998] p-2 hover:bg-white rounded-full transition-all" title="Xem chi tiết">
-                        <ChevronRight size={20} />
-                      </button>
-                    </td>
+                    {canEdit && (
+                      <td className="px-6 py-4 text-right">
+                        <button className="text-gray-400 hover:text-[#3B5998] p-2 hover:bg-white rounded-full transition-all" title="Xem chi tiết">
+                          <ChevronRight size={20} />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))
               ) : (
                 <tr>
                   {/* Sửa colSpan từ 5 xuống 4 do đã xóa 1 cột */}
-                  <td colSpan="4" className="px-6 py-12 text-center text-gray-500 italic bg-gray-50/30">
+                  <td colSpan={canEdit ? 4 : 3} className="px-6 py-12 text-center text-gray-500 italic bg-gray-50/30">
                     <div className="flex flex-col items-center gap-2">
                         <Search className="w-8 h-8 text-gray-300" />
                         <span>Không tìm thấy lớp học nào phù hợp với bộ lọc.</span>

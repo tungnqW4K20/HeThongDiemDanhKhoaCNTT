@@ -344,7 +344,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
           <ArrowLeft size={18} /> Quay lại danh sách lớp
         </button>
 
-        {user?.vaitro !== 'truongbomon' && (
+        {user?.vaitro !== 'truongbomon' && user?.vaitro !== 'lanhdao' && (
             <button
             onClick={openEditClassModal}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#3B5998]/20 text-[#3B5998] hover:bg-[#3B5998]/5 font-semibold text-sm"
@@ -449,7 +449,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
               />
             </div>
             {/* Nút thao tác */}
-            {user?.vaitro !== 'truongbomon' && (
+            {user?.vaitro !== 'truongbomon' && user?.vaitro !== 'lanhdao' && (
               <>
                 <button 
                   onClick={() => setIsImportModalOpen(true)}
@@ -486,7 +486,9 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                 <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Lớp hành chính</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Ngày sinh</th>
                 <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider">Liên hệ</th>
-                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">Thao tác</th>
+                <th className="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-right">
+                  {user?.vaitro !== 'truongbomon' && user?.vaitro !== 'lanhdao' ? 'Thao tác' : ''}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -521,7 +523,7 @@ const ClassDetailView = ({ classInfo, onBack }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {user?.vaitro !== 'truongbomon' && (
+                      {user?.vaitro !== 'truongbomon' && user?.vaitro !== 'lanhdao' && (
                           <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={() => handleDeleteClick(sv)}

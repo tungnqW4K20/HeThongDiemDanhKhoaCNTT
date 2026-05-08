@@ -4,9 +4,34 @@ const xlsx = require('xlsx');
 
 
 
+const resolveScopeForSubject = async (user = {}) => {
+    const { role, khoa_id, chuyennganh_id, id } = user;
+
+    if (role !== 'truongbomon') {
+        return {
+            targetKhoaId: role === 'lanhdao' ? (khoa_id || null) : null,
+            targetChuyenNganhId: null
+        };
+    }
+
+    const boMon = await db.BoMon.findOne({
+        where: {
+            truong_bomon_id: id || null,
+            isDeleted: false
+        },
+        attributes: ['bomon_id', 'khoa_id']
+    });
+
+    return {
+        targetKhoaId: boMon?.khoa_id || khoa_id || null,
+        targetChuyenNganhId: boMon?.bomon_id || chuyennganh_id || null
+    };
+};
+
 const handleGetAll = async (req, res) => {
     try {
-        const response = await monHocService.getAllMonHoc(req.query);
+        const { targetKhoaId, targetChuyenNganhId } = await resolveScopeForSubject(req.user || {});
+        const response = await monHocService.getAllMonHoc(req.query, targetKhoaId, targetChuyenNganhId);
         return res.status(200).json(response);
     } catch (error) {
         console.error('GetAll MonHoc Error:', error);

@@ -52,15 +52,41 @@ const normalizeBoMonPayload = async (payload = {}) => {
     return normalized;
 };
 
-const getAllMonHoc = async (query) => {
+const getAllMonHoc = async (query, target_khoa_id = null, target_chuyennganh_id = null) => {
     try {
-        const whereClause = { isDeleted: false };
+        const whereClause = { 
+            isDeleted: false,
+            [Op.and]: []
+        };
+
         if (query.search) {
-            whereClause[Op.or] = [
-                { ma_mon: { [Op.like]: `%${query.search}%` } },
-                { ten_mon: { [Op.like]: `%${query.search}%` } }
-            ];
+            whereClause[Op.and].push({
+                [Op.or]: [
+                    { ma_mon: { [Op.like]: `%${query.search}%` } },
+                    { ten_mon: { [Op.like]: `%${query.search}%` } }
+                ]
+            });
         }
+
+        // Lọc theo Khoa/Bộ môn
+        if (target_chuyennganh_id) {
+            whereClause[Op.and].push({
+                [Op.or]: [
+                    { bomon_id: target_chuyennganh_id },
+                    { chuyennganh_id: target_chuyennganh_id }
+                ]
+            });
+        } else if (target_khoa_id) {
+            whereClause[Op.and].push({
+                [Op.or]: [
+                    { khoa_id: target_khoa_id },
+                    { '$BoMon.khoa_id$': target_khoa_id }
+                ]
+            });
+        }
+
+        // Nếu mảng Op.and rỗng thì xóa đi để tránh lỗi query
+        if (whereClause[Op.and].length === 0) delete whereClause[Op.and];
 
         const data = await db.MonHoc.findAll({
             where: whereClause,

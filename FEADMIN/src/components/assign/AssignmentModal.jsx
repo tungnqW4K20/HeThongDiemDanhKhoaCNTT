@@ -5,6 +5,7 @@ import giangVienService from '../../service/giangVienService';
 import hocKyService from '../../service/hockyService';
 import monHocService from '../../service/monhocService';
 import classService from '../../service/classService';
+import { useAuth } from '../../hooks/useAuth';
 
 const InputGroup = ({ label, icon: Icon, error, children, required }) => (
   <div className="mb-4">
@@ -36,6 +37,7 @@ const tietToGio = (tietBD, soTiet) => ({
 });
 
 const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
+  const { user } = useAuth();
   // --- STATE DỮ LIỆU ---
   const [semesters, setSemesters] = useState([]);
   const [subjects, setSubjects] = useState([]);
@@ -84,9 +86,18 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
         ]);
 
         if (semesterRes && semesterRes.success) setSemesters(semesterRes.data);
-        if (subjectRes && subjectRes.success) setSubjects(subjectRes.data);
+        if (subjectRes && subjectRes.success) {
+          let listSub = subjectRes.data || [];
+          if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+            listSub = listSub.filter(s => s.khoa_id === user.khoa_id);
+          }
+          setSubjects(listSub);
+        }
         if (classRes && classRes.success) {
-           const listLop = classRes.data?.data || [];
+           let listLop = classRes.data?.data || [];
+           if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+             listLop = listLop.filter(c => c.khoa_id === user.khoa_id);
+           }
            setClasses(listLop);
         }
       } catch (error) {

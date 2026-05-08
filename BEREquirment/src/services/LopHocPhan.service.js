@@ -177,33 +177,33 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
 //         throw error;
 //     }
 // };
-const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh_id = null) => {
+const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh_id = null, user_giangvien_id = null) => {
     try {
         const { hocky_id } = query;
-
-        const monHocWhere = {};
+        const mainWhere = { hocky_id };
+        
+        // Nếu là lãnh đạo khoa, lọc theo phạm vi khoa
         if (target_khoa_id && !target_chuyennganh_id) {
-          monHocWhere.khoa_id = target_khoa_id;
-        }
-        if (target_chuyennganh_id) {
-          monHocWhere[Op.or] = [
-            { bomon_id: target_chuyennganh_id },
-            { chuyennganh_id: target_chuyennganh_id }
-          ];
-          if (target_khoa_id) {
-            monHocWhere[Op.and] = [
-              {
-                [Op.or]: [
-                  { khoa_id: target_khoa_id },
-                  { khoa_id: null }
-                ]
-              }
+            mainWhere[Op.or] = [
+                { '$MonHoc.khoa_id$': target_khoa_id },
+                { '$MonHoc.BoMon.khoa_id$': target_khoa_id },
+                { '$DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
             ];
-          }
+        }
+        
+        // Nếu là trưởng bộ môn, lọc theo phạm vi bộ môn/chuyên ngành
+        if (target_chuyennganh_id) {
+            mainWhere[Op.or] = [
+                { '$MonHoc.bomon_id$': target_chuyennganh_id },
+                { '$MonHoc.chuyennganh_id$': target_chuyennganh_id },
+                { '$MonHoc.BoMon.bomon_id$': target_chuyennganh_id },
+                { '$DanhSachLopHanhChinh.chuyennganh_id$': target_chuyennganh_id },
+                { '$DanhSachLopHanhChinh.lop_hanhchinh_id$': { [Op.in]: db.sequelize.literal(`(SELECT lop_hanhchinh_id FROM LopHanhChinh WHERE chuyennganh_id = '${target_chuyennganh_id}')`) } }
+            ];
         }
 
         const data = await db.LopHocPhan.findAll({
-            where: { hocky_id },
+            where: mainWhere,
             attributes: [
               'lophocphan_id',
               'ten_lophocphan',
@@ -219,20 +219,19 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
                 {
                     model: db.MonHoc,
                     attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
-                    where: monHocWhere, // Lọc lớp học phần theo khoa của môn học
-                  required: true, // Bắt buộc phải thỏa mãn điều kiện khoa
-                  include: [
-                    {
-                      model: db.Khoa,
-                      as: 'Khoa',
-                      attributes: ['khoa_id', 'ten_khoa']
-                    },
-                    {
-                      model: db.BoMon,
-                      as: 'BoMon',
-                      attributes: ['bomon_id', 'ten_bomon']
-                    }
-                  ]
+                    required: false, 
+                    include: [
+                        {
+                            model: db.Khoa,
+                            as: 'Khoa',
+                            attributes: ['khoa_id', 'ten_khoa']
+                        },
+                        {
+                            model: db.BoMon,
+                            as: 'BoMon',
+                            attributes: ['bomon_id', 'ten_bomon', 'khoa_id']
+                        }
+                    ]
                 },
                 {
                     model: db.GiangVien,
@@ -241,18 +240,35 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
                 {
                     model: db.LopHanhChinh,
                     as: 'DanhSachLopHanhChinh',
-                    attributes: ['lop_hanhchinh_id', 'ten_lop'],
-                    through: { attributes: [] }
+                    attributes: ['lop_hanhchinh_id', 'ten_lop', 'khoa_id', 'chuyennganh_id'],
+                    through: { attributes: [] },
+                    required: false
                 },
                 {
                     model: db.HocKy,
                     attributes: ['hocky_id', 'ten_hocky']
                 }
             ],
+            subQuery: false, 
             order: [[{ model: db.MonHoc }, 'ten_mon', 'ASC']]
         });
 
-        return { success: true, data: data };
+        // Hậu xử lý dữ liệu để lọc danh sách lớp hành chính hiển thị cho từng vai trò
+        const formattedData = data.map(lhp => {
+            const item = lhp.toJSON();
+            
+            if (target_khoa_id) {
+                // Chỉ giữ lại các lớp hành chính thực sự thuộc khoa (hoặc bộ môn) của mình
+                item.DanhSachLopHanhChinh = (item.DanhSachLopHanhChinh || []).filter(lhc => 
+                    lhc.khoa_id === target_khoa_id || 
+                    (target_chuyennganh_id && (lhc.bomon_id === target_chuyennganh_id || lhc.chuyennganh_id === target_chuyennganh_id))
+                );
+            }
+            
+            return item;
+        });
+
+        return { success: true, data: formattedData };
     } catch (error) {
         console.error('Service Error:', error);
         throw error;

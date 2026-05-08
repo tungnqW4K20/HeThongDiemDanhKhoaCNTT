@@ -46,6 +46,8 @@ const Sidebar = () => {
     { path: '/', label: 'Thống kê điểm danh', icon: LayoutDashboard },
     { path: '/lecturers', label: 'Quản lý giảng viên', icon: GraduationCap },
     { path: '/schedule', label: 'Phân công lịch dạy', icon: CalendarDays },
+    ...(isLanhDao ? [{ path: '/bo-mon', label: 'Quản lý bộ môn', icon: Library }] : []),
+    ...(isLanhDao ? [{ path: '/classes', label: 'Quản lý lớp hành chính', icon: Layers }] : []),
     { path: '/part-class', label: 'Quản lý lớp học phần', icon: ListTree },
     { path: '/change-password', label: 'Đổi mật khẩu', icon: KeyRound }
   ];

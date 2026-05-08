@@ -170,7 +170,13 @@ export default function AssignmentPage() {
                     setCurrentSemesterId(pickDefaultSemesterIdByTime(listHocKy));
                 }
 
-                const boMonList = khoaRes.data?.data || khoaRes.data || [];
+                let boMonList = khoaRes.data?.data || khoaRes.data || [];
+                
+                // Lọc bộ môn nếu là lãnh đạo khoa
+                if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
+                    boMonList = boMonList.filter(bm => bm.khoa_id === user.khoa_id);
+                }
+
                 const normalizedBoMon = boMonList
                     .filter((bm) => bm?.bomon_id && (bm?.ten_bomon || bm?.ma_bomon))
                     .map((bm) => ({
@@ -183,7 +189,7 @@ export default function AssignmentPage() {
             }
         };
         fetchHocKy();
-    }, []);
+    }, [user]);
 
     // --- 2. SINH TUẦN KHI ĐỔI HỌC KỲ ---
     // useEffect(() => {
@@ -614,7 +620,7 @@ export default function AssignmentPage() {
                                     </select>
                                 </div>
 
-                                {user?.vaitro !== 'truongbomon' && (
+                                {user?.vaitro === 'admin' && (
                                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                         <button 
                                             onClick={() => setShowProposals(true)}
