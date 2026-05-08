@@ -22,6 +22,11 @@ module.exports = (sequelize, DataTypes) => {
           as: "DanhSachLopChuNhiem"
       });
 
+      GiangVien.belongsToMany(models.BoMon, {
+        through: models.GiangVien_BoMon,
+        as: 'DanhSachBoMon',
+        foreignKey: 'giangvien_id'
+      });
     }
   }
 

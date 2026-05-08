@@ -18,19 +18,19 @@ export default function LecturerManagerPage() {
     const [lecturers, setLecturers] = useState([]);
     const [faculties, setFaculties] = useState([]);
     const [isLoading, setIsLoading] = useState(false);
-    
+
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedFaculty, setSelectedFaculty] = useState('all'); 
+    const [selectedFaculty, setSelectedFaculty] = useState('all');
     const [selectedBoMon, setSelectedBoMon] = useState('all');
     const [boMonOptions, setBoMonOptions] = useState([]);
     const [selectedIds, setSelectedIds] = useState([]);
-    
+
     // Modal States
     const [isFormModalOpen, setIsFormModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isImportModalOpen, setIsImportModalOpen] = useState(false); // State Modal Import
     const [importLoading, setImportLoading] = useState(false); // Loading state cho Import
-    
+
     const [currentLecturer, setCurrentLecturer] = useState(null);
 
     // State tạo tài khoản giảng viên
@@ -65,7 +65,7 @@ export default function LecturerManagerPage() {
             // axiosClient của bạn đã bóc tách data, nên response chính là object { success: true, data: [] }
             // Hoặc đôi khi server trả mảng trực tiếp
             const resData = response.data || response;
-            
+
             if (Array.isArray(resData)) {
                 setLecturers(resData);
             } else if (resData && Array.isArray(resData.data)) {
@@ -108,7 +108,7 @@ export default function LecturerManagerPage() {
             setBoMonOptions(
                 list
                     .filter((bm) => bm?.bomon_id && (bm?.ten_bomon || bm?.ma_bomon))
-                    .map((bm) => ({ id: bm.bomon_id, name: bm.ten_bomon || bm.ma_bomon }))
+                    .map((bm) => ({ id: bm.bomon_id, name: bm.ten_bomon || bm.ma_bomon, khoa_id: bm.khoa_id }))
             );
         } catch (error) {
             console.error('Lỗi lấy danh sách bộ môn:', error);
@@ -129,15 +129,17 @@ export default function LecturerManagerPage() {
                 gv.chuyennganh_id ||
                 null;
 
-            const matchesSearch = 
-                (gv.ten && gv.ten.toLowerCase().includes(searchLower)) || 
+            const matchesSearch =
+                (gv.ten && gv.ten.toLowerCase().includes(searchLower)) ||
                 (gv.ho && gv.ho.toLowerCase().includes(searchLower)) ||
                 (gv.ma_gv && gv.ma_gv.toLowerCase().includes(searchLower)) ||
                 (gv.email && gv.email.toLowerCase().includes(searchLower)) ||
                 (khoaName && khoaName.toLowerCase().includes(searchLower));
 
             const matchesFaculty = selectedFaculty === 'all' || khoaName === selectedFaculty;
-            const matchesBoMon = selectedBoMon === 'all' || boMonId === selectedBoMon;
+            const matchesBoMon = selectedBoMon === 'all' || 
+                boMonId === selectedBoMon || 
+                (gv.DanhSachBoMon && gv.DanhSachBoMon.some(bm => bm.bomon_id === selectedBoMon));
 
             return matchesSearch && matchesFaculty && matchesBoMon;
         });
@@ -242,10 +244,10 @@ export default function LecturerManagerPage() {
             if (currentLecturer) {
                 const res = await giangVienService.update(currentLecturer.giangvien_id, formData);
                 const resData = res;
-                
-                if (resData.success || resData.errCode === 0) { 
-                    alert("Cập nhật thành công!"); 
-                    fetchData(); 
+
+                if (resData.success || resData.errCode === 0) {
+                    alert("Cập nhật thành công!");
+                    fetchData();
                     setIsFormModalOpen(false);
                 } else {
                     alert(resData.message || "Lỗi cập nhật");
@@ -253,10 +255,10 @@ export default function LecturerManagerPage() {
             } else {
                 const res = await giangVienService.create(formData);
                 const resData = res;
-                
+
                 if (resData.success || resData.errCode === 0) {
                     alert("Thêm mới thành công!");
-                    fetchData(); 
+                    fetchData();
                     setIsFormModalOpen(false);
                 } else {
                     alert(resData.message || "Lỗi thêm mới");
@@ -274,7 +276,7 @@ export default function LecturerManagerPage() {
             try {
                 const res = await giangVienService.delete(currentLecturer.giangvien_id);
                 const resData = res;
-                
+
                 if (resData.success || resData.errCode === 0) {
                     fetchData();
                     setSelectedIds(prev => prev.filter(id => id !== currentLecturer.giangvien_id));
@@ -296,7 +298,7 @@ export default function LecturerManagerPage() {
             try {
                 const deletePromises = selectedIds.map(id => giangVienService.delete(id));
                 await Promise.all(deletePromises);
-                fetchData(); 
+                fetchData();
                 setSelectedIds([]);
             } catch (error) {
                 console.error("Lỗi khi xóa nhiều:", error);
@@ -307,60 +309,60 @@ export default function LecturerManagerPage() {
 
     // 🔥 IMPORT HANDLER (TÍCH HỢP API)
     const handleImportFile = async (file) => {
-    if (!file) return;
-    setImportLoading(true);
-    
-    try {
-        const formData = new FormData();
-        formData.append('file', file);
+        if (!file) return;
+        setImportLoading(true);
 
-        const response = await giangVienService.importExcel(formData);
-        
-        // 1. Xác định đúng Object chứa field 'success'
-        // Trong trường hợp của bạn, 'response' chính là cái JSON chứa {success, message, data}
-        // Chúng ta KHÔNG lấy response.data ở đây vì nó sẽ lấy nhầm vào object thống kê
-        const result = response; 
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
 
-        console.log("Dữ liệu kiểm tra:", result);
+            const response = await giangVienService.importExcel(formData);
 
-        // 2. Kiểm tra điều kiện thành công (Dùng check linh hoạt hơn)
-        if (result && (result.success === true || result.errCode === 0)) {
-            
-            // Load lại danh sách giảng viên trên màn hình
-            await fetchData(); 
-            
-            // Lấy thông tin thống kê từ object data bên trong
-            const stats = result.data; // Đây mới là {total_rows, inserted, ...}
-            
-            let detailMsg = "";
-            if (stats) {
-                detailMsg = `\n- Tổng số dòng: ${stats.total_rows}` +
-                            `\n- Thêm mới: ${stats.inserted}` +
-                            `\n- Bỏ qua (trùng): ${stats.duplicates_skipped}`;
+            // 1. Xác định đúng Object chứa field 'success'
+            // Trong trường hợp của bạn, 'response' chính là cái JSON chứa {success, message, data}
+            // Chúng ta KHÔNG lấy response.data ở đây vì nó sẽ lấy nhầm vào object thống kê
+            const result = response;
+
+            console.log("Dữ liệu kiểm tra:", result);
+
+            // 2. Kiểm tra điều kiện thành công (Dùng check linh hoạt hơn)
+            if (result && (result.success === true || result.errCode === 0)) {
+
+                // Load lại danh sách giảng viên trên màn hình
+                await fetchData();
+
+                // Lấy thông tin thống kê từ object data bên trong
+                const stats = result.data; // Đây mới là {total_rows, inserted, ...}
+
+                let detailMsg = "";
+                if (stats) {
+                    detailMsg = `\n- Tổng số dòng: ${stats.total_rows}` +
+                        `\n- Thêm mới: ${stats.inserted}` +
+                        `\n- Bỏ qua (trùng): ${stats.duplicates_skipped}`;
+                }
+
+                alert(`✅ ${result.message || "Import thành công"}${detailMsg}`);
+                setIsImportModalOpen(false);
+
+            } else {
+                // Nếu result.success là false hoặc không tồn tại
+                const msg = result.message || "Dữ liệu không hợp lệ hoặc lỗi định dạng.";
+                alert(`⚠️ Thông báo: ${msg}`);
             }
-
-            alert(`✅ ${result.message || "Import thành công"}${detailMsg}`);
-            setIsImportModalOpen(false);
-            
-        } else {
-            // Nếu result.success là false hoặc không tồn tại
-            const msg = result.message || "Dữ liệu không hợp lệ hoặc lỗi định dạng.";
-            alert(`⚠️ Thông báo: ${msg}`);
+        } catch (error) {
+            console.error("Lỗi Import:", error);
+            // Lấy lỗi từ server trả về nếu có
+            const serverError = error.response?.data?.message || error.message || "Lỗi kết nối server";
+            alert(`❌ Lỗi hệ thống: ${serverError}`);
+        } finally {
+            setImportLoading(false);
         }
-    } catch (error) {
-        console.error("Lỗi Import:", error);
-        // Lấy lỗi từ server trả về nếu có
-        const serverError = error.response?.data?.message || error.message || "Lỗi kết nối server";
-        alert(`❌ Lỗi hệ thống: ${serverError}`);
-    } finally {
-        setImportLoading(false);
-    }
-};
+    };
 
     return (
         <div className="animate-in fade-in duration-500 text-slate-900">
             <div className="mb-8">
-                
+
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý Giảng viên</h1>
@@ -375,10 +377,10 @@ export default function LecturerManagerPage() {
                 />
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-                    
+
                     {/* TOOLBAR */}
                     <div className="p-5 border-b border-gray-100 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white">
-                        
+
                         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
                             {/* Search */}
                             <div className="relative w-full sm:w-80 group">
@@ -393,7 +395,7 @@ export default function LecturerManagerPage() {
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                                 {searchTerm && (
-                                    <button 
+                                    <button
                                         onClick={() => setSearchTerm('')}
                                         className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
                                     >
@@ -448,8 +450,8 @@ export default function LecturerManagerPage() {
 
                         {/* Action Buttons */}
                         <div className="flex items-center gap-2 w-full xl:w-auto justify-end">
-                            <button 
-                                onClick={fetchData} 
+                            <button
+                                onClick={fetchData}
                                 className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors"
                                 title="Làm mới"
                             >
@@ -458,36 +460,36 @@ export default function LecturerManagerPage() {
 
                             {/* 🔥 NÚT IMPORT EXCEL */}
                             {canManageLecturer && (
-                                <button 
+                                <button
                                     onClick={() => setIsImportModalOpen(true)}
-                                className="px-3 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 text-sm font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shadow-sm"
-                            >
-                                <Upload size={16} /> <span className="hidden sm:inline">Import Excel</span>
-                            </button>
+                                    className="px-3 py-2 bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 hover:border-green-300 text-sm font-medium rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shadow-sm"
+                                >
+                                    <Upload size={16} /> <span className="hidden sm:inline">Import Excel</span>
+                                </button>
                             )}
 
                             {canManageLecturer && selectedIds.length > 0 && (
-                                <button 
+                                <button
                                     onClick={handleBulkDelete}
                                     className="px-3 py-2 bg-red-50 text-red-600 hover:bg-red-100 border border-red-100 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors animate-in fade-in"
                                 >
                                     <Trash2 size={16} /> <span className="hidden sm:inline">Xóa ({selectedIds.length})</span>
                                 </button>
                             )}
-                            
+
                             {canManageLecturer && (
-                                <button 
+                                <button
                                     onClick={handleAddNew}
-                                className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
-                            >
-                                <Plus size={18} /> Thêm Giảng viên
-                            </button>
+                                    className="px-4 py-2 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-medium rounded-lg shadow-sm transition-all flex items-center gap-2"
+                                >
+                                    <Plus size={18} /> Thêm Giảng viên
+                                </button>
                             )}
                         </div>
                     </div>
 
                     {/* TABLE */}
-                    <LecturerTable 
+                    <LecturerTable
                         lecturers={filteredLecturers}
                         isLoading={isLoading}
                         onEdit={canManageLecturer ? handleEdit : undefined}
@@ -502,14 +504,15 @@ export default function LecturerManagerPage() {
             </div>
 
             {/* --- MODALS --- */}
-            
+
             {/* 1. Modal Thêm/Sửa */}
-            <LecturerModal 
+            <LecturerModal
                 isOpen={isFormModalOpen}
                 onClose={() => setIsFormModalOpen(false)}
                 onSave={handleSave}
                 initialData={currentLecturer}
                 faculties={faculties}
+                boMonOptions={boMonOptions}
             />
 
             {/* 2. Modal Xóa */}

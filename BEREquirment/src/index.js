@@ -31,16 +31,16 @@ const NamHocRoute = require('./routes/namhoc.routes')
 
 
 app.use(corsMiddleware);
-app.use(express.json()); 
+app.use(express.json());
 
 db.sequelize.authenticate()
   .then(() => {
     console.log(' Kết nối MySQL thành công!');
-    return db.sequelize.sync(); 
-    //return db.sequelize.sync({ alter: true }); // thay đổi cấu trúc bảng
+    // return db.sequelize.sync();
+    return db.sequelize.sync({ alter: true }); // thay đổi cấu trúc bảng
   })
 
-  
+
 
   .then(() => {
     console.log('✅ Đồng bộ bảng thành công!');
@@ -57,12 +57,12 @@ db.sequelize.authenticate()
     app.use('/api/phan-cong-auto', PhanCongAutoRoutes);
     app.use('/api/mon-hoc', MonHocRoute);
     app.use('/api/co-so', CoSoRoute);
-     app.use('/api/thong-ke', DashboardRoute);
-     app.use('/api/de-xuat', DeXuatRoute);
-     app.use('/api/nam-hoc', NamHocRoute)
+    app.use('/api/thong-ke', DashboardRoute);
+    app.use('/api/de-xuat', DeXuatRoute);
+    app.use('/api/nam-hoc', NamHocRoute)
 
 
-    
+
 
 
     app.listen(port, () => {

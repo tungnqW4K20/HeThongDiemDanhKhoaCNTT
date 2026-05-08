@@ -7,9 +7,10 @@ import { usePagination } from '../../hooks/usePagination';
 import Pagination from '../Pagination';
 
 const COLUMNS = [
-  { key: 'ten', label: 'Họ và Tên', width: 'w-[35%]', sortable: true },
-  { key: 'khoa', label: 'Khoa / Viện', width: 'w-[25%]', sortable: true },
-  { key: 'contact', label: 'Liên hệ', width: 'w-[25%]', sortable: false },
+  { key: 'ten', label: 'Họ và Tên', width: 'w-[25%]', sortable: true },
+  { key: 'khoa', label: 'Khoa / Viện', width: 'w-[20%]', sortable: true },
+  { key: 'bomon', label: 'Bộ môn', width: 'w-[20%]', sortable: false },
+  { key: 'contact', label: 'Liên hệ', width: 'w-[20%]', sortable: false },
   { key: 'actions', label: 'Tác vụ', width: 'w-[15%]', align: 'center', sortable: false }
 ];
 
@@ -40,6 +41,7 @@ const TableSkeleton = ({ canManage }) => (
             </div>
           </div>
         </td>
+        <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-2/3" /></td>
         <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-2/3" /></td>
         <td className="px-4 py-3"><div className="h-4 bg-gray-200 rounded w-full mb-1" /><div className="h-3 bg-gray-200 rounded w-1/2" /></td>
         {canManage && (
@@ -228,8 +230,22 @@ const LecturerTable = ({
                       <div className="flex items-center gap-2 text-sm text-gray-700">
                         <Building2 size={15} className="text-gray-400 shrink-0" />
                         <span className="truncate max-w-[180px]" title={gv.Khoa?.ten_khoa}>
-                          {gv.Khoa?.ten_khoa || 'Chưa phân công'}
+                          {gv.Khoa?.ten_khoa || 'Chưa phân công Khoa'}
                         </span>
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3 align-middle">
+                      <div className="flex flex-col gap-1 text-sm text-gray-700">
+                        {gv.DanhSachBoMon && gv.DanhSachBoMon.length > 0 ? (
+                          <div className="flex items-start gap-2 text-sm text-gray-600">
+                            <span className="line-clamp-2 max-w-[200px]" title={gv.DanhSachBoMon.map(bm => bm.ten_bomon).join(', ')}>
+                              {gv.DanhSachBoMon.map(bm => bm.ten_bomon).join(', ')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic text-sm">Chưa phân công</span>
+                        )}
                       </div>
                     </td>
 

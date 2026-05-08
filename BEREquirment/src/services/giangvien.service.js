@@ -150,6 +150,12 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
                         vaitro: { [Op.in]: ['giangvien', 'truongbomon'] }
                     },
                     attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
+                },
+                {
+                    model: db.BoMon,
+                    as: 'DanhSachBoMon',
+                    attributes: ['bomon_id', 'ten_bomon', 'ma_bomon'],
+                    through: { attributes: [] }
                 }
             ],
             raw: false, 
@@ -172,17 +178,32 @@ const createGiangVien = async (data) => {
             return { errCode: 1, message: 'Mã giảng viên đã tồn tại!' };
         }
 
-        const newGV = await db.GiangVien.create({
-            ma_gv: data.ma_gv,
-            ho: data.ho,
-            ten: data.ten,
-            email: data.email,
-            sdt: data.sdt,
-            khoa_id: data.khoa_id,
-            isDeleted: false
-        });
+        const transaction = await db.sequelize.transaction();
+        try {
+            const newGV = await db.GiangVien.create({
+                ma_gv: data.ma_gv,
+                ho: data.ho,
+                ten: data.ten,
+                email: data.email,
+                sdt: data.sdt,
+                khoa_id: data.khoa_id,
+                isDeleted: false
+            }, { transaction });
 
-        return { errCode: 0, message: 'Tạo giảng viên thành công', data: newGV };
+            if (data.bomon_ids && Array.isArray(data.bomon_ids) && data.bomon_ids.length > 0) {
+                const boMonData = data.bomon_ids.map(id => ({
+                    giangvien_id: newGV.giangvien_id,
+                    bomon_id: id
+                }));
+                await db.GiangVien_BoMon.bulkCreate(boMonData, { transaction });
+            }
+
+            await transaction.commit();
+            return { errCode: 0, message: 'Tạo giảng viên thành công', data: newGV };
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
     } catch (error) {
         console.error(error);
         return { errCode: -1, message: 'Lỗi server khi tạo giảng viên' };
@@ -204,6 +225,12 @@ const getGiangVienById = async (giangvien_id) => {
                         vaitro: { [Op.in]: ['giangvien', 'truongbomon'] }
                     },
                     attributes: ['taikhoan_id', 'username', 'vaitro', 'ref_id']
+                },
+                {
+                    model: db.BoMon,
+                    as: 'DanhSachBoMon',
+                    attributes: ['bomon_id', 'ten_bomon', 'ma_bomon'],
+                    through: { attributes: [] }
                 }
             ]
         });
@@ -227,17 +254,36 @@ const updateGiangVien = async (data) => {
 
         if (!gv) return { errCode: 2, message: 'Giảng viên không tồn tại' };
 
-        // Cập nhật thông tin
-        gv.ho = data.ho;
-        gv.ten = data.ten;
-        gv.email = data.email;
-        gv.sdt = data.sdt;
-        gv.khoa_id = data.khoa_id; 
-        // Lưu ý: Thường không cho sửa ma_gv, nếu muốn sửa phải check duplicate
+        const transaction = await db.sequelize.transaction();
+        try {
+            // Cập nhật thông tin
+            gv.ho = data.ho;
+            gv.ten = data.ten;
+            gv.email = data.email;
+            gv.sdt = data.sdt;
+            gv.khoa_id = data.khoa_id; 
+            
+            await gv.save({ transaction });
 
-        await gv.save();
+            if (data.bomon_ids && Array.isArray(data.bomon_ids)) {
+                // Delete existing associations
+                await db.GiangVien_BoMon.destroy({ where: { giangvien_id: gv.giangvien_id }, transaction });
+                
+                if (data.bomon_ids.length > 0) {
+                    const boMonData = data.bomon_ids.map(id => ({
+                        giangvien_id: gv.giangvien_id,
+                        bomon_id: id
+                    }));
+                    await db.GiangVien_BoMon.bulkCreate(boMonData, { transaction });
+                }
+            }
 
-        return { errCode: 0, message: 'Cập nhật thành công', data: gv };
+            await transaction.commit();
+            return { errCode: 0, message: 'Cập nhật thành công', data: gv };
+        } catch (err) {
+            await transaction.rollback();
+            throw err;
+        }
     } catch (error) {
         console.error(error);
         return { errCode: -1, message: 'Lỗi server khi cập nhật' };
@@ -276,6 +322,12 @@ const getThongTinGiangVien = async (giangvien_id) => {
           model: db.Khoa,
           as: 'Khoa',
           attributes: ['ten_khoa', 'ma_khoa']
+        },
+        {
+          model: db.BoMon,
+          as: 'DanhSachBoMon',
+          attributes: ['bomon_id', 'ten_bomon', 'ma_bomon'],
+          through: { attributes: [] }
         }
       ]
     });
