@@ -38,6 +38,15 @@ export default function TabLayout() {
       />
 
       <Tabs.Screen
+        name="lop-hoc-phan"
+        options={{
+          title: 'Lớp học phần',
+          tabBarIcon: ({ color }) => <Ionicons name="library" size={24} color={color} />,
+          href: user ? undefined : null, // Ẩn tab khi chưa đăng nhập
+        }}
+      />
+
+      <Tabs.Screen
         name="de-xuat-lich-day-thay" 
         options={{
           title: 'Đề xuất thay thế',

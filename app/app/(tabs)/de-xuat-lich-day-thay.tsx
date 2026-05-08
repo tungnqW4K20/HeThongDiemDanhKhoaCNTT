@@ -91,6 +91,16 @@ const formatShortDate = (date: Date): string => {
   return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const formatDateToDMY = (dateStr: string): string => {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}(T.*)?$/.test(dateStr)) {
+    const datePart = dateStr.split('T')[0];
+    const [y, m, d] = datePart.split('-');
+    return `${d}-${m}-${y}`;
+  }
+  return dateStr;
+};
+
 export default function QuanLyDeXuatScreen() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"LICH_DAY" | "MO_LAI" | "LICH_SU">("LICH_DAY");
@@ -128,6 +138,10 @@ export default function QuanLyDeXuatScreen() {
   const [conflictMessage, setConflictMessage] = useState<string>("");
   const [conflictDetail, setConflictDetail] = useState<any>(null);
   const [reopenMessage, setReopenMessage] = useState<string>("");
+
+  // Custom Calendar State
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
   
   const [formData, setFormData] = useState({
     ngay_moi: "",
@@ -416,7 +430,7 @@ export default function QuanLyDeXuatScreen() {
     const lyDoText = String(formData.ly_do || '').trim();
     const gvThayId = String(formData.giangvien_day_thay_moi_id || '').trim();
 
-    const isDateFormatValid = /^\d{4}-\d{2}-\d{2}$/.test(dateText);
+    const isDateFormatValid = /^\d{2}-\d{2}-\d{4}$/.test(dateText);
     const tiet = Number(tietText);
     const soTiet = Number(soTietText);
     const isTietValid = Number.isInteger(tiet) && tiet > 0;
@@ -468,7 +482,7 @@ export default function QuanLyDeXuatScreen() {
   const handleOpenRequest = (item: any) => {
     setSelectedBuoi(item);
     setFormData({
-      ngay_moi: item.ngay_hoc,
+      ngay_moi: formatDateToDMY(item.ngay_hoc),
       tiet_bat_dau_moi: String(item.tiet_bat_dau),
       so_tiet_moi: String(item.so_tiet),
       phong_moi: item.phong_hoc || "",
@@ -535,8 +549,14 @@ export default function QuanLyDeXuatScreen() {
     const normalizedSelectedGVThay = selectedGVThay === mainGVId ? null : selectedGVThay;
     const currentGVThay = selectedBuoi.giangvien_day_thay_id || null;
 
+    let ngay_moi_api = formData.ngay_moi;
+    if (/^\d{2}-\d{2}-\d{4}$/.test(formData.ngay_moi)) {
+      const [d, m, y] = formData.ngay_moi.split('-');
+      ngay_moi_api = `${y}-${m}-${d}`;
+    }
+
     const hasNoChange =
-      String(formData.ngay_moi || '') === String(selectedBuoi.ngay_hoc || '') &&
+      ngay_moi_api === String(selectedBuoi.ngay_hoc || '') &&
       Number(formData.tiet_bat_dau_moi || 0) === Number(selectedBuoi.tiet_bat_dau || 0) &&
       Number(formData.so_tiet_moi || 0) === Number(selectedBuoi.so_tiet || 0) &&
       String(formData.phong_moi || '') === String(selectedBuoi.phong_hoc || '') &&
@@ -560,7 +580,7 @@ export default function QuanLyDeXuatScreen() {
       const res = await apiClient(`/de-xuat/gui-de-xuat/${selectedBuoi.buoi_id}`, {
         method: 'POST',
         body: {
-          ngay_moi: formData.ngay_moi,
+          ngay_moi: ngay_moi_api,
           tiet_bat_dau_moi: parseInt(formData.tiet_bat_dau_moi),
           so_tiet_moi: parseInt(formData.so_tiet_moi),
           phong_moi: formData.phong_moi,
@@ -683,7 +703,7 @@ export default function QuanLyDeXuatScreen() {
             </>
           ) : (
             <>
-              <View style={styles.detailRow}><Ionicons name="calendar-outline" size={14} color="#555" /><Text style={styles.historyInfoText}>Dạy ngày: <Text style={styles.bold}>{item.ngay_moi}</Text></Text></View>
+              <View style={styles.detailRow}><Ionicons name="calendar-outline" size={14} color="#555" /><Text style={styles.historyInfoText}>Dạy ngày: <Text style={styles.bold}>{formatDateToDMY(item.ngay_moi)}</Text></Text></View>
               <View style={styles.detailRow}><Ionicons name="time-outline" size={14} color="#555" /><Text style={styles.historyInfoText}>Tiết: {item.tiet_bat_dau_moi} | Phòng: {item.phong_moi}</Text></View>
               {!!item.ten_gv_day_thay_moi && (
                 <View style={styles.historyGVBox}>
@@ -887,7 +907,47 @@ export default function QuanLyDeXuatScreen() {
               <TouchableOpacity onPress={() => setModalVisible(false)}><Ionicons name="close-circle" size={28} color="#CCC" /></TouchableOpacity>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
-              <View style={styles.inputGroup}><Text style={styles.inputLabel}>Ngày dạy mới (YYYY-MM-DD)</Text><TextInput style={styles.input} value={formData.ngay_moi} onChangeText={t => setFormData({...formData, ngay_moi: t})}/></View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Ngày dạy mới (DD-MM-YYYY)</Text>
+                <TouchableOpacity 
+                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0 }]}
+                  activeOpacity={1}
+                >
+                  <TextInput 
+                    style={{ flex: 1, height: '100%', padding: 12 }} 
+                    value={formData.ngay_moi} 
+                    onChangeText={text => {
+                      const cleaned = text.replace(/\D/g, '');
+                      let formatted = cleaned;
+                      if (cleaned.length > 2) {
+                        formatted = cleaned.slice(0, 2) + '-' + cleaned.slice(2);
+                      }
+                      if (cleaned.length > 4) {
+                        formatted = formatted.slice(0, 5) + '-' + cleaned.slice(4, 8);
+                      }
+                      setFormData({...formData, ngay_moi: formatted});
+                    }}
+                    placeholder="DD-MM-YYYY"
+                    maxLength={10}
+                    keyboardType="numeric"
+                  />
+                  <TouchableOpacity 
+                    style={{ paddingHorizontal: 15, height: '100%', justifyContent: 'center' }} 
+                    onPress={() => {
+                      // Init calendar month from current text if valid
+                      if (/^\d{2}-\d{2}-\d{4}$/.test(formData.ngay_moi)) {
+                        const [d, m, y] = formData.ngay_moi.split('-');
+                        setCalendarMonth(new Date(Number(y), Number(m)-1, Number(d)));
+                      } else {
+                        setCalendarMonth(new Date());
+                      }
+                      setShowDatePicker(true);
+                    }}
+                  >
+                    <Ionicons name="calendar-outline" size={20} color={PRIMARY_COLOR} />
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
               <View style={styles.row}>
                 <View style={{flex: 1, marginRight: 10}}><Text style={styles.inputLabel}>Tiết bắt đầu</Text><TextInput style={styles.input} keyboardType="numeric" value={formData.tiet_bat_dau_moi} onChangeText={t => setFormData({...formData, tiet_bat_dau_moi: t})}/></View>
                 <View style={{flex: 1}}><Text style={styles.inputLabel}>Số tiết</Text><TextInput style={styles.input} keyboardType="numeric" value={formData.so_tiet_moi} onChangeText={t => setFormData({...formData, so_tiet_moi: t})}/></View>
@@ -1025,6 +1085,86 @@ export default function QuanLyDeXuatScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* CUSTOM DATE PICKER MODAL */}
+      <Modal visible={showDatePicker} animationType="fade" transparent>
+        <View style={styles.gvModalOverlay}>
+          <View style={[styles.gvModalContent, { padding: 0, width: 320, maxWidth: '90%', height: 'auto' }]}>
+            {/* Calendar Header */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: PRIMARY_COLOR, padding: 15, borderTopLeftRadius: 16, borderTopRightRadius: 16 }}>
+              <TouchableOpacity onPress={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() - 1, 1))}>
+                <Ionicons name="chevron-back" size={24} color="#FFF" />
+              </TouchableOpacity>
+              <Text style={{ color: '#FFF', fontSize: 16, fontWeight: 'bold' }}>
+                Tháng {calendarMonth.getMonth() + 1} Năm {calendarMonth.getFullYear()}
+              </Text>
+              <TouchableOpacity onPress={() => setCalendarMonth(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 1))}>
+                <Ionicons name="chevron-forward" size={24} color="#FFF" />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Calendar Body */}
+            <View style={{ padding: 15 }}>
+              {/* Weekdays */}
+              <View style={{ flexDirection: 'row', marginBottom: 10 }}>
+                {['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'].map(day => (
+                  <Text key={day} style={{ flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 'bold', color: '#666' }}>{day}</Text>
+                ))}
+              </View>
+              
+              {/* Days Grid */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {(() => {
+                  const y = calendarMonth.getFullYear();
+                  const m = calendarMonth.getMonth();
+                  const daysInMonth = new Date(y, m + 1, 0).getDate();
+                  const firstDay = new Date(y, m, 1).getDay();
+                  const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Make Mon = 0
+                  
+                  const days = [];
+                  for (let i = 0; i < startOffset; i++) days.push(<View key={`empty-${i}`} style={{ width: '14.28%', aspectRatio: 1 }} />);
+                  
+                  for (let d = 1; d <= daysInMonth; d++) {
+                    const isSelected = formData.ngay_moi === `${String(d).padStart(2, '0')}-${String(m+1).padStart(2, '0')}-${y}`;
+                    const isToday = new Date().toDateString() === new Date(y, m, d).toDateString();
+                    
+                    days.push(
+                      <TouchableOpacity 
+                        key={d} 
+                        style={{ width: '14.28%', aspectRatio: 1, justifyContent: 'center', alignItems: 'center' }}
+                        onPress={() => {
+                          const dateStr = `${String(d).padStart(2, '0')}-${String(m+1).padStart(2, '0')}-${y}`;
+                          setFormData({...formData, ngay_moi: dateStr});
+                          setShowDatePicker(false);
+                        }}
+                      >
+                        <View style={{
+                          width: 30, height: 30, borderRadius: 15, justifyContent: 'center', alignItems: 'center',
+                          backgroundColor: isSelected ? PRIMARY_COLOR : 'transparent',
+                          borderWidth: isToday && !isSelected ? 1 : 0,
+                          borderColor: PRIMARY_COLOR
+                        }}>
+                          <Text style={{ 
+                            fontSize: 14, 
+                            color: isSelected ? '#FFF' : '#333',
+                            fontWeight: isSelected || isToday ? 'bold' : 'normal'
+                          }}>{d}</Text>
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }
+                  return days;
+                })()}
+              </View>
+            </View>
+            
+            <TouchableOpacity style={[styles.closeGVBtn, { margin: 15, marginTop: 0 }]} onPress={() => setShowDatePicker(false)}>
+              <Text style={{color: '#FFF', fontWeight: 'bold'}}>Hủy bỏ</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 }

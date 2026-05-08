@@ -26,6 +26,13 @@ export default function RootLayout() {
               headerBackTitle: 'Quay lại'
             }} 
           />
+          <Stack.Screen 
+            name="chi-tiet-diem-danh" 
+            options={{ 
+              title: 'Thống kê điểm danh',
+              headerBackTitle: 'Quay lại'
+            }} 
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
