@@ -2,8 +2,8 @@ import axiosClient from './axiosClient';
 
 const giangVienService = {
   // 1. Lấy danh sách tất cả giảng viên
-  getAll() {
-    return axiosClient.get('/giang-vien');
+  getAll(params) {
+    return axiosClient.get('/giang-vien', { params });
   },
 
   // 2. Lấy giảng viên theo ID

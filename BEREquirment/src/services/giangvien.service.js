@@ -96,9 +96,28 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
     try {
         let whereCondition = { isDeleted: false };
         
-        // Nếu có truyền khoa_id (từ lãnh đạo/trưởng bộ môn), thêm vào điều kiện lọc
-        if (target_khoa_id && !target_chuyennganh_id) {
-            whereCondition.khoa_id = target_khoa_id;
+        // 1. Ưu tiên lọc theo khoa nếu được yêu cầu
+        if (target_khoa_id) {
+            const boMons = await db.BoMon.findAll({
+                where: { khoa_id: target_khoa_id, isDeleted: false },
+                attributes: ['bomon_id']
+            });
+            const boMonIds = boMons.map(bm => bm.bomon_id);
+
+            const gvInBoMonOfKhoa = await db.GiangVien_BoMon.findAll({
+                where: { bomon_id: { [Op.in]: boMonIds } },
+                attributes: ['giangvien_id']
+            });
+            const idListFromBoMon = gvInBoMonOfKhoa.map(i => i.giangvien_id).filter(Boolean);
+
+            whereCondition[Op.and] = [
+                {
+                    [Op.or]: [
+                        { khoa_id: target_khoa_id },
+                        { giangvien_id: { [Op.in]: idListFromBoMon } }
+                    ]
+                }
+            ];
         }
 
         if (target_chuyennganh_id) {
@@ -135,17 +154,6 @@ const getAllGiangVienService = async (target_khoa_id = null, target_chuyennganh_
             }
 
             whereCondition.giangvien_id = { [Op.in]: idList };
-
-            if (target_khoa_id) {
-                whereCondition[Op.and] = [
-                    {
-                        [Op.or]: [
-                            { khoa_id: target_khoa_id },
-                            { khoa_id: null }
-                        ]
-                    }
-                ];
-            }
         }
 
         const data = await db.GiangVien.findAll({

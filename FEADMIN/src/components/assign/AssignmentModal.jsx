@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Save, Edit2, Plus, Clock, MapPin, Calendar, BookOpen, User, Layers, Hash, Search, ChevronDown, Check, Trash2, Lock } from 'lucide-react'; // Thêm icon Lock
+import { X, Save, Edit2, Plus, Clock, MapPin, Calendar, BookOpen, User, Layers, Hash, Search, ChevronDown, Check, Trash2, Lock, Mail } from 'lucide-react'; // Thêm icon Lock, Mail
 import giangVienService from '../../service/giangVienService';
 import hocKyService from '../../service/hockyService';
 import monHocService from '../../service/monhocService';
@@ -88,15 +88,21 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
         if (semesterRes && semesterRes.success) setSemesters(semesterRes.data);
         if (subjectRes && subjectRes.success) {
           let listSub = subjectRes.data || [];
+          // Lọc môn học theo scope của người dùng
           if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
-            listSub = listSub.filter(s => s.khoa_id === user.khoa_id);
+            listSub = listSub.filter(s => s.khoa_id === user.khoa_id || s.BoMon?.khoa_id === user.khoa_id);
+          } else if (user?.vaitro === 'truongbomon' && user?.chuyennganh_id) {
+            listSub = listSub.filter(s => s.bomon_id === user.chuyennganh_id || s.chuyennganh_id === user.chuyennganh_id);
           }
           setSubjects(listSub);
         }
         if (classRes && classRes.success) {
            let listLop = classRes.data?.data || [];
+           // Lọc lớp theo scope của người dùng
            if (user?.vaitro === 'lanhdao' && user?.khoa_id) {
              listLop = listLop.filter(c => c.khoa_id === user.khoa_id);
+           } else if (user?.vaitro === 'truongbomon' && user?.chuyennganh_id) {
+             listLop = listLop.filter(c => c.chuyennganh_id === user.chuyennganh_id);
            }
            setClasses(listLop);
         }
@@ -111,7 +117,10 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
   useEffect(() => {
     const fetchLecturersByFaculty = async () => {
         const selectedSubject = subjects.find(s => s.monhoc_id === formData.monhoc_id);
-        let list = [];
+        if (!selectedSubject) {
+            setLecturers([]);
+            return;
+        }
 
         const normalizeLecturerList = (res) => {
           if (Array.isArray(res?.data)) return res.data;
@@ -119,24 +128,27 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
           return [];
         };
 
-        if (selectedSubject && selectedSubject.Khoa) {
-            try {
-                const response = await giangVienService.getByKhoa(selectedSubject.Khoa.ma_khoa);
-                // Backend route getByKhoa trả errCode/data, nhưng vẫn hỗ trợ fallback shape khác.
-                list = normalizeLecturerList(response);
-            } catch (error) {
-                console.error(error);
-            }
+        // Lấy targetKhoaId ưu tiên từ khoa_id trực tiếp, sau đó tới khoa của bộ môn
+        const targetKhoaId = selectedSubject.khoa_id || selectedSubject.BoMon?.khoa_id;
+        
+        // KIỂM TRA NGHIÊM NGẶT: Phải có ID đơn vị VÀ thông tin chi tiết (Tên/Mã) của Khoa hoặc Bộ môn
+        const unitName = selectedSubject.Khoa?.ten_khoa || selectedSubject.BoMon?.ten_bomon;
+        const isOrphan = !targetKhoaId || !unitName;
+
+        if (isOrphan) {
+            console.warn("Detected orphan subject - clearing lecturers:", selectedSubject.ten_mon);
+            setLecturers([]);
+            return;
         }
 
-        // Nếu không lấy được theo khoa (hoặc môn không gắn khoa), fallback lấy toàn bộ GV.
-        if (list.length === 0 || (formData.giangvien_id && !list.find(gv => gv.giangvien_id === formData.giangvien_id))) {
-            try {
-                const allRes = await giangVienService.getAll();
-                list = normalizeLecturerList(allRes);
-            } catch (error) {
-                console.error(error);
-            }
+        let list = [];
+
+        try {
+            // Lấy theo khoa_id (API /giang-vien hỗ trợ query ?khoa_id=...)
+            const response = await giangVienService.getAll({ khoa_id: targetKhoaId });
+            list = normalizeLecturerList(response);
+        } catch (error) {
+            console.error(error);
         }
 
         setLecturers(list);
@@ -319,9 +331,24 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
     sub.ten_mon.toLowerCase().includes(subjectSearch.toLowerCase())
   );
 
-  const filteredClasses = classes.filter(cls => 
-    cls.ten_lop.toLowerCase().includes(classSearch.toLowerCase())
-  );
+  const filteredClasses = classes.filter(cls => {
+    const matchesSearch = cls.ten_lop.toLowerCase().includes(classSearch.toLowerCase());
+    
+    // Nếu chưa chọn môn học, không cho chọn lớp (hoặc cho chọn tất cả nếu admin? Tùy yêu cầu, ở đây theo user: chọn môn trước)
+    if (!formData.monhoc_id) return false;
+    
+    const selectedSubject = subjects.find(s => s.monhoc_id === formData.monhoc_id);
+    if (!selectedSubject) return false;
+    
+    const targetKhoaId = selectedSubject.khoa_id || selectedSubject.BoMon?.khoa_id;
+    const unitName = selectedSubject.Khoa?.ten_khoa || selectedSubject.BoMon?.ten_bomon;
+    const isOrphan = !targetKhoaId || !unitName;
+
+    // Nếu môn học không có khoa (mồ côi), không cho phép chọn lớp để tránh gán sai dữ liệu
+    if (isOrphan) return false;
+    
+    return matchesSearch && cls.khoa_id === targetKhoaId;
+  });
 
   const filteredLecturers = lecturers.filter((lec) => {
     const keyword = lecturerSearch.toLowerCase().trim();
@@ -407,7 +434,10 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                          onChange={(e) => {
                            setSubjectSearch(e.target.value);
                            setShowSubjectDropdown(true);
-                           if (formData.monhoc_id) setFormData(prev => ({...prev, monhoc_id: '', giangvien_id: ''}));
+                            if (formData.monhoc_id) {
+                                setFormData(prev => ({...prev, monhoc_id: '', giangvien_id: '', lop_hanhchinh_ids: []}));
+                                setLecturers([]);
+                            }
                            if (errors.monhoc_id) setErrors(prev => ({...prev, monhoc_id: undefined}));
                          }}
                          placeholder="Nhập mã hoặc tên môn học..."
@@ -426,7 +456,8 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                                <div
                                  key={sub.monhoc_id}
                                  onClick={() => {
-                                   setFormData(prev => ({...prev, monhoc_id: sub.monhoc_id, giangvien_id: ''}));
+                                   setFormData(prev => ({...prev, monhoc_id: sub.monhoc_id, giangvien_id: '', lop_hanhchinh_ids: []}));
+                                   setLecturers([]); // Clear danh sách cũ ngay lập tức
                                    setSubjectSearch(`${sub.ma_mon} - ${sub.ten_mon}`);
                                    setShowSubjectDropdown(false);
                                    setErrors(prev => ({...prev, monhoc_id: undefined}));
@@ -476,7 +507,7 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                             : 'Vui lòng chọn môn học trước'}
                           className={`w-full px-3 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 text-sm bg-white
                             ${errors.giangvien_id ? 'border-red-500 focus:border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}
-                            ${!formData.monhoc_id ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`}
+                            ${!formData.monhoc_id ? 'text-gray-400 cursor-not-allowed' : ''}`}
                         />
 
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
@@ -519,6 +550,74 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                     </div>
                 </InputGroup>
 
+                {/* HIỂN THỊ THÔNG TIN GIẢNG VIÊN KHI ĐÃ CHỌN */}
+                {formData.giangvien_id && lecturers.find(l => l.giangvien_id === formData.giangvien_id) && (
+                    (() => {
+                        const lec = lecturers.find(l => l.giangvien_id === formData.giangvien_id);
+                        const hasNoUnit = !lec.khoa_id && (!lec.DanhSachBoMon || lec.DanhSachBoMon.length === 0);
+                        
+                        return (
+                            <div className={`mt-[-8px] mb-4 p-3 border rounded-lg animate-in slide-in-from-top-2 duration-200 shadow-xs
+                                ${hasNoUnit ? 'bg-red-50 border-red-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                                <div className="flex items-start gap-3">
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 border shadow-inner
+                                        ${hasNoUnit ? 'bg-red-100 text-red-600 border-red-200' : 'bg-emerald-100 text-emerald-600 border-emerald-200'}`}>
+                                        {lec.ten?.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between">
+                                            <p className={`text-sm font-bold truncate ${hasNoUnit ? 'text-red-900' : 'text-emerald-900'}`}>
+                                                {lec.ho} {lec.ten}
+                                            </p>
+                                            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter
+                                                ${hasNoUnit ? 'bg-red-200 text-red-700' : 'bg-emerald-200/50 text-emerald-700'}`}>
+                                                {hasNoUnit ? 'Cảnh báo: Thiếu thông tin' : 'Thông tin chi tiết'}
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-1.5">
+                                            <p className={`text-[11px] flex items-center gap-1.5 font-medium
+                                                ${hasNoUnit ? 'text-red-700/80' : 'text-emerald-700/80'}`}>
+                                                <Hash size={11} className={hasNoUnit ? 'text-red-500' : 'text-emerald-500'} /> MGV: <span className={`font-bold ${hasNoUnit ? 'text-red-900' : 'text-emerald-900'}`}>{lec.ma_gv}</span>
+                                            </p>
+                                            <p className={`text-[11px] flex items-center gap-1.5 font-medium
+                                                ${hasNoUnit ? 'text-red-700/80' : 'text-emerald-700/80'}`}>
+                                                <Clock size={11} className={hasNoUnit ? 'text-red-500' : 'text-emerald-500'} /> SĐT: <span className={`font-bold ${hasNoUnit ? 'text-red-900' : 'text-emerald-900'}`}>{lec.sdt || 'N/A'}</span>
+                                            </p>
+                                            
+                                            {/* Dòng Khoa */}
+                                            <p className={`text-[11px] flex items-center gap-1.5 font-medium truncate
+                                                ${hasNoUnit ? 'text-red-700/80 font-bold italic' : 'text-emerald-700/80'}`}>
+                                                <MapPin size={11} className={hasNoUnit ? 'text-red-500' : 'text-emerald-500'} /> 
+                                                {lec.Khoa?.ten_khoa || 'Chưa phân Khoa'}
+                                            </p>
+
+                                            {/* Dòng Email */}
+                                            <p className={`text-[11px] flex items-center gap-1.5 font-medium truncate col-span-1 sm:col-span-2
+                                                ${hasNoUnit ? 'text-red-700/80' : 'text-emerald-700/80'}`}>
+                                                <Mail size={11} className={hasNoUnit ? 'text-red-500' : 'text-emerald-500'} /> {lec.email || 'N/A'}
+                                            </p>
+
+                                            {/* Dòng Bộ môn (Luôn nằm ở dòng mới vì chiếm toàn bộ grid hoặc col) */}
+                                            <p className={`text-[11px] flex items-center gap-1.5 font-medium truncate col-span-1 sm:col-span-2
+                                                ${hasNoUnit ? 'text-red-700/80 font-bold italic' : 'text-emerald-700/80'}`}>
+                                                <Layers size={11} className={hasNoUnit ? 'text-red-500' : 'text-emerald-500'} /> 
+                                                {lec.DanhSachBoMon && lec.DanhSachBoMon.length > 0 
+                                                    ? lec.DanhSachBoMon.map(bm => bm.ten_bomon).join(', ') 
+                                                    : 'Chưa phân Bộ môn'}
+                                            </p>
+                                        </div>
+                                        {hasNoUnit && (
+                                            <p className="text-[10px] text-red-600 mt-2 bg-white/50 p-1.5 rounded border border-red-100 flex items-center gap-1 font-bold animate-pulse">
+                                                ⚠ Giảng viên này chưa được gán vào Khoa/Bộ môn nào. Vui lòng kiểm tra lại hồ sơ!
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()
+                )}
+
                 {/* LỚP HÀNH CHÍNH (MULTI-SELECT) */}
                 <InputGroup label="Lớp hành chính tham gia" required icon={Layers} error={errors.lop_hanhchinh_ids}>
                     <div className="relative" ref={classDropdownRef}>
@@ -528,13 +627,18 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
                                 value={showClassDropdown ? classSearch : getSelectedClassNames()}
                                 readOnly={!showClassDropdown}
                                 onClick={() => {
+                                    if (!formData.monhoc_id) return;
                                     setShowClassDropdown(true);
                                     setClassSearch('');
                                 }}
                                 onChange={(e) => setClassSearch(e.target.value)}
-                                placeholder={formData.lop_hanhchinh_ids.length > 0 ? "" : "Chọn một hoặc nhiều lớp..."}
-                                className={`w-full pl-10 pr-8 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 text-sm bg-white 
-                                    ${errors.lop_hanhchinh_ids ? 'border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}`}
+                                placeholder={!formData.monhoc_id 
+                                     ? "Vui lòng chọn môn học trước" 
+                                     : (formData.lop_hanhchinh_ids.length > 0 ? "" : "Chọn một hoặc nhiều lớp...")}
+                                disabled={!formData.monhoc_id}
+                                className={`w-full pl-10 pr-8 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 text-sm 
+                                     ${!formData.monhoc_id ? 'text-gray-400 cursor-not-allowed' : 'bg-white'}
+                                     ${errors.lop_hanhchinh_ids ? 'border-red-500' : 'border-gray-200 focus:border-[#3B5998]'}`}
                             />
                             
                             <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
@@ -747,3 +851,4 @@ const AssignmentModal = ({ isOpen, onClose, onSave, initialData }) => {
 };
 
 export default AssignmentModal;
+

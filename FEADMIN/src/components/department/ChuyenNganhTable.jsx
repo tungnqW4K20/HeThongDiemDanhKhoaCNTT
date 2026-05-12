@@ -1,7 +1,7 @@
 import React from 'react';
-import { Edit2, Trash2, Loader2 } from 'lucide-react';
+import { Edit2, Trash2, Loader2, Search, Library } from 'lucide-react';
 
-const ChuyenNganhTable = ({ data, loading, onEdit, onDelete }) => {
+const ChuyenNganhTable = ({ data, loading, onEdit, onDelete, searchTerm, setSearchTerm }) => {
   if (loading) {
     return (
       <div className="py-24 flex flex-col items-center justify-center text-gray-400">
@@ -12,7 +12,28 @@ const ChuyenNganhTable = ({ data, loading, onEdit, onDelete }) => {
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      <div className="bg-white border-b border-gray-100 p-4 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="relative w-full md:w-1/3">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input
+            type="text"
+            placeholder="Tìm theo mã, tên chuyên ngành hoặc tên khoa..."
+            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/10 focus:border-[#3B5998] transition-all text-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
+          <div className="flex items-center gap-2">
+            <Library size={16} className="text-[#3B5998]" />
+            <span>
+              Tổng số: <b className="text-gray-800">{data.length}</b>
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
       <table className="w-full text-left">
         <thead className="bg-gray-50/50 border-b border-gray-100">
           <tr>
@@ -81,6 +102,7 @@ const ChuyenNganhTable = ({ data, loading, onEdit, onDelete }) => {
           )}
         </tbody>
       </table>
+    </div>
     </div>
   );
 };

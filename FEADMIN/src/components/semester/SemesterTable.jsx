@@ -1,18 +1,38 @@
 import React from 'react';
-import { Calendar, Clock, AlertCircle, Edit2, Trash2 } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, Edit2, Trash2, Search, Plus } from 'lucide-react';
 
-const SemesterTable = ({ data, loading, onEdit, onDelete }) => {
-  if (!loading && (!data || data.length === 0)) {
-    return (
-      <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-20 text-center">
-        <AlertCircle size={48} className="mx-auto mb-4 text-gray-200" />
-        <p className="text-gray-400">Không có dữ liệu học kỳ nào được hiển thị.</p>
-      </div>
-    );
-  }
-
+const SemesterTable = ({ data, loading, onEdit, onDelete, searchTerm, setSearchTerm, onAddClick, onAddSchoolYearClick }) => {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="p-4 flex flex-col md:flex-row gap-4 items-center border-b border-gray-100">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <input 
+            type="text"
+            placeholder="Tìm kiếm tên học kỳ..."
+            className="block w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-sm focus:bg-white transition-all outline-none"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+        
+        <div className="flex gap-2 w-full md:w-auto">
+          <button
+            onClick={onAddSchoolYearClick}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-semibold transition-all shadow-md active:scale-95"
+          >
+            <Plus size={20} />
+            <span className="whitespace-nowrap">Thêm năm học</span>
+          </button>
+          <button 
+            onClick={onAddClick}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#3B5998] hover:bg-[#2d4373] text-white px-5 py-2 rounded-lg font-semibold transition-all shadow-md active:scale-95"
+          >
+            <Plus size={20} />
+            <span className="whitespace-nowrap">Thêm học kỳ</span>
+          </button>
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left">
           <thead>
@@ -28,7 +48,7 @@ const SemesterTable = ({ data, loading, onEdit, onDelete }) => {
           <tbody className="divide-y divide-gray-50">
             {loading ? (
                <tr><td colSpan="6" className="p-10 text-center">Đang tải...</td></tr>
-            ) : (
+            ) : data && data.length > 0 ? (
               data.map((item) => (
                 <tr key={item.hocky_id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="px-6 py-5 font-bold text-slate-700">{item.ten_hocky}</td>
@@ -59,6 +79,15 @@ const SemesterTable = ({ data, loading, onEdit, onDelete }) => {
                   </td>
                 </tr>
               ))
+            ) : (
+              <tr>
+                <td colSpan="6" className="p-20 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <AlertCircle size={48} className="text-gray-200" />
+                    <p className="text-gray-400">Không có dữ liệu học kỳ nào được hiển thị.</p>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

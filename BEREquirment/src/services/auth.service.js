@@ -244,7 +244,7 @@ const loginAdmin = async ({ username, password }) => {
       {
         model: db.Khoa,
         as: 'KhoaQuanLy',
-        attributes: ['khoa_id']
+        attributes: ['khoa_id', 'ten_khoa']
       }
     ]
   });
@@ -267,13 +267,16 @@ const loginAdmin = async ({ username, password }) => {
         truong_bomon_id: account.taikhoan_id,
         isDeleted: false
       },
-      attributes: ['bomon_id', 'khoa_id']
+      attributes: ['bomon_id', 'khoa_id', 'ten_bomon'],
+      include: [{ model: db.Khoa, as: 'Khoa', attributes: ['ten_khoa'] }]
     });
 
     if (boMonPhuTrach) {
       truongBoMon = {
         chuyennganh_id: boMonPhuTrach.bomon_id,
-        khoa_id: boMonPhuTrach.khoa_id
+        khoa_id: boMonPhuTrach.khoa_id,
+        ten_bomon: boMonPhuTrach.ten_bomon,
+        ten_khoa: boMonPhuTrach.Khoa?.ten_khoa
       };
     } else {
       const lopPhuTrach = await db.LopHanhChinh.findOne({
@@ -281,7 +284,8 @@ const loginAdmin = async ({ username, password }) => {
           giangvien_id: account.ref_id,
           chuyennganh_id: { [db.Sequelize.Op.ne]: null }
         },
-        attributes: ['chuyennganh_id', 'khoa_id']
+        attributes: ['chuyennganh_id', 'khoa_id'],
+        include: [{ model: db.BoMon, as: 'ChuyenNganh', attributes: ['ten_bomon'] }]
       });
 
       if (!lopPhuTrach) {
@@ -291,6 +295,7 @@ const loginAdmin = async ({ username, password }) => {
             model: db.MonHoc,
             required: true,
             attributes: ['bomon_id', 'khoa_id'],
+            include: [{ model: db.BoMon, as: 'BoMon', attributes: ['ten_bomon'] }],
             where: { bomon_id: { [db.Sequelize.Op.ne]: null } }
           }],
           attributes: ['lophocphan_id']
@@ -299,16 +304,20 @@ const loginAdmin = async ({ username, password }) => {
         if (lopHocPhan?.MonHoc?.bomon_id) {
           truongBoMon = {
             chuyennganh_id: lopHocPhan.MonHoc.bomon_id,
-            khoa_id: lopHocPhan.MonHoc.khoa_id
+            khoa_id: lopHocPhan.MonHoc.khoa_id,
+            ten_bomon: lopHocPhan.MonHoc.BoMon?.ten_bomon,
+            ten_khoa: lopHocPhan.MonHoc.Khoa?.ten_khoa
           };
         }
       }
 
       if (lopPhuTrach && !truongBoMon) {
-      truongBoMon = {
-        chuyennganh_id: lopPhuTrach.chuyennganh_id,
-        khoa_id: lopPhuTrach.khoa_id
-      };
+        truongBoMon = {
+          chuyennganh_id: lopPhuTrach.chuyennganh_id,
+          khoa_id: lopPhuTrach.khoa_id,
+          ten_bomon: lopPhuTrach.ChuyenNganh?.ten_bomon,
+          ten_khoa: lopPhuTrach.Khoa?.ten_khoa
+        };
       }
     }
   }
@@ -318,7 +327,7 @@ const loginAdmin = async ({ username, password }) => {
   }
 
   const payload = {
-    id: account.taikhoan_id,      
+    id: account.taikhoan_id,
     username: account.username,
     role: account.vaitro,
     khoa_id:
@@ -327,10 +336,17 @@ const loginAdmin = async ({ username, password }) => {
         : account.vaitro === 'truongbomon'
           ? (truongBoMon?.khoa_id || null)
           : null,
-    chuyennganh_id: account.vaitro === 'truongbomon' ? (truongBoMon?.chuyennganh_id || null) : null
+    ten_khoa:
+      account.vaitro === 'lanhdao'
+        ? (account.KhoaQuanLy?.ten_khoa || null)
+        : account.vaitro === 'truongbomon'
+          ? (truongBoMon?.ten_khoa || null)
+          : null,
+    chuyennganh_id: account.vaitro === 'truongbomon' ? (truongBoMon?.chuyennganh_id || null) : null,
+    ten_bomon: account.vaitro === 'truongbomon' ? (truongBoMon?.ten_bomon || null) : null
   };
 
-  console.log("👉 Payload login admin:", payload); 
+  console.log("👉 Payload login admin:", payload);
 
   const token = generateToken(payload, account.vaitro);
   const refreshToken = generateRefreshToken(payload, account.vaitro);
@@ -340,11 +356,13 @@ const loginAdmin = async ({ username, password }) => {
 
   return {
     token,
-    refreshToken, 
+    refreshToken,
     user: {
       ...accData,
       khoa_id: payload.khoa_id,
-      chuyennganh_id: payload.chuyennganh_id
+      ten_khoa: payload.ten_khoa,
+      chuyennganh_id: payload.chuyennganh_id,
+      ten_bomon: payload.ten_bomon
     }
   };
 };

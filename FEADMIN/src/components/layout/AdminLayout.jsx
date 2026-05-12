@@ -20,6 +20,8 @@ const AdminLayout = () => {
         giangvien: 'Giảng viên'
     };
     const roleLabel = roleLabelMap[user?.vaitro] || 'Người dùng hệ thống';
+    const unitName = user?.vaitro === 'lanhdao' ? user?.ten_khoa : user?.vaitro === 'truongbomon' ? user?.ten_bomon : '';
+    const fullRoleLabel = unitName ? `${roleLabel} - ${unitName}` : roleLabel;
 
     // Xử lý hiệu ứng đổ bóng khi cuộn trang
     useEffect(() => {
@@ -98,7 +100,7 @@ const AdminLayout = () => {
                                     {displayName}
                                 </span>
                                 <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 tracking-tighter">
-                                    {roleLabel}
+                                    {fullRoleLabel}
                                 </span>
                             </div>
 

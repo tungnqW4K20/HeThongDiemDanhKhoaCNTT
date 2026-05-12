@@ -48,8 +48,8 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading, boMonOptions:
   }, [filteredData, currentPage]);
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex flex-col xl:flex-row justify-between items-center gap-4">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="p-4 flex flex-col xl:flex-row justify-between items-center gap-4 border-b border-gray-100">
         <div className="relative w-full xl:max-w-xl">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <input
@@ -82,8 +82,7 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading, boMonOptions:
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-[#3B5998]/5 border-b border-[#3B5998]/10">
@@ -151,7 +150,6 @@ const ClassListView = ({ data, onSelect, onImportClick, isLoading, boMonOptions:
               )}
             </tbody>
           </table>
-        </div>
 
         <Pagination
           currentPage={currentPage}
