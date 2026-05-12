@@ -435,7 +435,7 @@ export default function ChiTietLop() {
             data={filteredStudents}
             renderItem={({ item }) => <StudentCard student={item} onUpdateAttendance={handleUpdateAttendance} />}
             keyExtractor={(item) => `sv-${item.sinhvien_id}`}
-            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+            contentContainerStyle={{ paddingBottom: 120 }}
             keyboardShouldPersistTaps="handled"
         />
       </View>
