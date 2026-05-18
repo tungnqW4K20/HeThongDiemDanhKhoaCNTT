@@ -383,7 +383,7 @@ export default function LecturerManagerPage() {
 
                         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
                             {/* Search */}
-                            <div className="relative w-full sm:w-80 group">
+                            <div className="relative w-full sm:w-64 group">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#3B5998] transition-colors" />
                                 </div>

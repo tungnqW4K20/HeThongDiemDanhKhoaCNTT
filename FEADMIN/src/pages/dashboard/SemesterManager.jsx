@@ -1,6 +1,5 @@
 'use strict';
 import React, { useState, useEffect, useMemo } from 'react';
-import SemesterToolbar from '../../components/semester/SemesterToolbar';
 import SemesterTable from '../../components/semester/SemesterTable';
 import SemesterModal from '../../components/semester/SemesterModal';
 import SchoolYearModal from '../../components/semester/SchoolYearModal';
@@ -54,16 +53,13 @@ const SemesterManagerPage = () => {
         {/* <p className="text-gray-500 text-sm font-medium">Hệ thống đồng bộ Thứ 2 mốc tuần 1 cho lịch giảng dạy.</p> */}
       </div>
 
-      <SemesterToolbar 
-        searchTerm={searchTerm} 
-        setSearchTerm={setSearchTerm} 
-        onAddClick={() => setModalState({ isOpen: true, data: null })}
-        onAddSchoolYearClick={() => setSchoolYearModalOpen(true)}
-      />
-
       <SemesterTable 
         data={filteredData} 
         loading={loading}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        onAddClick={() => setModalState({ isOpen: true, data: null })}
+        onAddSchoolYearClick={() => setSchoolYearModalOpen(true)}
         onEdit={(item) => setModalState({ isOpen: true, data: item })}
         onDelete={handleDelete}
       />
