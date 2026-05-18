@@ -50,7 +50,7 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
         },
         {
           model: db.SinhVien,
-          attributes: ["sinhvien_id", "ma_sv", "ten", "email", "sdt"], 
+          attributes: ["sinhvien_id", "ma_sv", "ten", "email", "sdt"],
           include: [
             { model: db.LopHanhChinh, as: "Lop", attributes: ["ten_lop"] },
             {
@@ -60,17 +60,17 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
               include: [{
                 model: db.BuoiHoc,
                 as: "BuoiHoc",
-                where: { 
+                where: {
                   lophocphan_id,
                   trangthai: 'completed' // CHỈ TÍNH CÁC BUỔI ĐÃ XÁC NHẬN DẠY
-                }, 
+                },
                 attributes: ['ngay', 'buoi_id']
               }]
             }
           ]
         }
       ],
-      order: [[ { model: db.SinhVien }, "ten", "ASC"]]
+      order: [[{ model: db.SinhVien }, "ten", "ASC"]]
     });
 
     return records.map(record => {
@@ -85,7 +85,7 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
       const vang_kp = validHistory.filter(h => h.trangthai === 'absent').length;
       const vang_cp = validHistory.filter(h => h.trangthai === 'excused').length;
       const tong_vang = vang_kp + vang_cp;
-      const tong_buoi_da_hoc = validHistory.length; 
+      const tong_buoi_da_hoc = validHistory.length;
       const tile_nghi = tong_buoi_da_hoc > 0 ? (tong_vang / tong_buoi_da_hoc) * 100 : 0;
 
       // Lọc lấy dữ liệu điểm danh của ngày đang chọn (ngayChuan)
@@ -178,101 +178,121 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
 //     }
 // };
 const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh_id = null, user_giangvien_id = null) => {
-    try {
-        const { hocky_id } = query;
-        const mainWhere = { hocky_id };
-        
-        // Nếu là lãnh đạo khoa, lọc theo phạm vi khoa
-        if (target_khoa_id && !target_chuyennganh_id) {
-            mainWhere[Op.or] = [
-                { '$MonHoc.khoa_id$': target_khoa_id },
-                { '$MonHoc.BoMon.khoa_id$': target_khoa_id },
-                { '$DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
-            ];
+  try {
+    const { hocky_id } = query;
+    const mainWhere = { hocky_id };
+
+    // Nếu là lãnh đạo khoa, lọc theo phạm vi khoa
+    if (target_khoa_id && !target_chuyennganh_id) {
+      mainWhere[Op.or] = [
+        // 1. Môn học thuộc khoa (trực tiếp hoặc qua bộ môn)
+        {
+          monhoc_id: {
+            [Op.in]: db.sequelize.literal(`(
+                    SELECT m.monhoc_id 
+                    FROM MonHoc m 
+                    LEFT JOIN BoMon b ON m.bomon_id = b.bomon_id
+                    WHERE m.khoa_id = '${target_khoa_id}' OR b.khoa_id = '${target_khoa_id}'
+                )`)
+          }
+        },
+        // 2. Có lớp hành chính thuộc khoa
+        {
+          lophocphan_id: {
+            [Op.in]: db.sequelize.literal(`(
+                    SELECT lhc_lhp.lophocphan_id 
+                    FROM LHP_LHC lhc_lhp
+                    JOIN LopHanhChinh lhc ON lhc_lhp.lop_hanhchinh_id = lhc.lop_hanhchinh_id
+                    WHERE lhc.khoa_id = '${target_khoa_id}'
+                )`)
+          }
         }
-        
-        // Nếu là trưởng bộ môn, lọc theo phạm vi bộ môn/chuyên ngành
-        if (target_chuyennganh_id) {
-            mainWhere[Op.or] = [
-                { '$MonHoc.bomon_id$': target_chuyennganh_id },
-                { '$MonHoc.chuyennganh_id$': target_chuyennganh_id },
-                { '$MonHoc.BoMon.bomon_id$': target_chuyennganh_id },
-                { '$DanhSachLopHanhChinh.chuyennganh_id$': target_chuyennganh_id },
-                { '$DanhSachLopHanhChinh.lop_hanhchinh_id$': { [Op.in]: db.sequelize.literal(`(SELECT lop_hanhchinh_id FROM LopHanhChinh WHERE chuyennganh_id = '${target_chuyennganh_id}')`) } }
-            ];
-        }
-
-        const data = await db.LopHocPhan.findAll({
-            where: mainWhere,
-            attributes: [
-              'lophocphan_id',
-              'ten_lophocphan',
-              'ma_lop',
-              'phong',
-              'thu',
-              'tiet_bat_dau',
-              'so_tiet',
-              'tuan_hoc',
-              'loai_hoc_phan'
-            ], 
-            include: [
-                {
-                    model: db.MonHoc,
-                    attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
-                    required: false, 
-                    include: [
-                        {
-                            model: db.Khoa,
-                            as: 'Khoa',
-                            attributes: ['khoa_id', 'ten_khoa']
-                        },
-                        {
-                            model: db.BoMon,
-                            as: 'BoMon',
-                            attributes: ['bomon_id', 'ten_bomon', 'khoa_id']
-                        }
-                    ]
-                },
-                {
-                    model: db.GiangVien,
-                    attributes: ['giangvien_id', 'ho', 'ten', 'sdt'],
-                },
-                {
-                    model: db.LopHanhChinh,
-                    as: 'DanhSachLopHanhChinh',
-                    attributes: ['lop_hanhchinh_id', 'ten_lop', 'khoa_id', 'chuyennganh_id'],
-                    through: { attributes: [] },
-                    required: false
-                },
-                {
-                    model: db.HocKy,
-                    attributes: ['hocky_id', 'ten_hocky']
-                }
-            ],
-            subQuery: false, 
-            order: [[{ model: db.MonHoc }, 'ten_mon', 'ASC']]
-        });
-
-        // Hậu xử lý dữ liệu để lọc danh sách lớp hành chính hiển thị cho từng vai trò
-        const formattedData = data.map(lhp => {
-            const item = lhp.toJSON();
-            
-            if (target_khoa_id) {
-                // Chỉ giữ lại các lớp hành chính thực sự thuộc khoa (hoặc bộ môn) của mình
-                item.DanhSachLopHanhChinh = (item.DanhSachLopHanhChinh || []).filter(lhc => 
-                    lhc.khoa_id === target_khoa_id || 
-                    (target_chuyennganh_id && (lhc.bomon_id === target_chuyennganh_id || lhc.chuyennganh_id === target_chuyennganh_id))
-                );
-            }
-            
-            return item;
-        });
-
-        return { success: true, data: formattedData };
-    } catch (error) {
-        console.error('Service Error:', error);
-        throw error;
+      ];
     }
+
+    // Nếu là trưởng bộ môn, lọc theo phạm vi bộ môn/chuyên ngành
+    if (target_chuyennganh_id) {
+      mainWhere[Op.or] = [
+        // 1. Môn học thuộc bộ môn
+        {
+          monhoc_id: {
+            [Op.in]: db.sequelize.literal(`(
+                    SELECT monhoc_id 
+                    FROM MonHoc 
+                    WHERE bomon_id = '${target_chuyennganh_id}' OR chuyennganh_id = '${target_chuyennganh_id}'
+                )`)
+          }
+        },
+        // 2. Có lớp hành chính thuộc bộ môn/chuyên ngành
+        {
+          lophocphan_id: {
+            [Op.in]: db.sequelize.literal(`(
+                    SELECT lhc_lhp.lophocphan_id 
+                    FROM LHP_LHC lhc_lhp
+                    JOIN LopHanhChinh lhc ON lhc_lhp.lop_hanhchinh_id = lhc.lop_hanhchinh_id
+                    WHERE lhc.chuyennganh_id = '${target_chuyennganh_id}' OR lhc.lop_hanhchinh_id = '${target_chuyennganh_id}'
+                )`)
+          }
+        }
+      ];
+    }
+
+    const data = await db.LopHocPhan.findAll({
+      where: mainWhere,
+      attributes: [
+        'lophocphan_id',
+        'ten_lophocphan',
+        'ma_lop',
+        'phong',
+        'thu',
+        'tiet_bat_dau',
+        'so_tiet',
+        'tuan_hoc',
+        'loai_hoc_phan'
+      ],
+      include: [
+        {
+          model: db.MonHoc,
+          attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id'],
+          required: false,
+          include: [
+            {
+              model: db.Khoa,
+              as: 'Khoa',
+              attributes: ['khoa_id', 'ten_khoa']
+            },
+            {
+              model: db.BoMon,
+              as: 'BoMon',
+              attributes: ['bomon_id', 'ten_bomon', 'khoa_id']
+            }
+          ]
+        },
+        {
+          model: db.GiangVien,
+          attributes: ['giangvien_id', 'ho', 'ten', 'sdt'],
+        },
+        {
+          model: db.LopHanhChinh,
+          as: 'DanhSachLopHanhChinh',
+          attributes: ['lop_hanhchinh_id', 'ten_lop', 'khoa_id', 'chuyennganh_id'],
+          through: { attributes: [] },
+          required: false
+        },
+        {
+          model: db.HocKy,
+          attributes: ['hocky_id', 'ten_hocky']
+        }
+      ],
+      subQuery: false,
+      order: [[{ model: db.MonHoc }, 'ten_mon', 'ASC']]
+    });
+
+    return { success: true, data: data };
+  } catch (error) {
+    console.error('Service Error:', error);
+    throw error;
+  }
 };
 
 const normalizeWeekList = (input) => {
@@ -343,9 +363,9 @@ const updateLopHocPhanInfo = async (lophocphan_id, payload = {}) => {
 
     const ma_lop = lop_hanhchinh_ids.length > 0
       ? lop_hanhchinh_ids
-          .map((id) => selectedLopHanhChinh.find((item) => item.lop_hanhchinh_id === id)?.ten_lop)
-          .filter(Boolean)
-          .join('|')
+        .map((id) => selectedLopHanhChinh.find((item) => item.lop_hanhchinh_id === id)?.ten_lop)
+        .filter(Boolean)
+        .join('|')
       : ma_lop_input;
 
     if (!ten_lophocphan || !ma_lop || !phong) {
@@ -472,7 +492,7 @@ const normalizeDate = (rawDate) => {
 
   // 2. Nếu là chuỗi (ví dụ "10/08/2007" hoặc "2007-08-10")
   const dateString = rawDate.toString().trim();
-  
+
   // Thử parse theo các định dạng phổ biến trong Excel Việt Nam
   // Ưu tiên DD/MM/YYYY rồi mới đến các kiểu khác
   const formats = ["DD/MM/YYYY", "D/M/YYYY", "YYYY-MM-DD", "DD-MM-YYYY"];
@@ -529,7 +549,7 @@ const importSinhVienFromExcel = async (lophocphan_id, fileBuffer) => {
 
     // Chuẩn hóa ngày sinh
     const clean_ngay_sinh = normalizeDate(raw_ngay_sinh);
-    
+
     // Validate dữ liệu
     if (parsedStt !== null && Number.isNaN(parsedStt)) {
       errors.push(`Dòng ${rowIndex}: STT '${row[0]}' không hợp lệ (phải là số nguyên dương).`);
@@ -574,9 +594,9 @@ const importSinhVienFromExcel = async (lophocphan_id, fileBuffer) => {
       // 1. Xử lý Lớp Hành Chính
       const [lhc] = await db.LopHanhChinh.findOrCreate({
         where: { ten_lop: item.ten_lop_hc },
-        defaults: { 
+        defaults: {
           lop_hanhchinh_id: crypto.randomUUID(),
-          isDeleted: false 
+          isDeleted: false
         },
         transaction: t
       });
@@ -596,10 +616,10 @@ const importSinhVienFromExcel = async (lophocphan_id, fileBuffer) => {
         results.imported++;
       } else {
         // Nếu đã tồn tại thì cập nhật thông tin mới nhất từ Excel
-        await sv.update({ 
-          ten: item.ho_ten, 
+        await sv.update({
+          ten: item.ho_ten,
           ngaysinh: item.ngay_sinh,
-          sdt: item.sdt || sv.sdt 
+          sdt: item.sdt || sv.sdt
         }, { transaction: t });
         results.updated++;
       }
@@ -867,7 +887,7 @@ const removeSinhVienKhoiLopHocPhan = async (lophocphan_id, sinhvien_id) => {
   }
 };
 
-module.exports = { 
+module.exports = {
   getStudentsByLopHocPhan,
   getAllLopHocPhan,
   updateLopHocPhanInfo,

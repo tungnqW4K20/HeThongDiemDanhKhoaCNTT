@@ -118,7 +118,9 @@ const handleGetGiangVienByMaKhoa = async (req, res) => {
 const getAllGiangVien = async (req, res) => {
     try {
         const { targetKhoaId, targetChuyenNganhId } = await resolveScopeForLecturer(req.user || {});
-        const response = await giangVienService.getAllGiangVienService(targetKhoaId, targetChuyenNganhId);
+        // Ưu tiên khoa_id từ query (nếu có) để lọc động theo môn học
+        const finalKhoaId = req.query.khoa_id || targetKhoaId;
+        const response = await giangVienService.getAllGiangVienService(finalKhoaId, targetChuyenNganhId);
         return res.status(200).json(response);
     } catch (error) {
         console.error(error);

@@ -95,7 +95,11 @@ const Sidebar = () => {
             <p className="text-[11px] text-white mt-1 font-bold">
               {user.username}
               <span className={`ml-2 px-2 py-0.5 rounded-full text-[9px] uppercase font-bold ${isQuanLyTheoDonVi ? 'bg-yellow-400/20 text-yellow-300' : 'bg-green-400/20 text-green-300'}`}>
-                {isLanhDao ? 'Lãnh đạo' : isTruongBoMon ? 'Trưởng bộ môn' : 'Admin'}
+                {isLanhDao 
+                  ? `Lãnh đạo ${user.ten_khoa ? `- ${user.ten_khoa}` : ''}` 
+                  : isTruongBoMon 
+                    ? `Trưởng bộ môn ${user.ten_bomon ? `- ${user.ten_bomon}` : ''}` 
+                    : 'Admin'}
               </span>
             </p>
           )}

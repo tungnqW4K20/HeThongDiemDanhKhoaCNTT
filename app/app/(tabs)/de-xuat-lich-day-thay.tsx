@@ -909,12 +909,11 @@ export default function QuanLyDeXuatScreen() {
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Ngày dạy mới (DD-MM-YYYY)</Text>
-                <TouchableOpacity 
-                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0 }]}
-                  activeOpacity={1}
+                <View 
+                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
                 >
                   <TextInput 
-                    style={{ flex: 1, height: '100%', padding: 12 }} 
+                    style={{ flex: 1, padding: 12 }} 
                     value={formData.ngay_moi} 
                     onChangeText={text => {
                       const cleaned = text.replace(/\D/g, '');
@@ -946,7 +945,7 @@ export default function QuanLyDeXuatScreen() {
                   >
                     <Ionicons name="calendar-outline" size={20} color={PRIMARY_COLOR} />
                   </TouchableOpacity>
-                </TouchableOpacity>
+                </View>
               </View>
               <View style={styles.row}>
                 <View style={{flex: 1, marginRight: 10}}><Text style={styles.inputLabel}>Tiết bắt đầu</Text><TextInput style={styles.input} keyboardType="numeric" value={formData.tiet_bat_dau_moi} onChangeText={t => setFormData({...formData, tiet_bat_dau_moi: t})}/></View>
