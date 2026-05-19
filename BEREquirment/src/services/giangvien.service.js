@@ -383,6 +383,181 @@ const getThongTinGiangVien = async (giangvien_id) => {
   }
 };
 
+const getAdvisoryClasses = async (giangvien_id) => {
+  try {
+    const classes = await db.LopHanhChinh.findAll({
+      where: {
+        giangvien_id,
+        isDeleted: false
+      },
+      attributes: ['lop_hanhchinh_id', 'ten_lop', 'nien_khoa', 'chuong_trinh'],
+      include: [
+        {
+          model: db.SinhVien,
+          as: 'DanhSachSinhVien',
+          attributes: ['sinhvien_id'],
+          where: { isDeleted: false },
+          required: false
+        }
+      ],
+      order: [['ten_lop', 'ASC']]
+    });
+
+    return classes.map(c => {
+      const data = c.get({ plain: true });
+      const count = data.DanhSachSinhVien ? data.DanhSachSinhVien.length : 0;
+      delete data.DanhSachSinhVien;
+      return {
+        ...data,
+        si_so: count
+      };
+    });
+  } catch (error) {
+    console.error('Lỗi khi lấy danh sách lớp chủ nhiệm:', error);
+    throw new Error('Lỗi truy vấn danh sách lớp chủ nhiệm: ' + error.message);
+  }
+};
+
+const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => {
+  try {
+    let targetHocKyId = hocky_id;
+    if (!targetHocKyId) {
+      const latestHocKy = await db.HocKy.findOne({
+        order: [['ngay_batdau', 'DESC']]
+      });
+      if (latestHocKy) {
+        targetHocKyId = latestHocKy.hocky_id;
+      }
+    }
+
+    const students = await db.SinhVien.findAll({
+      where: {
+        lop_hanhchinh_id,
+        isDeleted: false
+      },
+      attributes: ['sinhvien_id', 'ma_sv', 'ten', 'email', 'sdt', 'trang_thai'],
+      order: [['ten', 'ASC']]
+    });
+
+    if (students.length === 0) {
+      return [];
+    }
+
+    const studentIds = students.map(s => s.sinhvien_id);
+
+    const registrations = await db.DangKyHoc.findAll({
+      where: {
+        sinhvien_id: { [Op.in]: studentIds },
+        trangthai: 'active'
+      },
+      include: [
+        {
+          model: db.LopHocPhan,
+          where: targetHocKyId ? { hocky_id: targetHocKyId } : {},
+          attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop'],
+          required: true,
+          include: [
+            {
+              model: db.MonHoc,
+              attributes: ['monhoc_id', 'ten_mon', 'ma_mon']
+            }
+          ]
+        }
+      ]
+    });
+
+    const attendanceRecords = await db.DiemDanh.findAll({
+      where: {
+        sinhvien_id: { [Op.in]: studentIds }
+      },
+      include: [
+        {
+          model: db.BuoiHoc,
+          as: 'BuoiHoc',
+          where: { trangthai: 'completed' },
+          attributes: ['buoi_id', 'lophocphan_id', 'ngay'],
+          required: true,
+          include: [
+            {
+              model: db.LopHocPhan,
+              as: 'LopHocPhan',
+              where: targetHocKyId ? { hocky_id: targetHocKyId } : {},
+              attributes: ['lophocphan_id', 'hocky_id'],
+              required: true
+            }
+          ]
+        }
+      ]
+    });
+
+    const result = students.map(student => {
+      const studentRegs = registrations.filter(r => r.sinhvien_id === student.sinhvien_id);
+      const studentAttends = attendanceRecords.filter(a => a.sinhvien_id === student.sinhvien_id);
+
+      let totalPresent = 0;
+      let totalAbsent = 0;
+      let totalLate = 0;
+      let totalExcused = 0;
+
+      const coursesBreakdown = studentRegs.map(reg => {
+        const lhp = reg.LopHocPhan;
+        if (!lhp) return null;
+
+        const courseAttends = studentAttends.filter(a => a.BuoiHoc && a.BuoiHoc.lophocphan_id === lhp.lophocphan_id);
+
+        const present = courseAttends.filter(a => a.trangthai === 'present').length;
+        const absent = courseAttends.filter(a => a.trangthai === 'absent').length;
+        const late = courseAttends.filter(a => a.trangthai === 'late').length;
+        const excused = courseAttends.filter(a => a.trangthai === 'excused').length;
+        const total = courseAttends.length;
+
+        totalPresent += present;
+        totalAbsent += absent;
+        totalLate += late;
+        totalExcused += excused;
+
+        return {
+          lophocphan_id: lhp.lophocphan_id,
+          ma_lop: lhp.ma_lop,
+          ten_lophocphan: lhp.ten_lophocphan,
+          ten_mon: lhp.MonHoc ? lhp.MonHoc.ten_mon : '',
+          ma_mon: lhp.MonHoc ? lhp.MonHoc.ma_mon : '',
+          stats: {
+            present,
+            absent,
+            late,
+            excused,
+            total
+          }
+        };
+      }).filter(Boolean);
+
+      const overallTotal = totalPresent + totalAbsent + totalLate + totalExcused;
+
+      return {
+        sinhvien_id: student.sinhvien_id,
+        ma_sv: student.ma_sv,
+        ho_ten: student.ten,
+        email: student.email,
+        sdt: student.sdt,
+        trang_thai: student.trang_thai,
+        overall_stats: {
+          present: totalPresent,
+          absent: totalAbsent,
+          late: totalLate,
+          excused: totalExcused,
+          total: overallTotal
+        },
+        courses: coursesBreakdown
+      };
+    });
+
+    return result;
+  } catch (error) {
+    console.error('Lỗi khi lấy tình trạng chuyên cần lớp chủ nhiệm:', error);
+    throw new Error('Lỗi truy vấn tình trạng chuyên cần: ' + error.message);
+  }
+};
 
 module.exports = {
     getPhanCongTheoHocKy, 
@@ -392,5 +567,7 @@ module.exports = {
     getGiangVienById,
     updateGiangVien,
     deleteGiangVien,
-    getThongTinGiangVien
+    getThongTinGiangVien,
+    getAdvisoryClasses,
+    getAdvisoryClassAttendance
 };

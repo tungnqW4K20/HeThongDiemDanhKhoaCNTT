@@ -27,4 +27,7 @@ import { apiClient } from "./apiClient";
 // };
 export const giangVienService = {
   getProfile: (giangvien_id: string) => apiClient(`/giang-vien/profile`), 
+  getAdvisoryClasses: () => apiClient(`/giang-vien/chu-nhiem/lop-hanh-chinh`),
+  getAdvisoryClassAttendance: (lop_id: string, hocky_id?: string) => 
+    apiClient(`/giang-vien/chu-nhiem/lop-hanh-chinh/${lop_id}/attendance${hocky_id ? `?hocky_id=${hocky_id}` : ''}`),
 };

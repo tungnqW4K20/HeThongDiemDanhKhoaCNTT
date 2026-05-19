@@ -10,7 +10,7 @@ const { authenticateToken, authorizeRole } = require('../middlewares/auth.middle
 router.post(
     '/gui-de-xuat/:buoi_id', 
     authenticateToken, 
-    authorizeRole(['giangvien']), 
+    authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), 
     deXuatController.createProposal
 );
 
@@ -32,7 +32,7 @@ router.put(
 router.get(
     '/my-proposals', 
     authenticateToken, 
-    authorizeRole(['giangvien']), 
+    authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), 
     deXuatController.getMyProposals
 );
 

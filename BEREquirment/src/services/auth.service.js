@@ -121,8 +121,9 @@ const loginTaiKhoan = async ({ username, password }) => {
     throw new Error('Username hoặc mật khẩu không chính xác.');
   }
 
-  if (account.vaitro !== "giangvien") {
-    throw new Error("Tài khoản này không thuộc vai trò giảng viên.");
+  const allowedRoles = ["giangvien", "truongbomon", "lanhdao"];
+  if (!allowedRoles.includes(account.vaitro)) {
+    throw new Error("Tài khoản này không thuộc vai trò giảng viên, trưởng bộ môn hoặc lãnh đạo.");
   }
 
   const isMatch = await bcrypt.compare(password, account.password_hash);

@@ -15,7 +15,9 @@ router.get('/',authenticateToken, giangVienController.getAllGiangVien);
 router.get('/get-gv-by-khoa',authenticateToken, authorizeRole(['admin', 'lanhdao', 'truongbomon']), giangVienController.handleGetGiangVienByMaKhoa);
 
 
-router.get('/profile',authenticateToken, authorizeRole('giangvien'), giangVienController.getProfile);
+router.get('/profile',authenticateToken, authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), giangVienController.getProfile);
+router.get('/chu-nhiem/lop-hanh-chinh', authenticateToken, authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), giangVienController.handleGetAdvisoryClasses);
+router.get('/chu-nhiem/lop-hanh-chinh/:lop_id/attendance', authenticateToken, authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), giangVienController.handleGetAdvisoryClassAttendance);
 router.post('/import', upload.single('file'), giangVienController.importGiangVienExcel);
 router.get('/:id', giangVienController.handleGetGiangVienById);
 

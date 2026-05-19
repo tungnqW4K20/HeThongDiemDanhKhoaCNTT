@@ -403,6 +403,58 @@ const importGiangVienExcel = async (req, res) => {
 
 
 
+const handleGetAdvisoryClasses = async (req, res) => {
+  try {
+    const giangvien_id = req.user.giangvien_id;
+    if (!giangvien_id) {
+      return res.status(401).json({
+        success: false,
+        message: "Token không chứa thông tin định danh giảng viên hợp lệ"
+      });
+    }
+
+    const data = await giangVienService.getAdvisoryClasses(giangvien_id);
+    return res.status(200).json({
+      success: true,
+      message: "Lấy danh sách lớp chủ nhiệm thành công",
+      data
+    });
+  } catch (error) {
+    console.error("Lỗi handleGetAdvisoryClasses:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+const handleGetAdvisoryClassAttendance = async (req, res) => {
+  try {
+    const { lop_id } = req.params;
+    const { hocky_id } = req.query;
+
+    if (!lop_id) {
+      return res.status(400).json({
+        success: false,
+        message: "Thiếu ID lớp hành chính"
+      });
+    }
+
+    const data = await giangVienService.getAdvisoryClassAttendance(lop_id, hocky_id);
+    return res.status(200).json({
+      success: true,
+      message: "Lấy tình trạng chuyên cần lớp chủ nhiệm thành công",
+      data
+    });
+  } catch (error) {
+    console.error("Lỗi handleGetAdvisoryClassAttendance:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
     getPhanCongTheoHocKy,
     getLichGiangDay,
@@ -413,5 +465,7 @@ module.exports = {
     handleUpdateGiangVien,
     handleDeleteGiangVien,
     getProfile,
-    importGiangVienExcel
+    importGiangVienExcel,
+    handleGetAdvisoryClasses,
+    handleGetAdvisoryClassAttendance
 };

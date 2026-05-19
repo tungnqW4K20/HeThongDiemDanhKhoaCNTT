@@ -15,7 +15,9 @@ import {
   Text,
   TouchableOpacity,
   UIManager,
-  View
+  View,
+  Animated,
+  TouchableWithoutFeedback
 } from 'react-native';
 
 import { hocKyService } from '@/services/hocKyService';
@@ -138,6 +140,32 @@ export default function LichDayChuyenNghiepScreen() {
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const isFirstLoad = useRef(true);
+
+  // Animated values for bottom sheet transition
+  const [weekSlide] = useState(new Animated.Value(500));
+
+  useEffect(() => {
+    if (isWeekModalVisible) {
+      Animated.spring(weekSlide, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      weekSlide.setValue(500);
+    }
+  }, [isWeekModalVisible]);
+
+  const closeWeekModal = () => {
+    Animated.timing(weekSlide, {
+      toValue: 500,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setWeekModalVisible(false);
+    });
+  };
 
   // Logic Ghi đè thông tin từ đề xuất (Dạy thay, bù, đổi phòng...)
   const applyApprovedProposalOverrides = useCallback((lichData: any[], deXuatData: any[]) => {
@@ -426,29 +454,40 @@ export default function LichDayChuyenNghiepScreen() {
         )}
 
         {/* WEEK MODAL */}
-        <Modal visible={isWeekModalVisible} transparent animationType="slide">
-          <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setWeekModalVisible(false)}>
-            <View style={styles.modal}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHandle} />
-                <Text style={styles.modalTitle}>Chọn tuần học</Text>
-              </View>
-              <FlatList 
-                data={weeks} 
-                keyExtractor={it => it.id.toString()} 
-                renderItem={({ item }) => (
-                  <TouchableOpacity 
-                    style={[styles.modalItem, selectedWeek?.id === item.id && { backgroundColor: COLORS.activeWeek }]} 
-                    onPress={() => { setSelectedWeek(item); setWeekModalVisible(false); }}
-                  >
-                    <Text style={[styles.modalItemText, selectedWeek?.id === item.id && { color: COLORS.primary, fontWeight: 'bold' }]}>
-                      {item.label}
-                    </Text>
-                    <Text style={styles.modalItemDetail}>{item.detail}</Text>
-                    {selectedWeek?.id === item.id && <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />}
-                  </TouchableOpacity>
-              )} />
-            </View>
+        <Modal 
+          visible={isWeekModalVisible} 
+          transparent 
+          animationType="fade"
+          onRequestClose={closeWeekModal}
+        >
+          <TouchableOpacity 
+            style={styles.overlay} 
+            activeOpacity={1} 
+            onPress={closeWeekModal}
+          >
+            <TouchableWithoutFeedback>
+              <Animated.View style={[styles.modal, { transform: [{ translateY: weekSlide }] }]}>
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHandle} />
+                  <Text style={styles.modalTitle}>Chọn tuần học</Text>
+                </View>
+                <FlatList 
+                  data={weeks} 
+                  keyExtractor={it => it.id.toString()} 
+                  renderItem={({ item }) => (
+                    <TouchableOpacity 
+                      style={[styles.modalItem, selectedWeek?.id === item.id && { backgroundColor: COLORS.activeWeek }]} 
+                      onPress={() => { setSelectedWeek(item); closeWeekModal(); }}
+                    >
+                      <Text style={[styles.modalItemText, selectedWeek?.id === item.id && { color: COLORS.primary, fontWeight: 'bold' }]}>
+                        {item.label}
+                      </Text>
+                      <Text style={styles.modalItemDetail}>{item.detail}</Text>
+                      {selectedWeek?.id === item.id && <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />}
+                    </TouchableOpacity>
+                )} />
+              </Animated.View>
+            </TouchableWithoutFeedback>
           </TouchableOpacity>
         </Modal>
       </View>

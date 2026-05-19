@@ -8,12 +8,12 @@ const upload = require('../middlewares/upload.middleware');
 // Định nghĩa endpoint GET để lấy lịch giảng dạy
 // URL: GET http://your-domain/api/phancong/lich-giang-day
 router.get('/lich-giang-day',authenticateToken, 
-    authorizeRole(['giangvien']), phanCongController.getLichGiangDay);//lấy lịch dạy một kỳ của giảng viên
+    authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), phanCongController.getLichGiangDay);//lấy lịch dạy một kỳ của giảng viên
 
 router.get(
     '/lich-giang-day/homnay', 
     authenticateToken, 
-    authorizeRole(['giangvien']), 
+    authorizeRole(['giangvien', 'truongbomon', 'lanhdao']), 
     phanCongController.getLichHomNay
 );// lấy lịch dạy hôm nay ngày mai của giảng viên 
 
