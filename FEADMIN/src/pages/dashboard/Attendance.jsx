@@ -534,7 +534,7 @@ const AttendancePagegggg = () => {
         {/* HEADER (GIỮ NGUYÊN GIAO DIỆN) */}
         <div className="flex flex-col xl:flex-row justify-between gap-6 items-center">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Kiểm Soát Điểm Danh</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-[#3B5998]">Quản lý điểm danh</h1>
             <p className="text-slate-500 mt-2 text-sm font-medium">Trung tâm điều hành đào tạo</p>
           </div>
           <div className="flex flex-col items-center gap-3">

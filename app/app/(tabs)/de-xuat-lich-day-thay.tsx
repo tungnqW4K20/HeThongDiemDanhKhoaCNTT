@@ -906,15 +906,15 @@ export default function QuanLyDeXuatScreen() {
               <Text style={styles.modalTitle}>Đề xuất chỉnh sửa lịch</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}><Ionicons name="close-circle" size={28} color="#CCC" /></TouchableOpacity>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingBottom: 30 }}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Ngày dạy mới (DD-MM-YYYY)</Text>
                 <TouchableOpacity 
-                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0 }]}
+                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 0, minHeight: 50 }]}
                   activeOpacity={1}
                 >
                   <TextInput 
-                    style={{ flex: 1, height: '100%', padding: 12 }} 
+                    style={{ flex: 1, padding: 12 }} 
                     value={formData.ngay_moi} 
                     onChangeText={text => {
                       const cleaned = text.replace(/\D/g, '');
@@ -932,7 +932,7 @@ export default function QuanLyDeXuatScreen() {
                     keyboardType="numeric"
                   />
                   <TouchableOpacity 
-                    style={{ paddingHorizontal: 15, height: '100%', justifyContent: 'center' }} 
+                    style={{ paddingHorizontal: 15, height: 50, justifyContent: 'center', alignItems: 'center' }} 
                     onPress={() => {
                       // Init calendar month from current text if valid
                       if (/^\d{2}-\d{2}-\d{4}$/.test(formData.ngay_moi)) {
@@ -1228,11 +1228,11 @@ const styles = StyleSheet.create({
   editButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F4FF', padding: 12, borderRadius: 10, marginTop: 8 },
   editButtonText: { marginLeft: 8, color: PRIMARY_COLOR, fontWeight: '700' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 20, height: '85%' },
+  modalContent: { backgroundColor: '#FFF', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 16, maxHeight: '90%' },
   modalHandle: { width: 40, height: 4, backgroundColor: '#DDD', alignSelf: 'center', borderRadius: 2, marginBottom: 15 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
   modalTitle: { fontSize: 18, fontWeight: '800', color: PRIMARY_COLOR },
-  inputGroup: { marginBottom: 15 },
+  inputGroup: { marginBottom: 12 },
   inputLabel: { fontSize: 14, fontWeight: '600', color: '#555', marginBottom: 5 },
   input: { backgroundColor: '#F9FAFB', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', padding: 12, fontSize: 15 },
   row: { flexDirection: 'row' },
