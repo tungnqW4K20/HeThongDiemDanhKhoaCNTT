@@ -388,10 +388,10 @@ export default function LichDayChuyenNghiepScreen() {
           <Text style={styles.welcomeText}>Xin chào Giảng viên,</Text>
           <Text style={styles.headerTitle}>Lịch Giảng Dạy</Text>
         </View>
-        <TouchableOpacity style={styles.notificationBtn}>
+        {/* <TouchableOpacity style={styles.notificationBtn}>
           <Ionicons name="notifications-outline" size={24} color={COLORS.text} />
           <View style={styles.dot} />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
       </View>
 
       <View style={styles.container}>

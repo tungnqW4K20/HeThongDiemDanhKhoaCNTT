@@ -28,6 +28,7 @@ const DashboardRoute = require('./routes/dashboard.route')
 const DeXuatRoute = require('./routes/dexuat.route')
 const NamHocRoute = require('./routes/namhoc.routes')
 const TaiKhoanRoutes = require('./routes/taikhoan.routes');
+const ThongBaoRoutes = require('./routes/thongbao.routes');
 
 
 
@@ -37,8 +38,7 @@ app.use(express.json());
 db.sequelize.authenticate()
   .then(() => {
     console.log(' Kết nối MySQL thành công!');
-    // return db.sequelize.sync();
-    // return db.sequelize.sync({ alter: true }); // thay đổi cấu trúc bảng
+    return db.sequelize.sync(); // thay đổi cấu trúc bảng
   })
 
 
@@ -62,6 +62,7 @@ db.sequelize.authenticate()
     app.use('/api/de-xuat', DeXuatRoute);
     app.use('/api/nam-hoc', NamHocRoute)
     app.use('/api/tai-khoan', TaiKhoanRoutes);
+    app.use('/api/thong-bao', ThongBaoRoutes);
 
 
 

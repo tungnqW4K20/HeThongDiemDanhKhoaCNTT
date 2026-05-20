@@ -61,6 +61,13 @@ const dashboardService = {
     if (params.bomon_id && params.bomon_id !== 'all') query.set('bomon_id', params.bomon_id);
     const suffix = query.toString();
     return axiosClient.get(`/thong-ke/diem-danh-theo-ngay${suffix ? `?${suffix}` : ''}`);
+  },
+
+  /**
+   * Gửi thông báo cảnh báo chuyên cần sinh viên đến GV chủ nhiệm và GV học phần
+   */
+  notifyStudentWarning(sinhvien_id, lophocphan_id, ti_le_vang) {
+    return axiosClient.post('/thong-bao/canh-bao-sinh-vien', { sinhvien_id, lophocphan_id, ti_le_vang });
   }
 };
 

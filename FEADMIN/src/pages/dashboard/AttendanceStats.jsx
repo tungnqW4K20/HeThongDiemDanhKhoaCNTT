@@ -83,6 +83,8 @@ const AttendanceStats = () => {
   const [selectedClass, setSelectedClass] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('high'); // high: vắng nhiều nhất, low: ít nhất
+  const [notifiedStudents, setNotifiedStudents] = useState(new Set());
+  const [notifyingAll, setNotifyingAll] = useState(false);
   const latestStatsRequestRef = React.useRef(0);
   const selectedSemesterMeta = useMemo(
     () => semesters.find((hk) => hk.hocky_id === selectedSemester) || null,
@@ -247,6 +249,54 @@ const AttendanceStats = () => {
     }
   }, [selectedSemester, fetchDailyReport]);
 
+  const handleNotifyTeacher = async (w) => {
+    try {
+      const key = `${w.sinhvien_id}-${w.lophocphan_id}`;
+      const res = await dashboardService.notifyStudentWarning(w.sinhvien_id, w.lophocphan_id, w.ti_le_vang);
+      if (res.success) {
+        setNotifiedStudents(prev => {
+          const next = new Set(prev);
+          next.add(key);
+          return next;
+        });
+        alert(`Đã gửi thông báo cảnh báo sinh viên ${w.ten_sv} đến các giảng viên liên quan thành công!`);
+      } else {
+        alert(res.message || 'Gửi thông báo thất bại');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Lỗi kết nối khi gửi thông báo.');
+    }
+  };
+
+  const handleNotifyAll = async () => {
+    if (warningStudents.length === 0) return;
+    if (!window.confirm(`Bạn có chắc muốn gửi thông báo cảnh báo cho tất cả ${warningStudents.length} sinh viên này?`)) return;
+    
+    setNotifyingAll(true);
+    let successCount = 0;
+    const newNotified = new Set(notifiedStudents);
+
+    for (const w of warningStudents) {
+      const key = `${w.sinhvien_id}-${w.lophocphan_id}`;
+      if (newNotified.has(key)) continue;
+
+      try {
+        const res = await dashboardService.notifyStudentWarning(w.sinhvien_id, w.lophocphan_id, w.ti_le_vang);
+        if (res.success) {
+          newNotified.add(key);
+          successCount++;
+        }
+      } catch (err) {
+        console.error(`Lỗi gửi thông báo cho sinh viên ${w.ten_sv}:`, err);
+      }
+    }
+
+    setNotifiedStudents(newNotified);
+    setNotifyingAll(false);
+    alert(`Đã gửi thành công ${successCount} thông báo cảnh báo chuyên cần!`);
+  };
+
   // 3. Xử lý dữ liệu hiển thị (Lọc & Sắp xếp)
   const processedData = useMemo(() => {
     let data = classList.filter(item => {
@@ -345,6 +395,7 @@ const AttendanceStats = () => {
                         <tr>
                             <th className="px-6 py-4 sticky left-0 bg-slate-50 z-20 w-64 font-black text-slate-600">Sinh viên</th>
                             <th className="px-4 py-4 text-center  w-24 font-black text-slate-600">% Vắng</th>
+                            <th className="px-4 py-4 text-center w-28 font-black text-slate-600">Hành động</th>
                             {danhSachSinhVien[0]?.history?.map((h, i) => (
                                 <th key={i} className="px-3 py-4 text-center text-[10px] font-mono  min-w-[85px] text-slate-400 uppercase">
                                     {new Date(h.ngay).toLocaleDateString('vi-VN', {day:'2-digit', month:'2-digit'})}
@@ -360,7 +411,33 @@ const AttendanceStats = () => {
                                     <div className="text-[10px] opacity-60 font-mono italic">{sv.ma_sv}</div>
                                 </td>
                                 <td className={`px-4 py-4 text-center font-black  ${sv.canh_bao ? 'text-red-600 animate-pulse' : 'text-slate-600'}`}>{sv.ti_le_vang}%</td>
-                              {sv.history?.map((h, i) => (
+                                <td className="px-4 py-4 text-center">
+                                  {sv.canh_bao ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleNotifyTeacher({
+                                        sinhvien_id: sv.sinhvien_id,
+                                        lophocphan_id: selectedClass.lophocphan_id,
+                                        ten_sv: sv.ten_sv,
+                                        ma_sv: sv.ma_sv,
+                                        ti_le_vang: sv.ti_le_vang,
+                                        ten_lop: selectedClass.ten_lophocphan,
+                                        ma_lop: selectedClass.ma_lop
+                                      })}
+                                      disabled={notifiedStudents.has(`${sv.sinhvien_id}-${selectedClass.lophocphan_id}`)}
+                                      className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                                        notifiedStudents.has(`${sv.sinhvien_id}-${selectedClass.lophocphan_id}`)
+                                          ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
+                                          : 'bg-red-600 text-white hover:bg-red-700 active:scale-95'
+                                      }`}
+                                    >
+                                      {notifiedStudents.has(`${sv.sinhvien_id}-${selectedClass.lophocphan_id}`) ? 'Đã báo' : 'Báo GV'}
+                                    </button>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">OK</span>
+                                  )}
+                                </td>
+                                {sv.history?.map((h, i) => (
                                     <td key={i} className="px-3 py-4 text-center  last:border-0">
                                         {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto border-2 border-white shadow-sm" />}
@@ -612,16 +689,46 @@ const AttendanceStats = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-                  <div className="rounded-2xl ed-100 overflow-hidden bg-white">
-                    <div className="px-4 py-3 bg-red-50 ed-100 text-xs font-black text-red-600 uppercase tracking-wider">Cảnh báo sinh viên nghỉ quá 20%</div>
+                  <div className="rounded-2xl border border-red-100 overflow-hidden bg-white">
+                    <div className="px-4 py-3 bg-red-50 flex justify-between items-center">
+                      <span className="text-xs font-black text-red-600 uppercase tracking-wider">Cảnh báo sinh viên nghỉ quá 20%</span>
+                      {warningStudents.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleNotifyAll}
+                          disabled={notifyingAll}
+                          className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-wider transition-colors active:scale-95 disabled:opacity-55"
+                        >
+                          {notifyingAll ? 'Đang gửi...' : 'Gửi tất cả'}
+                        </button>
+                      )}
+                    </div>
                     <div className="max-h-56 overflow-auto divide-y divide-slate-100">
-                      {warningStudents.length > 0 ? warningStudents.map((w, idx) => (
-                        <div key={`${w.sinhvien_id}-${idx}`} className="px-4 py-3 text-xs">
-                          <p className="font-bold text-slate-700">{w.ten_sv} ({w.ma_sv})</p>
-                          <p className="text-slate-500">{w.ten_lop} - {w.ma_lop}</p>
-                          <p className="font-black text-red-600 mt-1">Tỷ lệ vắng: {w.ti_le_vang}%</p>
-                        </div>
-                      )) : <p className="px-4 py-4 text-xs text-slate-400">Chưa có cảnh báo.</p>}
+                      {warningStudents.length > 0 ? warningStudents.map((w, idx) => {
+                        const key = `${w.sinhvien_id}-${w.lophocphan_id}`;
+                        const isNotified = notifiedStudents.has(key);
+                        return (
+                          <div key={`${w.sinhvien_id}-${idx}`} className="px-4 py-3 text-xs flex justify-between items-center hover:bg-slate-50 transition-colors">
+                            <div>
+                              <p className="font-bold text-slate-700">{w.ten_sv} ({w.ma_sv})</p>
+                              <p className="text-slate-500">{w.ten_lop} - {w.ma_lop}</p>
+                              <p className="font-black text-red-600 mt-1">Tỷ lệ vắng: {w.ti_le_vang}%</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleNotifyTeacher(w)}
+                              disabled={isNotified}
+                              className={`px-3 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                                isNotified
+                                  ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
+                                  : 'bg-red-600 text-white hover:bg-red-700 active:scale-95'
+                              }`}
+                            >
+                              {isNotified ? 'Đã gửi' : 'Báo GV'}
+                            </button>
+                          </div>
+                        );
+                      }) : <p className="px-4 py-4 text-xs text-slate-400">Chưa có cảnh báo.</p>}
                     </div>
                   </div>
 

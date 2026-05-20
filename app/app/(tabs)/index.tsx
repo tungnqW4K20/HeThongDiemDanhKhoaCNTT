@@ -1,7 +1,8 @@
 import { phanCongService } from "@/services/phanCongService";
+import { thongBaoService } from "@/services/thongBaoService";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -53,6 +54,35 @@ export default function HomeScreen() {
 
   const [rawSchedule, setRawSchedule] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [badgeCount, setBadgeCount] = useState(0);
+  const [missedCount, setMissedCount] = useState(0);
+
+  const fetchNotificationBadge = useCallback(async () => {
+    if (!user?.GiangVien?.giangvien_id) return;
+    try {
+      const [notifRes, missedRes] = await Promise.all([
+        thongBaoService.getMyNotifications(),
+        thongBaoService.getMissedAttendanceToday(),
+      ]);
+
+      let unreadCount = 0;
+      if (notifRes.success && Array.isArray(notifRes.data)) {
+        unreadCount = notifRes.data.filter((item: any) => !item.is_read).length;
+      }
+
+      let missedToday = 0;
+      if (missedRes.success && Array.isArray(missedRes.data)) {
+        missedToday = missedRes.data.length;
+        setMissedCount(missedToday);
+      }
+
+      setBadgeCount(unreadCount + missedToday);
+    } catch (error) {
+      console.error("Lỗi lấy số lượng thông báo:", error);
+    }
+  }, [user]);
+
+  useFocusEffect(fetchNotificationBadge);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -153,8 +183,13 @@ export default function HomeScreen() {
             style={styles.logo} 
           />
           <View style={styles.headerIcons}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push("/thongbao")} style={styles.notificationBtn}>
               <Ionicons name="notifications-outline" size={28} color={COLORS.text} />
+              {badgeCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{badgeCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push("/profile")}>
               <Image source={{ uri: DEFAULT_AVATAR }} style={styles.avatar} />
@@ -168,6 +203,21 @@ export default function HomeScreen() {
             {user?.GiangVien?.ho} {user?.GiangVien?.ten}
           </Text>
         </View>
+
+        {/* Warning Banner for Missed Attendance */}
+        {missedCount > 0 && (
+          <TouchableOpacity
+            style={styles.missedWarningBanner}
+            onPress={() => router.push("/thongbao")}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="warning" size={22} color="#DC2626" />
+            <Text style={styles.missedWarningText}>
+              Bạn chưa điểm danh {missedCount} lớp dạy hôm nay! Bấm để xem.
+            </Text>
+            <Ionicons name="chevron-forward" size={18} color="#DC2626" />
+          </TouchableOpacity>
+        )}
 
         {/* Upcoming Class Section */}
         {upcomingClass ? (
@@ -259,6 +309,40 @@ const styles = StyleSheet.create({
   header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingVertical: 15 },
   logo: { width: 45, height: 45, resizeMode: "contain" },
   headerIcons: { flexDirection: "row", alignItems: "center", gap: 15 },
+  notificationBtn: { position: "relative" },
+  badge: {
+    position: "absolute",
+    right: -4,
+    top: -4,
+    backgroundColor: "#DC2626",
+    borderRadius: 9,
+    width: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  badgeText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "bold",
+  },
+  missedWarningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FCA5A5",
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+  },
+  missedWarningText: {
+    flex: 1,
+    color: "#B91C1C",
+    fontSize: 13,
+    fontWeight: "bold",
+    marginLeft: 8,
+  },
   avatar: { width: 40, height: 40, borderRadius: 20, borderWidth: 1, borderColor: COLORS.primary },
   welcomeSection: { marginBottom: 20 },
   welcomeText: { fontSize: 18, color: COLORS.lightGray },
