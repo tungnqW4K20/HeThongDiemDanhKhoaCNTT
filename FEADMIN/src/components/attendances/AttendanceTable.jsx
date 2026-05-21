@@ -27,7 +27,7 @@ const StatusButton = ({ status, active, onClick, icon: Icon }) => {
   );
 };
 
-const AttendanceTable = ({ data, onUpdateStatus, onUpdateNote }) => {
+const AttendanceTable = ({ data, onUpdateStatus, onUpdateNote, onNotifyTeacher, notifiedStudents }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
 
@@ -95,54 +95,88 @@ const AttendanceTable = ({ data, onUpdateStatus, onUpdateNote }) => {
               <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider w-[250px]">Sinh Viên</th>
               <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center">Điểm danh nhanh</th>
               <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Ghi Chú</th>
+              <th className="px-6 py-3 text-[10px] font-bold text-slate-500 uppercase tracking-wider text-center w-[120px]">Hành động</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {filteredData.map((row) => (
-              <tr key={row.id} className="hover:bg-slate-50/50 transition-colors group">
-                <td className="px-6 py-4">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-slate-800 text-sm leading-tight">{row.ten || row.ho_ten}</span>
-                    <span className="text-[11px] text-slate-400 font-mono mt-0.5">{row.ma_sv}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-center gap-1.5">
-                    <StatusButton 
-                      status="present" 
-                      active={row.trangthai === 'present'} 
-                      onClick={() => onUpdateStatus(row.sinhvien_id, 'present')} 
-                    />
-                    <StatusButton 
-                      status="absent" 
-                      active={row.trangthai === 'absent'} 
-                      onClick={() => onUpdateStatus(row.sinhvien_id, 'absent')} 
-                    />
-                    <StatusButton 
-                      status="late" 
-                      active={row.trangthai === 'late'} 
-                      onClick={() => onUpdateStatus(row.sinhvien_id, 'late')} 
-                    />
-                    <StatusButton 
-                      status="excused" 
-                      active={row.trangthai === 'excused'} 
-                      onClick={() => onUpdateStatus(row.sinhvien_id, 'excused')} 
-                    />
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="relative group/note">
-                    <input 
-                      type="text"
-                      placeholder="Ghi chú..."
-                      value={row.ghichu || ''}
-                      onChange={(e) => onUpdateNote(row.sinhvien_id, e.target.value)}
-                      className="w-full bg-transparent text-xs text-slate-600 border-none border-b border-transparent hover:border-slate-200 focus:border-[#3B5998] focus:ring-0 px-0 py-1 transition-all outline-none"
-                    />
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {filteredData.map((row) => {
+              const key = `${row.sinhvien_id}-${row.lophocphan_id}`;
+              const isNotified = notifiedStudents?.has(key);
+              return (
+                <tr key={row.id} className={twMerge(
+                  "hover:bg-slate-50/50 transition-colors group",
+                  row.canh_bao && "bg-red-50/20 hover:bg-red-50/30"
+                )}>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-slate-800 text-sm leading-tight flex items-center gap-1.5">
+                        {row.ten || row.ho_ten}
+                        {row.canh_bao && (
+                          <span className="inline-block px-1.5 py-0.5 text-[9px] font-black bg-red-100 text-red-600 rounded">
+                            Cảnh báo ({row.so_buoi_vang}/{row.tong_so_buoi})
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-[11px] text-slate-400 font-mono mt-0.5">{row.ma_sv}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <StatusButton 
+                        status="present" 
+                        active={row.trangthai === 'present'} 
+                        onClick={() => onUpdateStatus(row.sinhvien_id, 'present')} 
+                      />
+                      <StatusButton 
+                        status="absent" 
+                        active={row.trangthai === 'absent'} 
+                        onClick={() => onUpdateStatus(row.sinhvien_id, 'absent')} 
+                      />
+                      <StatusButton 
+                        status="late" 
+                        active={row.trangthai === 'late'} 
+                        onClick={() => onUpdateStatus(row.sinhvien_id, 'late')} 
+                      />
+                      <StatusButton 
+                        status="excused" 
+                        active={row.trangthai === 'excused'} 
+                        onClick={() => onUpdateStatus(row.sinhvien_id, 'excused')} 
+                      />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="relative group/note">
+                      <input 
+                        type="text"
+                        placeholder="Ghi chú..."
+                        value={row.ghichu || ''}
+                        onChange={(e) => onUpdateNote(row.sinhvien_id, e.target.value)}
+                        className="w-full bg-transparent text-xs text-slate-600 border-none border-b border-transparent hover:border-slate-200 focus:border-[#3B5998] focus:ring-0 px-0 py-1 transition-all outline-none"
+                      />
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    {row.canh_bao ? (
+                      <button
+                        type="button"
+                        onClick={() => onNotifyTeacher(row)}
+                        disabled={isNotified}
+                        className={twMerge(
+                          "px-2.5 py-1.5 rounded-lg text-[10px] font-black tracking-wide uppercase transition-all shadow-sm",
+                          isNotified
+                            ? "bg-emerald-100 text-emerald-700 border border-emerald-200 cursor-not-allowed"
+                            : "bg-red-600 text-white hover:bg-red-700 hover:shadow-red-200 active:scale-95 border border-red-600"
+                        )}
+                      >
+                        {isNotified ? 'Đã gửi' : 'Báo GV'}
+                      </button>
+                    ) : (
+                      <span className="text-slate-400 font-bold text-xs">-</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

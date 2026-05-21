@@ -195,7 +195,7 @@ const AttendanceStats = () => {
     setLoading(true);
     try {
       const res = await dashboardService.getClassDetailAttendance(lhpId);
-      if (res.success) setSelectedClass(res.data);
+      if (res.success) setSelectedClass({ ...res.data, lophocphan_id: lhpId });
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -394,7 +394,7 @@ const AttendanceStats = () => {
                     <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
                             <th className="px-6 py-4 sticky left-0 bg-slate-50 z-20 w-64 font-black text-slate-600">Sinh viên</th>
-                            <th className="px-4 py-4 text-center  w-24 font-black text-slate-600">% Vắng</th>
+                            <th className="px-4 py-4 text-center  w-24 font-black text-slate-600">Số buổi vắng</th>
                             <th className="px-4 py-4 text-center w-28 font-black text-slate-600">Hành động</th>
                             {danhSachSinhVien[0]?.history?.map((h, i) => (
                                 <th key={i} className="px-3 py-4 text-center text-[10px] font-mono  min-w-[85px] text-slate-400 uppercase">
@@ -410,7 +410,9 @@ const AttendanceStats = () => {
                                     <div className="font-bold">{sv.ten_sv}</div>
                                     <div className="text-[10px] opacity-60 font-mono italic">{sv.ma_sv}</div>
                                 </td>
-                                <td className={`px-4 py-4 text-center font-black  ${sv.canh_bao ? 'text-red-600 animate-pulse' : 'text-slate-600'}`}>{sv.ti_le_vang}%</td>
+                                <td className={`px-4 py-4 text-center font-black  ${sv.canh_bao ? 'text-red-600 animate-pulse' : 'text-slate-600'}`}>
+                                  {sv.so_buoi_vang !== undefined ? `${sv.so_buoi_vang}/${sv.tong_so_buoi} buổi` : `${sv.ti_le_vang}%`} ({sv.ti_le_vang}%)
+                                </td>
                                 <td className="px-4 py-4 text-center">
                                   {sv.canh_bao ? (
                                     <button
@@ -712,7 +714,9 @@ const AttendanceStats = () => {
                             <div>
                               <p className="font-bold text-slate-700">{w.ten_sv} ({w.ma_sv})</p>
                               <p className="text-slate-500">{w.ten_lop} - {w.ma_lop}</p>
-                              <p className="font-black text-red-600 mt-1">Tỷ lệ vắng: {w.ti_le_vang}%</p>
+                              <p className="font-black text-red-600 mt-1">
+                                Vắng: {w.so_buoi_vang !== undefined ? `${w.so_buoi_vang}/${w.tong_so_buoi} buổi` : `${w.ti_le_vang}%`} ({w.ti_le_vang}%)
+                              </p>
                             </div>
                             <button
                               type="button"

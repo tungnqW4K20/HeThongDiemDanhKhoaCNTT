@@ -248,7 +248,9 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
             sinhvien_id: sv.sinhvien_id,
             ma_sv: sv.ma_sv,
             ten_sv: sv.ten,
-            ti_le_vang: tiLeVang.toFixed(2),
+            ti_le_vang: Number(tiLeVang.toFixed(2)),
+            so_buoi_vang: soBuoiVang,
+            tong_so_buoi: tongSoBuoiKeHoach,
             canh_bao: tiLeVang >= 20,
             history: dsBuoiHoc.map(buoi => ({
                 ngay: buoi.ngay,
@@ -260,6 +262,7 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
     return {
         success: true,
         data: {
+            lophocphan_id: lhp.lophocphan_id,
             ten_lophocphan: lhp.ten_lophocphan,
             ma_lop: lhp.ma_lop,
             loai_hoc_phan: lhp.loai_hoc_phan,
@@ -472,7 +475,9 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                     sinhvien_id: reg.sinhvien_id,
                     ma_sv: reg.SinhVien?.ma_sv || 'N/A',
                     ten_sv: reg.SinhVien?.ten || 'N/A',
-                    ti_le_vang: Number(rate.toFixed(2))
+                    ti_le_vang: Number(rate.toFixed(2)),
+                    so_buoi_vang: absences,
+                    tong_so_buoi: tongBuoiKeHoach
                 });
             }
         });

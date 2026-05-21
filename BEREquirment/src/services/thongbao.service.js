@@ -25,7 +25,7 @@ const createStudentWarningNotification = async ({ sinhvien_id, lophocphan_id, ti
     // 2. Tìm thông tin lớp học phần (để lấy GV học phần)
     const lophocphan = await db.LopHocPhan.findOne({
       where: { lophocphan_id },
-      attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'giangvien_id']
+      attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'giangvien_id', 'tuan_hoc']
     });
 
     if (!lophocphan) {
@@ -52,16 +52,53 @@ const createStudentWarningNotification = async ({ sinhvien_id, lophocphan_id, ti
       return { success: false, message: 'Không tìm thấy tài khoản hệ thống của giảng viên' };
     }
 
+    // Lấy số buổi vắng và tổng số buổi học của sinh viên
+    const dsBuoiHocCompleted = await db.BuoiHoc.findAll({
+      where: { lophocphan_id, trangthai: 'completed' },
+      attributes: ['buoi_id']
+    });
+    const completedBuoiIds = dsBuoiHocCompleted.map(b => b.buoi_id);
+
+    let soBuoiVang = 0;
+    if (completedBuoiIds.length > 0) {
+      soBuoiVang = await db.DiemDanh.count({
+        where: {
+          buoi_id: { [Op.in]: completedBuoiIds },
+          sinhvien_id,
+          trangthai: 'absent'
+        }
+      });
+    }
+
+    let tongSoBuoiKeHoach = completedBuoiIds.length;
+    if (lophocphan.tuan_hoc) {
+      try {
+        const parsed = Array.isArray(lophocphan.tuan_hoc)
+          ? lophocphan.tuan_hoc
+          : JSON.parse(lophocphan.tuan_hoc);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          tongSoBuoiKeHoach = parsed.length;
+        }
+      } catch (err) {
+        // Fallback
+      }
+    }
+    if (tongSoBuoiKeHoach === 0) {
+      tongSoBuoiKeHoach = completedBuoiIds.length || 1;
+    }
+
     // Tiêu đề & Nội dung thông báo
     const tieude = 'Cảnh báo chuyên cần sinh viên';
-    const noidung = `Sinh viên ${sinhvien.ten} (${sinhvien.ma_sv}) thuộc lớp ${sinhvien.Lop?.ten_lop || 'N/A'} có tỷ lệ vắng mặt học phần ${lophocphan.ten_lophocphan} là ${ti_le_vang}%. Vui lòng kiểm tra và xử lý.`;
+    const noidung = `Sinh viên ${sinhvien.ten} (${sinhvien.ma_sv}) thuộc lớp ${sinhvien.Lop?.ten_lop || 'N/A'} vắng mặt ${soBuoiVang}/${tongSoBuoiKeHoach} buổi học phần ${lophocphan.ten_lophocphan} (${ti_le_vang}%). Vui lòng kiểm tra và xử lý.`;
     const metadataStr = JSON.stringify({
       sinhvien_id,
       lophocphan_id,
       ma_sv: sinhvien.ma_sv,
       ten_sv: sinhvien.ten,
       ten_lop: lophocphan.ten_lophocphan,
-      ti_le_vang
+      ti_le_vang,
+      so_buoi_vang: soBuoiVang,
+      tong_so_buoi: tongSoBuoiKeHoach
     });
 
     const notificationsToCreate = [];

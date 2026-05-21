@@ -38,7 +38,8 @@ app.use(express.json());
 db.sequelize.authenticate()
   .then(() => {
     console.log(' Kết nối MySQL thành công!');
-    return db.sequelize.sync(); // thay đổi cấu trúc bảng
+    // Trigger nodemon reload after index cleanup
+    // return db.sequelize.sync({ force: true }); // thay đổi cấu trúc bảng
   })
 
 

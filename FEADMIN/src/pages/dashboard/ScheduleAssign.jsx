@@ -153,6 +153,7 @@ export default function AssignmentPage() {
     const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
     const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
     const [attendanceDetail, setAttendanceDetail] = useState(null);
+    const [notifiedStudents, setNotifiedStudents] = useState(new Set());
 
     const canViewAttendanceProcess = ['admin', 'lanhdao'].includes(user?.vaitro);
 
@@ -522,6 +523,31 @@ export default function AssignmentPage() {
         }
     };
 
+    const handleNotifyTeacher = async (sv) => {
+        try {
+            const classId = attendanceDetail?.lophocphan_id;
+            if (!classId) {
+                alert('Không tìm thấy thông tin lớp học phần.');
+                return;
+            }
+            const key = `${sv.sinhvien_id}-${classId}`;
+            const res = await dashboardService.notifyStudentWarning(sv.sinhvien_id, classId, sv.ti_le_vang);
+            if (res.success) {
+                setNotifiedStudents(prev => {
+                    const next = new Set(prev);
+                    next.add(key);
+                    return next;
+                });
+                alert(`Đã gửi thông báo cảnh báo sinh viên ${sv.ten_sv} đến các giảng viên liên quan thành công!`);
+            } else {
+                alert(res.message || 'Gửi thông báo thất bại');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Lỗi kết nối khi gửi thông báo.');
+        }
+    };
+
     const handleCloseAttendanceModal = () => {
         setIsAttendanceModalOpen(false);
         setAttendanceDetail(null);
@@ -744,7 +770,8 @@ export default function AssignmentPage() {
                                         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                                             <tr>
                                                 <th className="px-5 py-3 sticky left-0 z-20 bg-slate-50 border-r border-slate-200 min-w-[220px] font-bold text-slate-600">Sinh viên</th>
-                                                <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[100px] font-bold text-slate-600">% Vắng</th>
+                                                <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[120px] font-bold text-slate-600">Số buổi vắng</th>
+                                                <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[120px] font-bold text-slate-600">Hành động</th>
                                                 {lichSuCot.map((h, i) => (
                                                     <th key={i} className="px-3 py-3 text-center text-[10px] font-mono border-r border-slate-200 min-w-[90px] text-slate-500 uppercase">
                                                         {new Date(h.ngay).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
@@ -753,29 +780,51 @@ export default function AssignmentPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {danhSachSinhVien.map((sv) => (
-                                                <tr key={sv.sinhvien_id} className={sv.canh_bao ? 'bg-red-50/40' : 'hover:bg-slate-50'}>
-                                                    <td className={`px-5 py-3 sticky left-0 z-10 border-r border-slate-200 ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white text-slate-700'}`}>
-                                                        <div className="font-semibold">{sv.ten_sv}</div>
-                                                        <div className="text-[11px] opacity-70 font-mono">{sv.ma_sv}</div>
-                                                        {sv.canh_bao && <div className="text-[10px] font-bold text-red-600 mt-1">Cảnh báo: Vắng quá 20%</div>}
-                                                    </td>
-                                                    <td className={`px-4 py-3 text-center font-black border-r border-slate-200 ${sv.canh_bao ? 'text-red-600' : 'text-slate-600'}`}>
-                                                        {sv.ti_le_vang}%
-                                                    </td>
-                                                    {sv.history?.map((h, i) => (
-                                                        <td key={i} className="px-3 py-3 text-center border-r border-slate-200 last:border-r-0">
-                                                            {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto" />}
-                                                            {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto" />}
-                                                            {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto" />}
-                                                            {h.trangthai === 'not_recorded' && <div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto" />}
+                                            {danhSachSinhVien.map((sv) => {
+                                                const key = `${sv.sinhvien_id}-${attendanceDetail?.lophocphan_id}`;
+                                                const isNotified = notifiedStudents.has(key);
+                                                return (
+                                                    <tr key={sv.sinhvien_id} className={sv.canh_bao ? 'bg-red-50/40' : 'hover:bg-slate-50'}>
+                                                        <td className={`px-5 py-3 sticky left-0 z-10 border-r border-slate-200 ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white text-slate-700'}`}>
+                                                            <div className="font-semibold">{sv.ten_sv}</div>
+                                                            <div className="text-[11px] opacity-70 font-mono">{sv.ma_sv}</div>
+                                                            {sv.canh_bao && <div className="text-[10px] font-bold text-red-600 mt-1">Cảnh báo: Vắng quá 20%</div>}
                                                         </td>
-                                                    ))}
-                                                </tr>
-                                            ))}
+                                                        <td className={`px-4 py-3 text-center font-black border-r border-slate-200 ${sv.canh_bao ? 'text-red-600' : 'text-slate-600'}`}>
+                                                            {sv.so_buoi_vang !== undefined ? `${sv.so_buoi_vang}/${sv.tong_so_buoi} buổi` : `${sv.ti_le_vang}%`} ({sv.ti_le_vang}%)
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center border-r border-slate-200">
+                                                            {sv.canh_bao ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleNotifyTeacher(sv)}
+                                                                    disabled={isNotified}
+                                                                    className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black tracking-wide uppercase transition-all shadow-sm border ${
+                                                                        isNotified
+                                                                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 cursor-not-allowed"
+                                                                            : "bg-red-600 text-white hover:bg-red-700 hover:shadow-red-200 active:scale-95 border-red-600"
+                                                                    }`}
+                                                                >
+                                                                    {isNotified ? 'Đã gửi' : 'Báo GV'}
+                                                                </button>
+                                                            ) : (
+                                                                <span className="text-slate-400 font-bold text-xs">-</span>
+                                                            )}
+                                                        </td>
+                                                        {sv.history?.map((h, i) => (
+                                                            <td key={i} className="px-3 py-3 text-center border-r border-slate-200 last:border-r-0">
+                                                                {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto" />}
+                                                                {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto" />}
+                                                                {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto" />}
+                                                                {h.trangthai === 'not_recorded' && <div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto" />}
+                                                            </td>
+                                                        ))}
+                                                    </tr>
+                                                );
+                                            })}
                                             {danhSachSinhVien.length === 0 && (
                                                 <tr>
-                                                    <td colSpan={2 + lichSuCot.length} className="px-5 py-10 text-center text-slate-500">
+                                                    <td colSpan={3 + lichSuCot.length} className="px-5 py-10 text-center text-slate-500">
                                                         Chưa có dữ liệu điểm danh cho lớp học phần này.
                                                     </td>
                                                 </tr>

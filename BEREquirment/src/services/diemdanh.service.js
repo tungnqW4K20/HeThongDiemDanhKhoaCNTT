@@ -22,6 +22,22 @@ class DiemDanhService {
       nest: true
     });
 
+    const lhp = await db.LopHocPhan.findOne({ where: { lophocphan_id } });
+    const tongSoBuoiKeHoach = lhp && lhp.tuan_hoc ? (Array.isArray(lhp.tuan_hoc) ? lhp.tuan_hoc.length : JSON.parse(lhp.tuan_hoc).length) : 0;
+
+    const completedBuoi = await db.BuoiHoc.findAll({
+      where: { lophocphan_id, trangthai: 'completed' },
+      attributes: ['buoi_id']
+    });
+    const completedBuoiIds = completedBuoi.map(b => b.buoi_id);
+
+    const completedAttendances = completedBuoiIds.length > 0
+      ? await db.DiemDanh.findAll({
+          where: { buoi_id: completedBuoiIds },
+          attributes: ['sinhvien_id', 'trangthai']
+        })
+      : [];
+
     const buoiHoc = await BuoiHoc.findOne({
       where: { lophocphan_id, ngay }
     });
@@ -39,14 +55,24 @@ class DiemDanhService {
       const sv = item.SinhVien;
       const trangThaiDiemDanh = chiTietDiemDanh.find(dd => dd.sinhvien_id === sv.sinhvien_id);
 
+      const svAttendances = completedAttendances.filter(dd => dd.sinhvien_id === sv.sinhvien_id);
+      const soBuoiVang = svAttendances.filter(dd => dd.trangthai === 'absent').length;
+      const tiLeVang = tongSoBuoiKeHoach > 0 ? (soBuoiVang / tongSoBuoiKeHoach) * 100 : 0;
+      const canhBao = tiLeVang >= 20;
+
       return {
         sinhvien_id: sv.sinhvien_id,
+        lophocphan_id: lophocphan_id,
         ma_sv: sv.ma_sv,
         // SỬA LẠI DÒNG NÀY: Chỉ dùng sv.ten
         ho_ten: sv.ten, 
         trangthai: trangThaiDiemDanh ? trangThaiDiemDanh.trangthai : null, 
         ghichu: trangThaiDiemDanh ? trangThaiDiemDanh.ghichu : '',
-        thoigian: trangThaiDiemDanh ? trangThaiDiemDanh.thoigian_danhdau : null
+        thoigian: trangThaiDiemDanh ? trangThaiDiemDanh.thoigian_danhdau : null,
+        so_buoi_vang: soBuoiVang,
+        tong_so_buoi: tongSoBuoiKeHoach,
+        ti_le_vang: Number(tiLeVang.toFixed(2)),
+        canh_bao: canhBao
       };
     });
 
@@ -186,6 +212,22 @@ class DiemDanhService {
     nest: true
   });
 
+  const lhp = await db.LopHocPhan.findOne({ where: { lophocphan_id } });
+  const tongSoBuoiKeHoach = lhp && lhp.tuan_hoc ? (Array.isArray(lhp.tuan_hoc) ? lhp.tuan_hoc.length : JSON.parse(lhp.tuan_hoc).length) : 0;
+
+  const completedBuoi = await db.BuoiHoc.findAll({
+    where: { lophocphan_id, trangthai: 'completed' },
+    attributes: ['buoi_id']
+  });
+  const completedBuoiIds = completedBuoi.map(b => b.buoi_id);
+
+  const completedAttendances = completedBuoiIds.length > 0
+    ? await db.DiemDanh.findAll({
+        where: { buoi_id: completedBuoiIds },
+        attributes: ['sinhvien_id', 'trangthai']
+      })
+    : [];
+
   // 2. Lấy thông tin buổi học
   const buoiHoc = await BuoiHoc.findOne({ where: { lophocphan_id, ngay } });
 
@@ -199,14 +241,25 @@ class DiemDanhService {
   const ketQua = danhSachDangKy.map(item => {
     const sv = item.SinhVien;
     const dd = chiTietDiemDanh.find(d => d.sinhvien_id === sv.sinhvien_id);
+
+    const svAttendances = completedAttendances.filter(dd => dd.sinhvien_id === sv.sinhvien_id);
+    const soBuoiVang = svAttendances.filter(dd => dd.trangthai === 'absent').length;
+    const tiLeVang = tongSoBuoiKeHoach > 0 ? (soBuoiVang / tongSoBuoiKeHoach) * 100 : 0;
+    const canhBao = tiLeVang >= 20;
+
     return {
       sinhvien_id: sv.sinhvien_id,
+      lophocphan_id: lophocphan_id,
       ma_sv: sv.ma_sv,
       ho_ten: sv.ten,
       lop_hanhchinh_id: sv.lop_hanhchinh_id,
       trangthai: dd ? dd.trangthai : 'present',
       ghichu: dd ? dd.ghichu : '',
-      thoigian: dd ? dd.thoigian_danhdau : null
+      thoigian: dd ? dd.thoigian_danhdau : null,
+      so_buoi_vang: soBuoiVang,
+      tong_so_buoi: tongSoBuoiKeHoach,
+      ti_le_vang: Number(tiLeVang.toFixed(2)),
+      canh_bao: canhBao
     };
   });
 
