@@ -307,7 +307,13 @@ export default function LichDayChuyenNghiepScreen() {
   // Hàm render hàng lịch dạy (Giữ nguyên logic màu sắc, icon, khóa nút)
   const renderScheduleRow = (item: PhanCong) => {
     const now = new Date();
-    const isPast = now > item.endDateTime;
+    const isPast = (() => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const classDate = parseDateSafe(item.ngay_hoc_raw);
+      classDate.setHours(0, 0, 0, 0);
+      return classDate < today;
+    })();
     const isNow = now >= item.startDateTime && now <= item.endDateTime;
 
     const isReopened = item.loai_de_xuat === 'mo_lai' || (item.is_override && item.ghi_chu?.toLowerCase().includes('mở lại'));

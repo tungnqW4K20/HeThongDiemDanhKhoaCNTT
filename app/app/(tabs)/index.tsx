@@ -131,9 +131,15 @@ export default function HomeScreen() {
       };
     });
 
-    // Lọc các lớp chưa kết thúc VÀ chưa điểm danh
+    // Lọc các lớp chưa kết thúc (hoặc diễn ra hôm nay) VÀ chưa điểm danh
     const validClasses = processedClasses
-      .filter((item) => item.endDate > now && item.trang_thai !== 'completed')
+      .filter((item) => {
+        const classDate = new Date(item.ngay_hoc);
+        const isToday = classDate.getFullYear() === now.getFullYear() &&
+                        classDate.getMonth() === now.getMonth() &&
+                        classDate.getDate() === now.getDate();
+        return (isToday || item.endDate > now) && item.trang_thai !== 'completed';
+      })
       .sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
 
     if (validClasses.length === 0) {
