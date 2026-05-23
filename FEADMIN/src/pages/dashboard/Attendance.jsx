@@ -96,8 +96,16 @@ const toLocalDate = (dateValue) => {
   return new Date(y, m - 1, d, 12, 0, 0, 0);
 };
 
+const formatDateToYYYYMMDD = (d) => {
+  if (!d) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // --- 3. COMPONENTS CON (GIỮ NGUYÊN GIAO DIỆN) ---
-const StatCard = ({ title, value, subLabel, icon, variant }) => {
+const StatCard = ({ title, value, subLabel, icon, variant, onClick, className = '' }) => {
   const styles = {
     blue: { bgIcon: 'bg-blue-100', textVal: 'text-slate-800', iconColor: 'text-blue-600' },
     green: { bgIcon: 'bg-emerald-100', textVal: 'text-emerald-700', iconColor: 'text-emerald-600' },
@@ -107,7 +115,10 @@ const StatCard = ({ title, value, subLabel, icon, variant }) => {
   const style = styles[variant] || styles.blue;
   const IconComp = icon;
   return (
-    <div className="bg-white rounded-xl shadow-sm p-5 border border-slate-100 flex items-center justify-between hover:-translate-y-1 duration-300">
+    <div 
+      onClick={onClick}
+      className={`bg-white rounded-xl shadow-sm p-5 border border-slate-100 flex items-center justify-between hover:-translate-y-1 duration-300 ${className}`}
+    >
       <div><p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">{title}</p><h3 className={`text-2xl font-extrabold ${style.textVal}`}>{value}</h3><p className="text-xs text-slate-400 font-medium mt-1">{subLabel}</p></div>
       <div className={`w-12 h-12 rounded-xl ${style.bgIcon} flex items-center justify-center ${style.iconColor}`}><IconComp size={24} strokeWidth={2} /></div>
     </div>
@@ -288,6 +299,18 @@ const ImportModal = ({ isOpen, onClose, sessionData }) => {
   );
 };
 
+const LoadingOverlay = ({ message = "Đang xử lý dữ liệu..." }) => {
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] bg-black/25 flex items-center justify-center backdrop-blur-[1px]">
+      <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-4">
+        <Loader2 className="animate-spin text-[#3B5998]" size={24} />
+        <span className="text-sm font-semibold">{message}</span>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 // --- 4. MAIN PAGE ---
 const AttendancePagegggg = () => {
   const [filterStatus, setFilterStatus] = useState('all');
@@ -306,13 +329,33 @@ const AttendancePagegggg = () => {
   const [attendanceData, setAttendanceData] = useState([]);
   const [editingRow, setEditingRow] = useState(null);
   const [scheduleSessions, setScheduleSessions] = useState([]);
+  const [warningStudents, setWarningStudents] = useState([]);
+  const [warningsLoading, setWarningsLoading] = useState(false);
   const [attendanceMap, setAttendanceMap] = useState({});
-  const [dateFilterMode, setDateFilterMode] = useState('week');
+  const [dateFilterMode, setDateFilterMode] = useState('day');
   const todayStr = new Date().toISOString().slice(0, 10);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [fromDate, setFromDate] = useState(todayStr);
   const [toDate, setToDate] = useState(todayStr);
   const [notifiedStudents, setNotifiedStudents] = useState(new Set());
+  const [visibleCount, setVisibleCount] = useState(15);
+  const [warningVisibleCount, setWarningVisibleCount] = useState(15);
+  const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, warning: 0 });
+  const fetchedKeysRef = useRef(new Set());
+
+  // Reset pagination và cache khi đổi các bộ lọc chính
+  useEffect(() => {
+    setVisibleCount(15);
+    setWarningVisibleCount(15);
+    fetchedKeysRef.current.clear();
+    setAttendanceMap({});
+  }, [currentSemesterId, selectedWeekId, dateFilterMode, selectedDate, fromDate, toDate]);
+
+  // Reset pagination khi nhập tìm kiếm hoặc đổi filter tab
+  useEffect(() => {
+    setVisibleCount(15);
+    setWarningVisibleCount(15);
+  }, [searchTerm, filterStatus]);
 
   const handleNotifyTeacher = async (w) => {
     try {
@@ -382,18 +425,27 @@ const AttendancePagegggg = () => {
       setIsLoading(true);
       try {
         const params = { hocky_id: currentSemesterId };
-        if (dateFilterMode === 'day' && selectedDate) {
+        if (dateFilterMode === 'week' && selectedWeekId && weeks.length > 0) {
+          const currentWeekObj = weeks.find(w => w.id === Number(selectedWeekId));
+          if (currentWeekObj) {
+            params.from_date = formatDateToYYYYMMDD(currentWeekObj.startDate);
+            params.to_date = formatDateToYYYYMMDD(currentWeekObj.endDate);
+          }
+        } else if (dateFilterMode === 'day' && selectedDate) {
           params.from_date = selectedDate;
           params.to_date = selectedDate;
-        }
-        if (dateFilterMode === 'range' && fromDate && toDate) {
+        } else if (dateFilterMode === 'range' && fromDate && toDate) {
           params.from_date = fromDate;
           params.to_date = toDate;
         }
 
         const res = await phanCongService.getAll(params);
-        const payload = res?.data || res;
-        const rows = payload?.data || payload;
+        const rows = res?.data || [];
+
+        if (res?.stats && isActive) {
+          setStats(res.stats);
+        }
+
         const normalized = Array.isArray(rows) ? rows.map((item) => {
           const ngay = item.ngay || item.ngay_hoc || '';
           const ca_hoc = item.tiet_hien_thi || (item.tiet_bat_dau && item.tiet_ket_thuc
@@ -422,7 +474,9 @@ const AttendancePagegggg = () => {
         }
       } catch (error) {
         console.error('Lỗi lấy lịch học:', error);
-        if (isActive) setScheduleSessions([]);
+        if (isActive) {
+          setScheduleSessions([]);
+        }
       } finally {
         if (isActive) setIsLoading(false);
       }
@@ -430,7 +484,45 @@ const AttendancePagegggg = () => {
 
     fetchSessions();
     return () => { isActive = false; };
-  }, [currentSemesterId, dateFilterMode, selectedDate, fromDate, toDate]);
+  }, [currentSemesterId, dateFilterMode, selectedDate, fromDate, toDate, selectedWeekId, weeks]);
+
+  // Lazy load danh sách cảnh báo vắng khi chuyển sang tab 'warning'
+  useEffect(() => {
+    let isActive = true;
+    if (filterStatus === 'warning' && currentSemesterId) {
+      const fetchWarningsList = async () => {
+        setWarningsLoading(true);
+        try {
+          const params = { hocky_id: currentSemesterId, get_warnings: true };
+          if (dateFilterMode === 'week' && selectedWeekId && weeks.length > 0) {
+            const currentWeekObj = weeks.find(w => w.id === Number(selectedWeekId));
+            if (currentWeekObj) {
+              params.from_date = formatDateToYYYYMMDD(currentWeekObj.startDate);
+              params.to_date = formatDateToYYYYMMDD(currentWeekObj.endDate);
+            }
+          } else if (dateFilterMode === 'day' && selectedDate) {
+            params.from_date = selectedDate;
+            params.to_date = selectedDate;
+          } else if (dateFilterMode === 'range' && fromDate && toDate) {
+            params.from_date = fromDate;
+            params.to_date = toDate;
+          }
+
+          const res = await phanCongService.getAll(params);
+          if (isActive) {
+            setWarningStudents(res?.warnings_students || []);
+          }
+        } catch (error) {
+          console.error('Lỗi lấy danh sách cảnh báo vắng:', error);
+          if (isActive) setWarningStudents([]);
+        } finally {
+          if (isActive) setWarningsLoading(false);
+        }
+      };
+      fetchWarningsList();
+    }
+    return () => { isActive = false; };
+  }, [filterStatus, currentSemesterId, dateFilterMode, selectedDate, fromDate, toDate, selectedWeekId, weeks]);
 
   const isInDateScope = useCallback((item) => {
     const d = toLocalDate(item.ngay);
@@ -453,21 +545,112 @@ const AttendancePagegggg = () => {
     return d >= currentWeekObj.startDate && d <= currentWeekObj.endDate;
   }, [dateFilterMode, selectedDate, fromDate, toDate, weeks, selectedWeekId]);
 
-  // 2.2 Lấy thống kê điểm danh theo bộ lọc thời gian
-  useEffect(() => {
-    const sessionsInScope = scheduleSessions.filter(isInDateScope);
+  // 2.2 Thống kê điểm danh (Memoized & Fallback dữ liệu có sẵn từ backend)
+  const getAttendanceStats = useCallback((item) => {
+    const key = `${item.lophocphan_id}-${item.ngay}`;
+    if (attendanceMap[key]) {
+      const stats = attendanceMap[key];
+      const ratio = stats.total > 0 ? stats.present / stats.total : 0;
+      let status = 'pending';
+      if (stats.total > 0) {
+        if (!stats.marked) status = 'pending';
+        else if (stats.marked < stats.total) status = 'pending';
+        else if (ratio < 0.8) status = 'warning';
+        else status = 'completed';
+      }
+      return { ...stats, ratio, status };
+    }
 
-    if (sessionsInScope.length === 0) {
-      setAttendanceMap({});
+    // Fallback sử dụng dữ liệu có sẵn từ backend khi chưa lazy-load
+    const total = item.si_so || 0;
+    const present = item.da_diem_danh || 0;
+    const ratio = total > 0 ? present / total : 0;
+
+    let status = item.trang_thai || 'pending';
+    if (status === 'completed' && ratio < 0.8) {
+      status = 'warning';
+    }
+
+    return {
+      total,
+      present,
+      marked: item.trang_thai === 'completed' ? total : 0,
+      ratio,
+      status
+    };
+  }, [attendanceMap]);
+
+  const filteredData = useMemo(() => {
+    return scheduleSessions.filter(item => {
+      if (!isInDateScope(item)) return false;
+      const term = searchTerm.toLowerCase();
+      const matchSearch = item.ten_mon.toLowerCase().includes(term) ||
+        item.giang_vien.toLowerCase().includes(term) ||
+        item.ma_lop_hp.toLowerCase().includes(term);
+      const matchStatus = filterStatus === 'all' || getAttendanceStats(item).status === filterStatus;
+      return matchSearch && matchStatus;
+    });
+  }, [searchTerm, filterStatus, scheduleSessions, getAttendanceStats, isInDateScope]);
+
+  const filteredWarningData = useMemo(() => {
+    if (!searchTerm) return warningStudents;
+    const term = searchTerm.toLowerCase();
+    return warningStudents.filter(item => {
+      return (item.ten_sv || '').toLowerCase().includes(term) ||
+        (item.ma_sv || '').toLowerCase().includes(term) ||
+        (item.ten_lop || '').toLowerCase().includes(term) ||
+        (item.ma_lop || '').toLowerCase().includes(term) ||
+        (item.giang_vien || '').toLowerCase().includes(term);
+    });
+  }, [warningStudents, searchTerm]);
+
+  const visibleWarningData = useMemo(() => {
+    return filteredWarningData.slice(0, warningVisibleCount);
+  }, [filteredWarningData, warningVisibleCount]);
+
+  const visibleData = useMemo(() => {
+    return filteredData.slice(0, visibleCount);
+  }, [filteredData, visibleCount]);
+
+  // Infinite scroll — dùng 2 counter tách biệt nên không bị race condition
+  useEffect(() => {
+    const handleScroll = () => {
+      const nearBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 150;
+      if (!nearBottom) return;
+      if (filterStatus === 'warning') {
+        setWarningVisibleCount(prev =>
+          prev < filteredWarningData.length ? prev + 15 : prev
+        );
+      } else {
+        setVisibleCount(prev =>
+          prev < filteredData.length ? prev + 15 : prev
+        );
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [filterStatus, filteredWarningData.length, filteredData.length]);
+
+  // 2.3 Lazy load thống kê điểm danh cho các lớp đang hiển thị trên màn hình
+  useEffect(() => {
+    const toFetch = visibleData.filter(session => {
+      const key = `${session.lophocphan_id}-${session.ngay}`;
+      return !fetchedKeysRef.current.has(key);
+    });
+
+    if (toFetch.length === 0) {
       return;
     }
 
     let isActive = true;
     const fetchCounts = async () => {
       try {
-        const results = await Promise.all(sessionsInScope.map(async (session) => {
+        const results = await Promise.all(toFetch.map(async (session) => {
           if (!session.lophocphan_id || !session.ngay) return null;
           const key = `${session.lophocphan_id}-${session.ngay}`;
+
+          fetchedKeysRef.current.add(key);
+
           try {
             const res = await diemdanhService.get({ lophocphan_id: session.lophocphan_id, ngay: session.ngay });
             const payload = res?.data || res;
@@ -488,9 +671,14 @@ const AttendancePagegggg = () => {
         }));
 
         if (!isActive) return;
-        const nextMap = {};
-        results.filter(Boolean).forEach((r) => { nextMap[r.key] = r; });
-        setAttendanceMap(nextMap);
+        const newResults = results.filter(Boolean);
+        if (newResults.length > 0) {
+          setAttendanceMap(prev => {
+            const nextMap = { ...prev };
+            newResults.forEach((r) => { nextMap[r.key] = r; });
+            return nextMap;
+          });
+        }
       } catch (err) {
         console.error('Lỗi lấy thống kê điểm danh:', err);
       }
@@ -498,45 +686,23 @@ const AttendancePagegggg = () => {
 
     fetchCounts();
     return () => { isActive = false; };
-  }, [scheduleSessions, isInDateScope]);
+  }, [visibleData]);
 
-  // 3. Lọc và Tạo dữ liệu hiển thị (Memoized)
-  const getAttendanceStats = useCallback((item) => {
-    const key = `${item.lophocphan_id}-${item.ngay}`;
-    const stats = attendanceMap[key] || { total: item.si_so || 0, present: item.da_diem_danh || 0, marked: 0 };
-    const ratio = stats.total > 0 ? stats.present / stats.total : 0;
-    let status = 'pending';
-    if (stats.total > 0) {
-      if (!stats.marked) status = 'pending';
-      else if (stats.marked < stats.total) status = 'pending';
-      else if (ratio < 0.8) status = 'warning';
-      else status = 'completed';
-    }
-    return { ...stats, ratio, status };
-  }, [attendanceMap]);
-
-  const filteredData = useMemo(() => {
-    return scheduleSessions.filter(item => {
-      if (!isInDateScope(item)) return false;
-      const term = searchTerm.toLowerCase();
-      const matchSearch = item.ten_mon.toLowerCase().includes(term) ||
-        item.giang_vien.toLowerCase().includes(term) ||
-        item.ma_lop_hp.toLowerCase().includes(term);
-      const matchStatus = filterStatus === 'all' || getAttendanceStats(item).status === filterStatus;
-      return matchSearch && matchStatus;
-    });
-  }, [searchTerm, filterStatus, scheduleSessions, getAttendanceStats, isInDateScope]);
-
-  const stats = useMemo(() => {
-    const timeFilteredData = scheduleSessions.filter(item => isInDateScope(item));
-    const statuses = timeFilteredData.map((item) => getAttendanceStats(item).status);
-    return {
-      total: timeFilteredData.length,
-      completed: statuses.filter(s => s === 'completed').length,
-      pending: statuses.filter(s => s === 'pending').length,
-      warning: statuses.filter(s => s === 'warning').length,
+  // 2.4 Auto scroll load more
+  useEffect(() => {
+    const handleScroll = () => {
+      if (
+        window.innerHeight + document.documentElement.scrollTop >=
+        document.documentElement.offsetHeight - 200
+      ) {
+        setVisibleCount(prev => Math.min(prev + 15, filteredData.length));
+      }
     };
-  }, [scheduleSessions, isInDateScope, getAttendanceStats]);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [filteredData.length]);
+
+
 
   const handlePrevWeek = () => {
     const currentIdx = weeks.findIndex(w => w.id === Number(selectedWeekId));
@@ -648,10 +814,10 @@ const AttendancePagegggg = () => {
 
         {/* STATS (GIỮ NGUYÊN GIAO DIỆN) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard title="Lớp Trong Tuần" value={stats.total} subLabel="Tổng số lớp" icon={LayoutDashboard} variant="blue" />
-          <StatCard title="Đã Hoàn Thành" value={stats.completed} subLabel="Đã điểm danh" icon={CheckCircle2} variant="green" />
-          <StatCard title="Chưa Điểm Danh" value={stats.pending} subLabel="Cần nhắc nhở" icon={Clock} variant="orange" />
-          <StatCard title="Cảnh Báo Vắng" value={stats.warning} subLabel="Vắng > 20%" icon={AlertOctagon} variant="red" />
+          <StatCard title="Lớp Trong Tuần" value={stats.total} subLabel="Tổng số lớp" icon={LayoutDashboard} variant="blue" onClick={() => setFilterStatus('all')} className="cursor-pointer hover:border-blue-200" />
+          <StatCard title="Đã Hoàn Thành" value={stats.completed} subLabel="Đã điểm danh" icon={CheckCircle2} variant="green" onClick={() => setFilterStatus('completed')} className="cursor-pointer hover:border-emerald-200" />
+          <StatCard title="Chưa Điểm Danh" value={stats.pending} subLabel="Cần nhắc nhở" icon={Clock} variant="orange" onClick={() => setFilterStatus('pending')} className="cursor-pointer hover:border-amber-200" />
+          <StatCard title="Cảnh Báo Vắng" value={stats.warning} subLabel="Vắng > 20%" icon={AlertOctagon} variant="red" onClick={() => setFilterStatus('warning')} className="cursor-pointer hover:border-rose-200" />
         </div>
 
         {/* TABLE (GIỮ NGUYÊN GIAO DIỆN) */}
@@ -672,88 +838,177 @@ const AttendancePagegggg = () => {
           <div className="flex-1 overflow-x-auto">
             <table className="w-full text-left border-collapse table-fixed min-w-[1000px]">
               <thead className="bg-slate-50/80 sticky top-0 z-10 backdrop-blur-sm">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[35%] tracking-wider">Lớp Học Phần / Môn</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[20%] tracking-wider">Giảng Viên</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] tracking-wider">Thời Gian</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] text-center tracking-wider">Tiến Độ</th>
-                  <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] text-right tracking-wider">Tác Vụ</th>
-                </tr>
+                {filterStatus === 'warning' ? (
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[35%] tracking-wider">Sinh Viên</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[40%] tracking-wider">Lớp Học Phần / Môn</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[12%] text-center tracking-wider">Vắng</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[13%] text-right tracking-wider">Tác Vụ</th>
+                  </tr>
+                ) : (
+                  <tr>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[35%] tracking-wider">Lớp Học Phần / Môn</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[20%] tracking-wider">Giảng Viên</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] tracking-wider">Thời Gian</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] text-center tracking-wider">Tiến Độ</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] text-right tracking-wider">Tác Vụ</th>
+                  </tr>
+                )}
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredData.length > 0 ? filteredData.map(item => (
-                  <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
-                    <td className="px-6 py-4 align-top">
-                      <div className="flex flex-col gap-1 pr-4">
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={getAttendanceStats(item).status} />
-                          <span className="font-mono text-xs font-bold text-slate-500 bg-white border border-slate-200 px-1.5 rounded">{item.ma_lop_hp}</span>
+                {filterStatus === 'warning' ? (
+                  warningsLoading ? (
+                    <tr>
+                      <td colSpan="4" className="px-6 py-24 text-center">
+                        <div className="flex flex-col items-center justify-center">
+                          <Loader2 className="h-8 w-8 animate-spin text-[#3B5998] mb-4" />
+                          <p className="text-slate-500 font-bold">Đang tải danh sách cảnh báo vắng...</p>
                         </div>
-                        <span className="font-bold text-slate-800 text-base line-clamp-2">{item.ten_mon}</span>
-                        <div className="flex items-center gap-1 text-xs text-slate-500"><MapPin size={12} /> {item.phong}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 align-top">
-                      <div className="flex items-center gap-3 pr-4">
-                        <div className="min-w-0">
-                          <p className="font-bold text-slate-700 truncate">{item.giang_vien}</p>
-                          <p className="text-xs text-slate-400 truncate">{item.email_gv}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 align-top">
-                      <div className="flex flex-col gap-1.5">
-                        <span className="inline-flex items-center gap-1.5 font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded w-fit text-xs whitespace-nowrap"><Clock size={12} /> {item.ca_hoc || '--'} </span>
-                        <span className="text-xs text-slate-400 pl-1">{formatDateVN(item.ngay)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 align-middle">
-                      <div className="flex flex-col items-center w-full max-w-[120px] mx-auto">
+                      </td>
+                    </tr>
+                  ) : visibleWarningData.length > 0 ? visibleWarningData.map(w => (
+                    <tr key={`${w.sinhvien_id}-${w.lophocphan_id}`} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4 align-middle">
+                        <div className="font-bold text-slate-800 text-base">{w.ten_sv}</div>
+                        <div className="font-mono text-xs font-bold text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded w-fit mt-1">{w.ma_sv}</div>
+                      </td>
+                      <td className="px-6 py-4 align-middle">
+                        <div className="font-bold text-slate-700">{w.ten_lop}</div>
+                        <div className="text-xs text-slate-400 font-mono mt-0.5">{w.ma_lop}</div>
+                      </td>
+                      <td className="px-6 py-4 align-middle text-center">
+                        <div className="font-black text-rose-600 text-base">{w.so_buoi_vang}/{w.tong_so_buoi}</div>
+                        <div className="text-[10px] font-medium text-slate-400 mt-0.5">{w.ti_le_vang}% vắng</div>
+                      </td>
+                      <td className="px-6 py-4 align-middle text-right">
                         {(() => {
-                          const stats = getAttendanceStats(item);
+                          const key = `${w.sinhvien_id}-${w.lophocphan_id}`;
+                          const isNotified = notifiedStudents.has(key);
                           return (
-                            <>
-                              <div className="flex justify-between w-full mb-1.5"><span className="text-xs font-bold text-slate-700">{stats.present}</span><span className="text-xs text-slate-400">/ {stats.total}</span></div>
-                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${stats.ratio < 0.5 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${stats.ratio * 100}%` }}></div></div>
-                              <span className="text-[10px] font-medium text-slate-400 mt-1 whitespace-nowrap">{stats.total > 0 ? Math.round(stats.ratio * 100) : 0}% tham gia</span>
-                            </>
+                            <button
+                              onClick={() => handleNotifyTeacher(w)}
+                              disabled={isNotified}
+                              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                                isNotified
+                                  ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
+                                  : 'bg-red-600 text-white hover:bg-red-700 active:scale-95 shadow-sm'
+                              }`}
+                            >
+                              {isNotified ? 'Đã báo GV' : 'Báo GV'}
+                            </button>
                           );
                         })()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 align-middle text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                        <button onClick={async () => {
-                          try {
-                            setIsLoading(true);
-                            // item has lophocphan_id and ngay
-                            const res = await diemdanhService.get({ lophocphan_id: item.lophocphan_id, ngay: item.ngay });
-                            const payload = res.data || res;
-                            const data = payload?.data || payload;
-                            const list = data?.danh_sach_sinh_vien || data?.danh_sach || [];
-                            setAttendanceData(list.map((r, i) => ({
-                              ...r,
-                              id: r.sinhvien_id || i,
-                              ten: r.ho_ten || r.ten || '',
-                              trangthai: r.trangthai || 'present'
-                            })));
-                            setManageSession(item);
-                            setManageModalOpen(true);
-                          } catch (err) {
-                            console.error('Lỗi lấy điểm danh:', err);
-                            alert('Không thể tải dữ liệu điểm danh');
-                          } finally { setIsLoading(false); }
-                        }} className="p-2 text-slate-500 hover:text-[#3B5998] hover:bg-blue-50 rounded-lg transition-colors" title="Quản lý điểm danh"><Eye size={18} /></button>
-                        <button onClick={() => { setSelectedSession(item); setIsModalOpen(true); }} className="p-2 text-emerald-600 bg-white hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200 hover:border-emerald-200 shadow-sm" title="Import Excel"><FileSpreadsheet size={18} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                )) : (
-                  <tr><td colSpan="5" className="px-6 py-32 text-center"><div className="flex flex-col items-center justify-center text-slate-300"><Filter size={32} className="mb-2" /><p className="text-slate-600 font-bold text-base">Không tìm thấy dữ liệu trong tuần này</p></div></td></tr>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="4" className="px-6 py-32 text-center"><div className="flex flex-col items-center justify-center text-slate-300"><Filter size={32} className="mb-2" /><p className="text-slate-600 font-bold text-base">Không có sinh viên cảnh báo vắng</p></div></td></tr>
+                  )
+                ) : (
+                  visibleData.length > 0 ? visibleData.map(item => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors group">
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex flex-col gap-1 pr-4">
+                          <div className="flex items-center gap-2">
+                            <StatusBadge status={getAttendanceStats(item).status} />
+                            <span className="font-mono text-xs font-bold text-slate-500 bg-white border border-slate-200 px-1.5 rounded">{item.ma_lop_hp}</span>
+                          </div>
+                          <span className="font-bold text-slate-800 text-base line-clamp-2">{item.ten_mon}</span>
+                          <div className="flex items-center gap-1 text-xs text-slate-500"><MapPin size={12} /> {item.phong}</div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex items-center gap-3 pr-4">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-700 truncate">{item.giang_vien}</p>
+                            <p className="text-xs text-slate-400 truncate">{item.email_gv}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="inline-flex items-center gap-1.5 font-bold text-slate-700 bg-slate-100 px-2.5 py-1 rounded w-fit text-xs whitespace-nowrap"><Clock size={12} /> {item.ca_hoc || '--'} </span>
+                          <span className="text-xs text-slate-400 pl-1">{formatDateVN(item.ngay)}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 align-middle">
+                        <div className="flex flex-col items-center w-full max-w-[120px] mx-auto">
+                          {(() => {
+                            const stats = getAttendanceStats(item);
+                            return (
+                              <>
+                                <div className="flex justify-between w-full mb-1.5"><span className="text-xs font-bold text-slate-700">{stats.present}</span><span className="text-xs text-slate-400">/ {stats.total}</span></div>
+                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden"><div className={`h-full rounded-full transition-all duration-500 ${stats.ratio < 0.5 ? 'bg-rose-500' : 'bg-emerald-500'}`} style={{ width: `${stats.ratio * 100}%` }}></div></div>
+                                <span className="text-[10px] font-medium text-slate-400 mt-1 whitespace-nowrap">{stats.total > 0 ? Math.round(stats.ratio * 100) : 0}% tham gia</span>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 align-middle text-right">
+                        <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                          <button onClick={async () => {
+                            try {
+                              setIsLoading(true);
+                              // item has lophocphan_id and ngay
+                              const res = await diemdanhService.get({ lophocphan_id: item.lophocphan_id, ngay: item.ngay });
+                              const payload = res.data || res;
+                              const data = payload?.data || payload;
+                              const list = data?.danh_sach_sinh_vien || data?.danh_sach || [];
+                              setAttendanceData(list.map((r, i) => ({
+                                ...r,
+                                id: r.sinhvien_id || i,
+                                ten: r.ho_ten || r.ten || '',
+                                trangthai: r.trangthai || 'present'
+                              })));
+                              setManageSession(item);
+                              setManageModalOpen(true);
+                            } catch (err) {
+                              console.error('Lỗi lấy điểm danh:', err);
+                              alert('Không thể tải dữ liệu điểm danh');
+                            } finally { setIsLoading(false); }
+                          }} className="p-2 text-slate-500 hover:text-[#3B5998] hover:bg-blue-50 rounded-lg transition-colors" title="Quản lý điểm danh"><Eye size={18} /></button>
+                          <button onClick={() => { setSelectedSession(item); setIsModalOpen(true); }} className="p-2 text-emerald-600 bg-white hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200 hover:border-emerald-200 shadow-sm" title="Import Excel"><FileSpreadsheet size={18} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan="5" className="px-6 py-32 text-center"><div className="flex flex-col items-center justify-center text-slate-300"><Filter size={32} className="mb-2" /><p className="text-slate-600 font-bold text-base">Không tìm thấy dữ liệu trong tuần này</p></div></td></tr>
+                  )
                 )}
               </tbody>
             </table>
           </div>
+          {filterStatus === 'warning' ? (
+            warningVisibleCount < filteredWarningData.length && (
+              <div className="p-4 border-t border-slate-100 flex justify-center bg-slate-50/50">
+                <button
+                  onClick={() => setWarningVisibleCount(prev => {
+                    const next = Math.min(prev + 15, filteredWarningData.length);
+                    return next > prev ? next : prev;
+                  })}
+                  className="px-6 py-2.5 bg-white text-[#3B5998] hover:bg-blue-50 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 hover:border-[#3B5998]/50 active:scale-95 duration-200"
+                >
+                  <Loader2 size={14} className="animate-spin text-[#3B5998]" />
+                  Xem thêm ({filteredWarningData.length - warningVisibleCount} sinh viên)
+                </button>
+              </div>
+            )
+          ) : (
+            visibleCount < filteredData.length && (
+              <div className="p-4 border-t border-slate-100 flex justify-center bg-slate-50/50">
+                <button
+                  onClick={() => setVisibleCount(prev => {
+                    const next = Math.min(prev + 15, filteredData.length);
+                    return next > prev ? next : prev;
+                  })}
+                  className="px-6 py-2.5 bg-white text-[#3B5998] hover:bg-blue-50 border border-slate-200 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-2 hover:border-[#3B5998]/50 active:scale-95 duration-200"
+                >
+                  <Loader2 size={14} className="animate-spin text-[#3B5998]" />
+                  Xem thêm ({filteredData.length - visibleCount} lớp)
+                </button>
+              </div>
+            )
+          )}
         </div>
       </div>
 
@@ -867,6 +1122,7 @@ const AttendancePagegggg = () => {
       )}
 
       <ImportModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} sessionData={selectedSession} />
+      {_isLoading && <LoadingOverlay />}
     </div>
   );
 };

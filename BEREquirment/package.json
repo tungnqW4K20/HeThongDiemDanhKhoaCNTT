@@ -17,7 +17,11 @@
     "seed:conflict": "node src/seeders/seed-dexuat-conflict.js",
     "seed:gv001-lich": "node src/seeders/seed-gv001-lich.js",
     "seed:today-tomorrow": "node src/seeders/seed-today-tomorrow-attendance.js",
-    "db:cleanup:keep-admin": "node scripts/cleanup-keep-admin.js --db=attendance_system --yes"
+    "db:cleanup:keep-admin": "node scripts/cleanup-keep-admin.js --db=attendance_system --yes",
+    "db:clear-students": "node scripts/clear-students.js",
+    "db:seed-students": "node scripts/seed-students.js",
+    "db:register-students-to-courses": "node scripts/register-students-to-courses.js",
+    "db:seed-attendance": "node scripts/seed-attendance-history.js"
   },
   "keywords": [],
   "author": "",

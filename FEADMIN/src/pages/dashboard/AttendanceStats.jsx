@@ -1,5 +1,6 @@
 'use strict';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -59,10 +60,22 @@ const getWeekRangeFromInput = (weekValue) => {
   };
 };
 
+const LoadingOverlay = ({ message = "Đang xử lý dữ liệu..." }) => {
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] bg-black/25 flex items-center justify-center backdrop-blur-[1px]">
+      <div className="bg-white p-5 rounded-2xl shadow-2xl flex items-center gap-4">
+        <Loader2 className="animate-spin text-[#3B5998]" size={24} />
+        <span className="text-sm font-semibold">{message}</span>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
 const AttendanceStats = () => {
   const todayStr = new Date().toISOString().slice(0, 10);
   const currentWeekStr = getIsoWeekString(new Date());
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [dailyLoading, setDailyLoading] = useState(false);
   const [semesters, setSemesters] = useState([]);
   const [selectedSemester, setSelectedSemester] = useState('');
@@ -85,7 +98,18 @@ const AttendanceStats = () => {
   const [sortBy, setSortBy] = useState('high'); // high: vắng nhiều nhất, low: ít nhất
   const [notifiedStudents, setNotifiedStudents] = useState(new Set());
   const [notifyingAll, setNotifyingAll] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(15);
+  const [visibleDailyCount, setVisibleDailyCount] = useState(15);
   const latestStatsRequestRef = React.useRef(0);
+
+  useEffect(() => {
+    setVisibleCount(15);
+  }, [selectedSemester, selectedBoMon, searchTerm, sortBy]);
+
+  useEffect(() => {
+    setVisibleDailyCount(15);
+  }, [selectedSemester, selectedBoMon, searchTerm, sortBy, dateFilterMode, selectedDate, selectedWeek, selectedFromDate, selectedToDate, attendanceStatusFilter]);
+
   const selectedSemesterMeta = useMemo(
     () => semesters.find((hk) => hk.hocky_id === selectedSemester) || null,
     [semesters, selectedSemester]
@@ -132,16 +156,21 @@ const AttendanceStats = () => {
     [semesterWeekOptions, selectedWeek]
   );
 
-  // 1. Khởi tạo lấy danh sách học kỳ
   useEffect(() => {
     const initSemesters = async () => {
+      setLoading(true);
       try {
         const res = await dashboardService.getSemesters();
         if (res.success && res.data.length > 0) {
           setSemesters(res.data);
           setSelectedSemester(res.defaultId);
+        } else {
+          setLoading(false);
         }
-      } catch (err) { console.error("Lỗi học kỳ:", err); }
+      } catch (err) {
+        console.error("Lỗi học kỳ:", err);
+        setLoading(false);
+      }
     };
     initSemesters();
   }, []);
@@ -317,8 +346,26 @@ const AttendanceStats = () => {
     });
   }, [classList, searchTerm, sortBy]);
 
+  const visibleData = useMemo(() => {
+    return processedData.slice(0, visibleCount);
+  }, [processedData, visibleCount]);
+
+  const handleChartScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    if (scrollHeight - scrollTop - clientHeight < 80 && visibleCount < processedData.length) {
+      setVisibleCount(prev => Math.min(prev + 15, processedData.length));
+    }
+  };
+
+  const handleDailyTableScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    if (scrollHeight - scrollTop - clientHeight < 80 && visibleDailyCount < filteredDailyClasses.length) {
+      setVisibleDailyCount(prev => Math.min(prev + 15, filteredDailyClasses.length));
+    }
+  };
+
   // Tính toán chiều cao biểu đồ động (45px mỗi hàng)
-  const dynamicHeight = Math.max(processedData.length * 45, 400);
+  const dynamicHeight = Math.max(visibleData.length * 45, 400);
 
   const lopHanhChinhDisplay = Array.isArray(selectedClass?.lop_hanh_chinh)
     ? selectedClass.lop_hanh_chinh.join(', ')
@@ -331,26 +378,48 @@ const AttendanceStats = () => {
     () => (Array.isArray(dailyReport?.daily_classes) ? dailyReport.daily_classes : []),
     [dailyReport?.daily_classes]
   );
+  
   const filteredDailyClasses = useMemo(() => {
-    if (attendanceStatusFilter === 'all') return dailyClasses;
+    let classes = [...dailyClasses];
+
+    // Filter by attendance status
     if (attendanceStatusFilter === 'checked') {
-      return dailyClasses.filter((row) => row.trang_thai_diem_danh === 'Đã điểm danh');
+      classes = classes.filter((row) => row.trang_thai_diem_danh === 'Đã điểm danh');
+    } else if (attendanceStatusFilter === 'unchecked') {
+      classes = classes.filter((row) => row.trang_thai_diem_danh !== 'Đã điểm danh');
     }
-    return dailyClasses.filter((row) => row.trang_thai_diem_danh !== 'Đã điểm danh');
-  }, [dailyClasses, attendanceStatusFilter]);
+
+    // Filter by searchTerm
+    if (searchTerm) {
+      const keyword = searchTerm.toLowerCase();
+      classes = classes.filter(row => {
+        const tenLop = (row.ten_lop || '').toLowerCase();
+        const maLop = (row.ma_lop || '').toLowerCase();
+        return tenLop.includes(keyword) || maLop.includes(keyword);
+      });
+    }
+
+    // Sort by sortBy (ti_le_vang_buoi)
+    classes.sort((a, b) => {
+      const valA = Number(a.ti_le_vang_buoi) || 0;
+      const valB = Number(b.ti_le_vang_buoi) || 0;
+      return sortBy === 'high' ? valB - valA : valA - valB;
+    });
+
+    return classes;
+  }, [dailyClasses, attendanceStatusFilter, searchTerm, sortBy]);
+
+  const visibleDailyClasses = useMemo(() => {
+    return filteredDailyClasses.slice(0, visibleDailyCount);
+  }, [filteredDailyClasses, visibleDailyCount]);
   const warningStudents = Array.isArray(dailyReport?.warnings_students) ? dailyReport.warnings_students : [];
   const warningLecturers = Array.isArray(dailyReport?.warnings_lecturers) ? dailyReport.warnings_lecturers : [];
   const effectiveFromDate = dailyReport?.from_ngay || selectedDate;
   const effectiveToDate = dailyReport?.to_ngay || selectedDate;
   const showDateColumn = dateFilterMode !== 'day';
 
-  if (loading && !selectedClass && semesters.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[400px]">
-        <Loader2 className="animate-spin text-blue-600 mb-4" size={40} />
-        <p className="text-slate-500 font-bold animate-pulse">ĐANG TẢI DỮ LIỆU THỐNG KÊ...</p>
-      </div>
-    );
+  if (semesters.length === 0) {
+    return <LoadingOverlay message="Đang kết nối hệ thống..." />;
   }
 
   return (
@@ -611,15 +680,15 @@ const AttendanceStats = () => {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       {dateFilterMode === 'week' ? 'Lớp học phần trong tuần' : 'Lớp học phần trong ngày'}
                     </p>
-                    <p className="text-2xl font-black text-slate-800 mt-1">{filteredDailyClasses.length}</p>
+                    <p className="text-2xl font-black text-slate-800 mt-1">{dailyReport?.total_classes_count || 0}</p>
                   </div>
                   <div className="rounded-2xl ed-100 bg-red-50 p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-red-400">Cảnh báo SV nghỉ quá 20%</p>
-                    <p className="text-2xl font-black text-red-600 mt-1">{warningStudents.length}</p>
+                    <p className="text-2xl font-black text-red-600 mt-1">{dailyReport?.warnings_students_count || 0}</p>
                   </div>
                   <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">GV chưa điểm danh buổi hôm nay</p>
-                    <p className="text-2xl font-black text-amber-600 mt-1">{warningLecturers.length}</p>
+                    <p className="text-2xl font-black text-amber-600 mt-1">{dailyReport?.warnings_lecturers_count || 0}</p>
                   </div>
                 </div>
 
@@ -632,9 +701,9 @@ const AttendanceStats = () => {
                     </h4>
                     {dailyLoading && <Loader2 size={16} className="animate-spin text-blue-600" />}
                   </div>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto max-h-[500px] overflow-y-auto" onScroll={handleDailyTableScroll}>
                     <table className="w-full text-xs">
-                      <thead className="bg-white border-b border-slate-100 text-slate-500">
+                      <thead className="bg-slate-50 border-b border-slate-100 text-slate-500 sticky top-0 z-10">
                         <tr>
                           {showDateColumn && <th className="px-4 py-3 text-center font-bold">Ngày</th>}
                           <th className="px-4 py-3 text-left font-bold">Lớp học phần</th>
@@ -646,8 +715,8 @@ const AttendanceStats = () => {
                           <th className="px-4 py-3 text-center font-bold">Quá trình</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredDailyClasses.map((row) => (
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {visibleDailyClasses.map((row) => (
                           <tr key={row.buoi_id}>
                             {showDateColumn && (
                               <td className="px-4 py-3 text-center font-mono text-[11px] text-slate-500">
@@ -751,12 +820,15 @@ const AttendanceStats = () => {
                 </div>
 
                 {/* BIỂU ĐỒ CỘT NGANG - FIX LỖI HOVER VÀ HIỂN THỊ RÕ TÊN */}
-                <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar border-t border-slate-50 pt-6">
+                <div 
+                  onScroll={handleChartScroll}
+                  className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar border-t border-slate-50 pt-6"
+                >
                   {processedData.length > 0 ? (
                     <div style={{ height: `${dynamicHeight}px`, width: '100%' }}>
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart 
-                          data={processedData} 
+                          data={visibleData} 
                           layout="vertical" 
                           margin={{ top: 5, right: 30, left: 10, bottom: 5 }}
                         >
@@ -814,7 +886,7 @@ const AttendanceStats = () => {
                             radius={[0, 4, 4, 0]} 
                             barSize={20}
                           >
-                            {processedData.map((entry, index) => (
+                            {visibleData.map((entry, index) => (
                               <Cell 
                                 key={`cell-${index}`} 
                                 fill={entry.ti_le_vang > 15 ? '#ef4444' : '#3b82f6'} 
@@ -838,6 +910,7 @@ const AttendanceStats = () => {
           </div>
         </>
       )}
+      {(loading || dailyLoading || notifyingAll) && <LoadingOverlay />}
     </div>
   );
 };

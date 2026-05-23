@@ -434,7 +434,7 @@ const buildMonHocScopeWhere = (target_khoa_id = null, target_chuyennganh_id = nu
   return monHocWhere;
 };
 
-const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, target_chuyennganh_id = null) => {
+const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, target_chuyennganh_id = null, from_date = null, to_date = null) => {
   try {
     const lhpWhere = { hocky_id };
     
@@ -457,7 +457,33 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
     }
 
     const rows = await db.BuoiHoc.findAll({
-      attributes: ['buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong'],
+      attributes: [
+        'buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong',
+        [
+          db.sequelize.literal(`(
+            SELECT COUNT(*)
+            FROM DiemDanh AS dd
+            WHERE dd.buoi_id = BuoiHoc.buoi_id
+          )`),
+          'da_diem_danh'
+        ],
+        [
+          db.sequelize.literal(`(
+            SELECT COUNT(*)
+            FROM DiemDanh AS dd
+            WHERE dd.buoi_id = BuoiHoc.buoi_id AND dd.trangthai IN ('present', 'late', 'excused')
+          )`),
+          'si_so_hien_dien'
+        ],
+        [
+          db.sequelize.literal(`(
+            SELECT COUNT(*)
+            FROM DangKyHoc AS dkh
+            WHERE dkh.lophocphan_id = BuoiHoc.lophocphan_id
+          )`),
+          'si_so'
+        ]
+      ],
       include: [
         {
           model: db.LopHocPhan,
@@ -499,6 +525,10 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
                     { '$LopHocPhan.GiangVien.ten$': { [Op.like]: `%${keyword}%` } },
                     { ghi_chu: { [Op.like]: `%${keyword}%` } }
                 ]
+            } : {},
+            // Lọc theo khoảng ngày nếu có
+            (from_date && to_date) ? {
+                ngay: { [Op.between]: [from_date, to_date] }
             } : {},
             // Lọc theo Scope Khoa/Bộ môn
             target_khoa_id ? (

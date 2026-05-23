@@ -46,12 +46,12 @@ const buildMonHocScopeWhere = (scope = {}, boMonId = null) => {
         if (monHocWhere[Op.and]) {
             monHocWhere[Op.and].push(selectedBoMonFilter);
         } else if (Object.keys(monHocWhere).length > 0) {
-             const existingOr = monHocWhere[Op.or];
-             delete monHocWhere[Op.or];
-             monHocWhere[Op.and] = [
-                 { [Op.or]: existingOr },
-                 selectedBoMonFilter
-             ];
+            const existingOr = monHocWhere[Op.or];
+            delete monHocWhere[Op.or];
+            monHocWhere[Op.and] = [
+                { [Op.or]: existingOr },
+                selectedBoMonFilter
+            ];
         } else {
             monHocWhere[Op.or] = selectedBoMonFilter[Op.or];
         }
@@ -71,9 +71,9 @@ const getSemesters = async () => {
     });
 
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Tìm học kỳ hiện tại
-    let defaultSemester = semesters.find(hk => 
+    let defaultSemester = semesters.find(hk =>
         today >= hk.ngay_batdau && today <= hk.ngay_ketthuc
     );
 
@@ -82,10 +82,10 @@ const getSemesters = async () => {
         defaultSemester = semesters[0];
     }
 
-    return { 
-        success: true, 
-        data: semesters, 
-        defaultId: defaultSemester ? defaultSemester.hocky_id : null 
+    return {
+        success: true,
+        data: semesters,
+        defaultId: defaultSemester ? defaultSemester.hocky_id : null
     };
 };
 
@@ -110,7 +110,7 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
     const targetKhoaId = (scope.role === 'lanhdao' || scope.role === 'truongbomon') ? scope.khoa_id : null;
 
     const data = await db.LopHocPhan.findAll({
-        where: { 
+        where: {
             [Op.and]: [
                 { hocky_id: targetId },
                 // Nếu là lãnh đạo khoa, hỗ trợ xem thêm nếu có lớp hành chính thuộc khoa học môn khoa khác
@@ -143,33 +143,61 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
             {
                 model: db.GiangVien,
                 attributes: ['ho', 'ten']
-            },
-            {
-                model: db.BuoiHoc,
-                as: 'DanhSachBuoiHoc',
-                attributes: ['buoi_id'],
-                include: [{
-                    model: db.DiemDanh,
-                    as: 'DanhSachDiemDanh',
-                    attributes: ['trangthai']
-                }]
             }
         ]
     });
 
-    const stats = data.map(lhp => {
-        let present = 0, absent = 0, late = 0, excused = 0;
+    const lhpIds = data.map(lhp => lhp.lophocphan_id);
+    const countsMap = new Map();
+    lhpIds.forEach(id => {
+        countsMap.set(id, { total: 0, absent: 0 });
+    });
 
-        lhp.DanhSachBuoiHoc.forEach(buoi => {
-            buoi.DanhSachDiemDanh.forEach(dd => {
-                if (dd.trangthai === 'present') present++;
-                else if (dd.trangthai === 'absent') absent++;
-                else if (dd.trangthai === 'late') late++;
-                else if (dd.trangthai === 'excused') excused++;
-            });
+    if (lhpIds.length > 0) {
+        const buoiRows = await db.BuoiHoc.findAll({
+            where: { lophocphan_id: { [Op.in]: lhpIds } },
+            attributes: ['buoi_id', 'lophocphan_id'],
+            raw: true
         });
 
-        const total = present + absent + late + excused;
+        if (buoiRows.length > 0) {
+            const buoiToLhp = {};
+            buoiRows.forEach(r => {
+                buoiToLhp[r.buoi_id] = r.lophocphan_id;
+            });
+            const buoiIds = buoiRows.map(r => r.buoi_id);
+
+            const counts = await db.sequelize.query(`
+                SELECT buoi_id, trangthai, COUNT(*) AS count
+                FROM DiemDanh
+                WHERE buoi_id IN (:buoiIds)
+                GROUP BY buoi_id, trangthai
+            `, {
+                replacements: { buoiIds },
+                type: db.sequelize.QueryTypes.SELECT
+            });
+
+            counts.forEach(row => {
+                const lhpId = buoiToLhp[row.buoi_id];
+                if (lhpId) {
+                    const statsObj = countsMap.get(lhpId);
+                    if (statsObj) {
+                        const c = parseInt(row.count) || 0;
+                        statsObj.total += c;
+                        if (row.trangthai === 'absent') {
+                            statsObj.absent += c;
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    const stats = data.map(lhp => {
+        const statsObj = countsMap.get(lhp.lophocphan_id) || { total: 0, absent: 0 };
+        const total = statsObj.total;
+        const absent = statsObj.absent;
+
         return {
             lophocphan_id: lhp.lophocphan_id,
             ten_lop: lhp.ten_lophocphan,
@@ -390,7 +418,10 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                 bo_mon_options: boMonOptions,
                 daily_classes: [],
                 warnings_students: [],
-                warnings_lecturers: []
+                warnings_lecturers: [],
+                total_classes_count: 0,
+                warnings_students_count: 0,
+                warnings_lecturers_count: 0
             }
         };
     }
@@ -543,7 +574,10 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                 return (a.tiet_bat_dau || 0) - (b.tiet_bat_dau || 0);
             }),
             warnings_students: warningsStudents,
-            warnings_lecturers: warningsLecturers
+            warnings_lecturers: warningsLecturers,
+            total_classes_count: dailyClasses.length,
+            warnings_students_count: warningsStudents.length,
+            warnings_lecturers_count: warningsLecturers.length
         }
     };
 };

@@ -329,12 +329,20 @@ export default function AssignmentPage() {
     // }, [currentSemesterId]);
 
     useEffect(() => {
-        if (!currentSemesterId) return;
+        if (!currentSemesterId || weeks.length === 0 || !selectedWeek) return;
+        const currentWeekObj = weeks.find(w => w.id === selectedWeek);
+        if (!currentWeekObj) return;
+
         const fetchAssignments = async () => {
             setIsLoading(true);
             try {
-                // Backend vẫn lọc theo hocky_id như cũ
-                const res = await phanCongService.getAll({ hocky_id: currentSemesterId });
+                const from_date = toDateString(currentWeekObj.startDate);
+                const to_date = toDateString(currentWeekObj.endDate);
+                const res = await phanCongService.getAll({ 
+                    hocky_id: currentSemesterId,
+                    from_date,
+                    to_date
+                });
                 setAssignments(res.data || []);
             } catch (err) {
                 console.error("Lỗi load dữ liệu phân công", err);
@@ -344,7 +352,7 @@ export default function AssignmentPage() {
             }
         };
         fetchAssignments();
-    }, [currentSemesterId]);
+    }, [currentSemesterId, selectedWeek, weeks]);
 
     // --- 4. LOGIC LỌC THEO TUẦN VÀ TÌM KIẾM ---
     // const filteredAssignments = useMemo(() => {
@@ -412,7 +420,13 @@ export default function AssignmentPage() {
                 ? await phanCongService.update(currentAssignment.buoi_id, formData)
                 : await phanCongService.create(formData);
             if (res.success) {
-                const updatedList = await phanCongService.getAll({ hocky_id: currentSemesterId });
+                const currentWeekObj = weeks.find(w => w.id === selectedWeek);
+                const params = { hocky_id: currentSemesterId };
+                if (currentWeekObj) {
+                    params.from_date = toDateString(currentWeekObj.startDate);
+                    params.to_date = toDateString(currentWeekObj.endDate);
+                }
+                const updatedList = await phanCongService.getAll(params);
                 setAssignments(updatedList.data || []);
                 setIsFormModalOpen(false);
                 return;
@@ -470,7 +484,13 @@ export default function AssignmentPage() {
                 setImportFailedRows(failedRows);
                 setIsImportResultModalOpen(true);
 
-                const updatedList = await phanCongService.getAll({ hocky_id: data.semesterId });
+                const currentWeekObj = weeks.find(w => w.id === selectedWeek);
+                const params = { hocky_id: data.semesterId };
+                if (currentWeekObj) {
+                    params.from_date = toDateString(currentWeekObj.startDate);
+                    params.to_date = toDateString(currentWeekObj.endDate);
+                }
+                const updatedList = await phanCongService.getAll(params);
                 setAssignments(updatedList.data || []);
             }
         } catch (error) {
