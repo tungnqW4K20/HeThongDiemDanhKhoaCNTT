@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Plus, X, Upload } from 'lucide-react'; 
+import { Search, Plus, X, Upload, Building2 } from 'lucide-react'; 
 import SubjectTable from '../../components/subjects/SubjectTable';
 import SubjectModal from '../../components/subjects/SubjectModal';
 import DeleteConfirmModal from '../../components/subjects/DeleteConfirmModal';
@@ -8,6 +8,8 @@ import ImportResultModal from '../../components/common/ImportResultModal';
 import SubjectStats from '../../components/subjects/SubjectStats';
 import monHocService from '../../service/monhocService';
 import khoaService from '../../service/khoaService';
+import BulkAssignFacultyModal from '../../components/subjects/BulkAssignFacultyModal';
+import { toast } from 'react-hot-toast';
 
 export default function SubjectManagerPage() {
   // --- STATE MANAGEMENT ---
@@ -30,6 +32,8 @@ export default function SubjectManagerPage() {
   const [importFailedRows, setImportFailedRows] = useState([]);
   
   const [currentSubject, setCurrentSubject] = useState(null);
+  const [selectedSubjectIds, setSelectedSubjectIds] = useState([]);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
   const mapDetailErrorsToRows = (details = []) => {
     return details.map((detail) => {
@@ -159,6 +163,24 @@ export default function SubjectManagerPage() {
     }
   };
 
+  const handleSaveBulkAssign = async (khoaId, monHocIds) => {
+    try {
+      const response = await monHocService.bulkAssignKhoa(khoaId, monHocIds);
+      const resData = response.data || response;
+      if (response.success || resData.success) {
+        toast.success(resData.message || "Gán khoa hàng loạt thành công!");
+        setSelectedSubjectIds([]);
+        await fetchSubjects();
+      } else {
+        toast.error(resData.message || "Gán khoa thất bại.");
+      }
+    } catch (error) {
+      console.error("Gán khoa hàng loạt thất bại:", error);
+      const errorMsg = error.response?.data?.message || error.message || "Lỗi máy chủ khi gán khoa hàng loạt";
+      toast.error(errorMsg);
+    }
+  };
+
   // 🔥 HANDLE IMPORT FILE (ĐÃ FIX LỖI UNDEFINED) 🔥
   const handleImportFile = async (file) => {
     if (!file) return;
@@ -285,6 +307,14 @@ export default function SubjectManagerPage() {
                 {/* Buttons Group */}
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                     
+                    {/* NÚT GÁN KHOA HÀNG LOẠT */}
+                    <button 
+                        onClick={() => setIsBulkModalOpen(true)}
+                        className="px-3 py-2 bg-blue-50 text-[#3B5998] border border-blue-200 hover:bg-blue-100 hover:border-blue-300 text-sm font-semibold rounded-lg transition-all flex items-center gap-2 whitespace-nowrap shadow-sm cursor-pointer"
+                    >
+                        <Building2 size={16} /> <span className="hidden sm:inline">Gán khoa hàng loạt</span>
+                    </button>
+
                     {/* NÚT IMPORT EXCEL */}
                     <button 
                         onClick={() => setIsImportModalOpen(true)}
@@ -321,6 +351,8 @@ export default function SubjectManagerPage() {
               isLoading={loading}
               onEdit={handleEdit} 
               onDelete={handleDeleteClick} 
+              selectedIds={selectedSubjectIds}
+              onSelectionChange={setSelectedSubjectIds}
             />
         </div>
       </div>
@@ -358,6 +390,14 @@ export default function SubjectManagerPage() {
         summary={importResultSummary}
         successRows={importSuccessRows}
         failedRows={importFailedRows}
+      />
+
+      <BulkAssignFacultyModal
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onSave={handleSaveBulkAssign}
+        subjects={subjects}
+        initialSelectedIds={selectedSubjectIds}
       />
     </div>
   );

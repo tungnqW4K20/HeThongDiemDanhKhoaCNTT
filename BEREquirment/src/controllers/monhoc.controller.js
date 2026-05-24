@@ -315,6 +315,22 @@ const importMonHocExcel = async (req, res) => {
     }
 };
 
+const handleBulkAssignKhoa = async (req, res) => {
+    try {
+        const { khoa_id, monhoc_ids } = req.body;
+        if (!monhoc_ids || !Array.isArray(monhoc_ids)) {
+            return res.status(400).json({ success: false, message: 'Dữ liệu không hợp lệ.' });
+        }
+        const response = await monHocService.bulkAssignKhoa(khoa_id, monhoc_ids);
+        if (!response.success) {
+            return res.status(400).json(response);
+        }
+        return res.status(200).json(response);
+    } catch (error) {
+        console.error('BulkAssignKhoa Error:', error);
+        return res.status(500).json({ success: false, message: 'Lỗi server khi cập nhật hàng loạt khoa.' });
+    }
+};
 
 module.exports = {
     handleGetAll,
@@ -322,5 +338,6 @@ module.exports = {
     handleCreate,
     handleUpdate,
     handleDelete,
-    importMonHocExcel
+    importMonHocExcel,
+    handleBulkAssignKhoa
 };

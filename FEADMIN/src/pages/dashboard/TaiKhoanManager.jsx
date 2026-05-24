@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
     Search, Plus, Shield, Trash2, Edit2, User, 
-    Calendar, RefreshCw, Filter, X 
+    Calendar, RefreshCw, Filter, X, FileSpreadsheet
 } from 'lucide-react';
 import taiKhoanService from '../../service/taiKhoanService';
 import giangVienService from '../../service/giangVienService';
@@ -12,6 +12,8 @@ import DeleteConfirmModal from '../../components/lectures/DeleteConfirmModal';
 import Pagination from '../../components/Pagination';
 import { usePagination } from '../../hooks/usePagination';
 import { toast } from 'react-hot-toast';
+import ImportTaiKhoanModal from '../../components/taikhoan/ImportTaiKhoanModal';
+import ImportResultModal from '../../components/common/ImportResultModal';
 
 const Avatar = ({ name }) => {
   const initial = name ? name.charAt(0).toUpperCase() : '?';
@@ -37,6 +39,14 @@ const TaiKhoanManager = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [currentAccount, setCurrentAccount] = useState(null);
+
+    // Import states
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isImportResultModalOpen, setIsImportResultModalOpen] = useState(false);
+    const [importLoading, setImportLoading] = useState(false);
+    const [importSummary, setImportSummary] = useState(null);
+    const [successRows, setSuccessRows] = useState([]);
+    const [failedRows, setFailedRows] = useState([]);
 
     useEffect(() => {
         fetchData();
@@ -85,6 +95,38 @@ const TaiKhoanManager = () => {
             }
         } catch (error) {
             console.error("Fetch lecturers error:", error);
+        }
+    };
+
+    const handleImportExcel = async (fileObj) => {
+        if (!fileObj) {
+            toast.error("Vui lòng chọn file Excel");
+            return;
+        }
+
+        setImportLoading(true);
+        try {
+            const formData = new FormData();
+            formData.append('file', fileObj);
+
+            const res = await taiKhoanService.importExcel(formData);
+            if (res && (res.success || res.errCode === 0)) {
+                toast.success(res.message || "Import tài khoản thành công!");
+                setImportSummary(res.data);
+                setSuccessRows(res.successRows || []);
+                setFailedRows(res.failedRows || []);
+                setIsImportModalOpen(false);
+                setIsImportResultModalOpen(true);
+                fetchData();
+            } else {
+                toast.error(res?.message || "Import thất bại");
+            }
+        } catch (error) {
+            console.error("Import error:", error);
+            const errMsg = error.response?.data?.message || "Lỗi máy chủ khi import file Excel";
+            toast.error(errMsg);
+        } finally {
+            setImportLoading(false);
         }
     };
 
@@ -260,6 +302,14 @@ const TaiKhoanManager = () => {
                             </button>
 
                             <button
+                                onClick={() => setIsImportModalOpen(true)}
+                                className="flex items-center justify-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-all shadow-sm font-bold text-sm shrink-0 cursor-pointer"
+                            >
+                                <FileSpreadsheet size={18} />
+                                Import Excel
+                            </button>
+
+                            <button
                                 onClick={() => {
                                     setCurrentAccount(null);
                                     setIsModalOpen(true);
@@ -422,6 +472,22 @@ const TaiKhoanManager = () => {
                 onConfirm={handleDelete}
                 title="Xóa tài khoản người dùng"
                 message={`Hành động này sẽ xóa vĩnh viễn tài khoản "${currentAccount?.username}". Bạn có chắc chắn muốn tiếp tục?`}
+            />
+
+            <ImportTaiKhoanModal
+                isOpen={isImportModalOpen}
+                onClose={() => setIsImportModalOpen(false)}
+                onImport={handleImportExcel}
+                isLoading={importLoading}
+            />
+
+            <ImportResultModal
+                isOpen={isImportResultModalOpen}
+                onClose={() => setIsImportResultModalOpen(false)}
+                title="Kết quả Import Tài khoản"
+                summary={importSummary}
+                successRows={successRows}
+                failedRows={failedRows}
             />
         </div>
     );

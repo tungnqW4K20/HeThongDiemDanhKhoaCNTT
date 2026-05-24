@@ -51,9 +51,41 @@ const deleteTaiKhoan = async (req, res) => {
     }
 };
 
+const importTaiKhoanExcel = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Vui lòng đính kèm file Excel' });
+        }
+        
+        const result = await taikhoanService.importTaiKhoanExcelService(req.file.buffer);
+        
+        if (result.errCode === 0) {
+            return res.status(200).json({
+                success: true,
+                message: result.message,
+                data: result.data,
+                successRows: result.successRows,
+                failedRows: result.failedRows
+            });
+        } else {
+            return res.status(400).json({
+                success: false,
+                message: result.message
+            });
+        }
+    } catch (error) {
+        console.error("Lỗi Controller Import TaiKhoan:", error);
+        return res.status(500).json({
+            success: false,
+            message: 'Lỗi server khi import: ' + error.message
+        });
+    }
+};
+
 module.exports = {
     getAllTaiKhoan,
     createTaiKhoan,
     updateTaiKhoan,
-    deleteTaiKhoan
+    deleteTaiKhoan,
+    importTaiKhoanExcel
 };

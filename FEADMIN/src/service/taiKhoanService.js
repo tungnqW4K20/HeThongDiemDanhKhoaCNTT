@@ -12,6 +12,13 @@ const taiKhoanService = {
     },
     delete: (id) => {
         return axiosClient.delete(`/tai-khoan/${id}`);
+    },
+    importExcel: (formData) => {
+        return axiosClient.post('/tai-khoan/import', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
     }
 };
 

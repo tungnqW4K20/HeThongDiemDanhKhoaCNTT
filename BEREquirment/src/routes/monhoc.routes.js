@@ -13,6 +13,9 @@ router.get('/:id', monHocController.handleGetById);
 // POST: Tạo mới môn học
 router.post('/',authenticateToken, authorizeRole('admin'), monHocController.handleCreate);
 
+// PUT: Cập nhật hàng loạt môn học vào khoa
+router.put('/bulk/assign-khoa', authenticateToken, authorizeRole('admin'), monHocController.handleBulkAssignKhoa);
+
 // PUT: Cập nhật môn học
 router.put('/:id',authenticateToken, authorizeRole('admin'), monHocController.handleUpdate);
 

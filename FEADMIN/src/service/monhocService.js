@@ -26,6 +26,13 @@ const monHocService = {
         'Content-Type': 'multipart/form-data',
       },
     });
+  },
+  
+  bulkAssignKhoa(khoaId, monHocIds) {
+    return axiosClient.put('/mon-hoc/bulk/assign-khoa', {
+      khoa_id: khoaId,
+      monhoc_ids: monHocIds
+    });
   }
 };
 

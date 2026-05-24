@@ -225,10 +225,42 @@ const deleteMonHoc = async (id) => {
     }
 };
 
+const bulkAssignKhoa = async (khoaId, monHocIds) => {
+    try {
+        if (!Array.isArray(monHocIds) || monHocIds.length === 0) {
+            return { success: false, message: 'Danh sách môn học không được để trống' };
+        }
+
+        if (khoaId) {
+            const khoa = await db.Khoa.findOne({
+                where: { khoa_id: khoaId, isDeleted: false }
+            });
+            if (!khoa) {
+                return { success: false, message: 'Khoa được chọn không tồn tại' };
+            }
+        }
+
+        await db.MonHoc.update(
+            { khoa_id: khoaId || null },
+            {
+                where: {
+                    monhoc_id: { [Op.in]: monHocIds },
+                    isDeleted: false
+                }
+            }
+        );
+
+        return { success: true, message: `Đã cập nhật khoa thành công cho ${monHocIds.length} môn học.` };
+    } catch (error) {
+        throw error;
+    }
+};
+
 module.exports = {
     getAllMonHoc,
     getMonHocById,
     createMonHoc,
     updateMonHoc,
-    deleteMonHoc
+    deleteMonHoc,
+    bulkAssignKhoa
 };
