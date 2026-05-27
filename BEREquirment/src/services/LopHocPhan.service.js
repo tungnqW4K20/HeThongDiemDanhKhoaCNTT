@@ -36,6 +36,24 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
     // Chuẩn hóa ngày đầu vào để so sánh chính xác (bỏ phần giờ phút giây)
     const ngayChuan = typeof ngay === 'string' ? ngay.split('T')[0] : ngay.toISOString().split('T')[0];
 
+    const allBuoi = await db.BuoiHoc.findAll({
+      where: { lophocphan_id },
+      attributes: ['buoi_id', 'ngay', 'trangthai'],
+      order: [['ngay', 'ASC']]
+    });
+
+    const completedBuoi = allBuoi.filter(b => b.trangthai === 'completed');
+    const tong_buoi_da_hoc = completedBuoi.length;
+
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const visibleBuoi = allBuoi.filter(b => {
+      if (b.trangthai === 'completed') return true;
+      const bDate = new Date(b.ngay);
+      return bDate <= today;
+    });
+
     const records = await db.DangKyHoc.findAll({
       where: { lophocphan_id, trangthai: 'active' },
       include: [
@@ -78,18 +96,30 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
       const sv = data.SinhVien;
       if (!sv) return null;
 
-      // validHistory: Chỉ chứa các buổi 'completed'
+      // validHistory: Chỉ chứa các buổi 'completed' trong bảng DiemDanh (tức là ngoại lệ)
       const validHistory = sv.DanhSachDiemDanh || [];
 
       // Tính toán thống kê dựa trên các buổi ĐÃ HOÀN THÀNH
       const vang_kp = validHistory.filter(h => h.trangthai === 'absent').length;
       const vang_cp = validHistory.filter(h => h.trangthai === 'excused').length;
       const tong_vang = vang_kp + vang_cp;
-      const tong_buoi_da_hoc = validHistory.length;
       const tile_nghi = tong_buoi_da_hoc > 0 ? (tong_vang / tong_buoi_da_hoc) * 100 : 0;
 
       // Lọc lấy dữ liệu điểm danh của ngày đang chọn (ngayChuan)
-      const diemDanhHomNay = validHistory.filter(h => h.BuoiHoc && h.BuoiHoc.ngay === ngayChuan);
+      const checkExceptionToday = validHistory.find(h => h.BuoiHoc && h.BuoiHoc.ngay === ngayChuan);
+      const diemDanhHomNay = [];
+      const isBuoiTodayCompleted = completedBuoi.some(b => b.ngay === ngayChuan);
+      
+      if (checkExceptionToday) {
+        diemDanhHomNay.push(checkExceptionToday);
+      } else if (isBuoiTodayCompleted) {
+        // Tạo một bản ghi ảo 'present' để frontend biết sinh viên có mặt
+        diemDanhHomNay.push({
+          trangthai: 'present',
+          ghichu: '',
+          BuoiHoc: { ngay: ngayChuan }
+        });
+      }
 
       return {
         ...data,
@@ -99,15 +129,28 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
           DanhSachDiemDanh: diemDanhHomNay,
           DiemDanhSummary: {
             vang_kp, vang_cp, tong_vang,
+            vắng_kp: vang_kp,
+            vắng_cp: vang_cp,
+            tong_vắng: tong_vang,
             tong_buoi: tong_buoi_da_hoc,
             tile_nghi: tile_nghi.toFixed(1),
             canh_bao: tile_nghi >= 20
           },
-          FullHistory: validHistory.map(h => ({
-            ngay: h.BuoiHoc?.ngay,
-            trangthai: h.trangthai,
-            ghichu: h.ghichu
-          }))
+          FullHistory: visibleBuoi.map(b => {
+            if (b.trangthai !== 'completed') {
+              return {
+                ngay: b.ngay,
+                trangthai: 'not_recorded',
+                ghichu: ''
+              };
+            }
+            const exception = validHistory.find(h => h.buoi_id === b.buoi_id);
+            return {
+              ngay: b.ngay,
+              trangthai: exception ? exception.trangthai : 'present',
+              ghichu: exception ? exception.ghichu : ''
+            };
+          })
         }
       };
     }).filter(item => item !== null);

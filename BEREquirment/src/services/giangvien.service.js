@@ -466,6 +466,17 @@ const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => 
       ]
     });
 
+    const classIds = [...new Set(registrations.map(r => r.lophocphan_id).filter(Boolean))];
+    const completedBuoiHocList = classIds.length > 0
+      ? await db.BuoiHoc.findAll({
+          where: {
+            lophocphan_id: { [Op.in]: classIds },
+            trangthai: 'completed'
+          },
+          attributes: ['buoi_id', 'lophocphan_id']
+        })
+      : [];
+
     const attendanceRecords = await db.DiemDanh.findAll({
       where: {
         sinhvien_id: { [Op.in]: studentIds }
@@ -503,13 +514,16 @@ const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => 
         const lhp = reg.LopHocPhan;
         if (!lhp) return null;
 
-        const courseAttends = studentAttends.filter(a => a.BuoiHoc && a.BuoiHoc.lophocphan_id === lhp.lophocphan_id);
+        const courseCompletedBuoi = completedBuoiHocList.filter(b => b.lophocphan_id === lhp.lophocphan_id);
+        const courseCompletedBuoiIds = courseCompletedBuoi.map(b => b.buoi_id);
 
-        const present = courseAttends.filter(a => a.trangthai === 'present').length;
+        const courseAttends = studentAttends.filter(a => a.BuoiHoc && courseCompletedBuoiIds.includes(a.BuoiHoc.buoi_id));
+
         const absent = courseAttends.filter(a => a.trangthai === 'absent').length;
         const late = courseAttends.filter(a => a.trangthai === 'late').length;
         const excused = courseAttends.filter(a => a.trangthai === 'excused').length;
-        const total = courseAttends.length;
+        const total = courseCompletedBuoi.length;
+        const present = total > 0 ? (total - absent - late - excused) : 0;
 
         totalPresent += present;
         totalAbsent += absent;

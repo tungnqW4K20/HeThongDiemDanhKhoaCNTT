@@ -564,7 +564,7 @@ export default function AssignmentPage() {
             }
         } catch (err) {
             console.error(err);
-            alert('Lỗi kết nối khi gửi thông báo.');
+            alert(err.response?.data?.message || err.message || 'Lỗi kết nối khi gửi thông báo.');
         }
     };
 
@@ -793,7 +793,7 @@ export default function AssignmentPage() {
                                                 <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[120px] font-bold text-slate-600">Số buổi vắng</th>
                                                 <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[120px] font-bold text-slate-600">Hành động</th>
                                                 {lichSuCot.map((h, i) => (
-                                                    <th key={i} className="px-3 py-3 text-center text-[10px] font-mono border-r border-slate-200 min-w-[90px] text-slate-500 uppercase">
+                                                    <th key={i} className="px-3 py-3 text-center text-[10px] font-mono border-r border-slate-200 min-w-[110px] text-slate-500 uppercase">
                                                         {new Date(h.ngay).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
                                                     </th>
                                                 ))}
@@ -836,7 +836,10 @@ export default function AssignmentPage() {
                                                                 {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto" />}
                                                                 {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto" />}
                                                                 {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto" />}
-                                                                {h.trangthai === 'not_recorded' && <div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto" />}
+                                                                {h.trangthai === 'excused' && <div className="w-3.5 h-3.5 rounded-full bg-slate-400 mx-auto" />}
+                                                                {h.trangthai === 'not_recorded' && (
+                                                                    <span className="text-[10px] font-bold text-slate-400 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded whitespace-nowrap">Chưa điểm danh</span>
+                                                                )}
                                                             </td>
                                                         ))}
                                                     </tr>

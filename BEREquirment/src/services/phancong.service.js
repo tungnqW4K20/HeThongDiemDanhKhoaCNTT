@@ -461,17 +461,18 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
         'buoi_id', 'ngay', 'trangthai', 'ghi_chu', 'tiet_bat_dau', 'so_tiet', 'phong',
         [
           db.sequelize.literal(`(
-            SELECT COUNT(*)
-            FROM DiemDanh AS dd
-            WHERE dd.buoi_id = BuoiHoc.buoi_id
+            SELECT IF(BuoiHoc.trangthai = 'completed', 
+              (SELECT COUNT(*) FROM DangKyHoc AS dkh WHERE dkh.lophocphan_id = BuoiHoc.lophocphan_id AND dkh.trangthai = 'active'), 
+              0)
           )`),
           'da_diem_danh'
         ],
         [
           db.sequelize.literal(`(
-            SELECT COUNT(*)
-            FROM DiemDanh AS dd
-            WHERE dd.buoi_id = BuoiHoc.buoi_id AND dd.trangthai IN ('present', 'late', 'excused')
+            SELECT IF(BuoiHoc.trangthai = 'completed',
+              (SELECT COUNT(*) FROM DangKyHoc AS dkh WHERE dkh.lophocphan_id = BuoiHoc.lophocphan_id AND dkh.trangthai = 'active') - 
+              (SELECT COUNT(*) FROM DiemDanh AS dd WHERE dd.buoi_id = BuoiHoc.buoi_id AND dd.trangthai = 'absent'),
+              0)
           )`),
           'si_so_hien_dien'
         ],
@@ -479,7 +480,7 @@ const getAllByHocKy = async (hocky_id, keyword = '', target_khoa_id = null, targ
           db.sequelize.literal(`(
             SELECT COUNT(*)
             FROM DangKyHoc AS dkh
-            WHERE dkh.lophocphan_id = BuoiHoc.lophocphan_id
+            WHERE dkh.lophocphan_id = BuoiHoc.lophocphan_id AND dkh.trangthai = 'active'
           )`),
           'si_so'
         ]

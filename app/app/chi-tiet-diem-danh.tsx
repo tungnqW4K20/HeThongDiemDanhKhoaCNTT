@@ -87,7 +87,7 @@ const StudentCardReadOnly = React.memo(({ student }: { student: SinhVien }) => {
                     <Text style={styles.cardSubtitle}>MSSV: {student.ma_sv}</Text>
                     <View style={styles.dotSeparator} />
                     <Text style={styles.summaryText}>
-                        Nghỉ: <Text style={{ color: getHealthColor(), fontWeight: '700' }}>{summary?.tong_vắng || 0}/{summary?.tong_buoi || 0}</Text>
+                        Nghỉ: <Text style={{ color: getHealthColor(), fontWeight: '700' }}>{summary?.tong_vắng ?? summary?.tong_vang ?? 0}/{summary?.tong_buoi || 0}</Text>
                     </Text>
                 </View>
                 <View style={styles.healthBarContainer}>
@@ -219,9 +219,16 @@ export default function ChiTietDiemDanh() {
                 if (!h) row.push("-");
                 else if (h.trangthai === 'present') row.push("x");
                 else if (h.trangthai === 'absent') row.push("V");
+                else if (h.trangthai === 'late') row.push("M");
                 else if (h.trangthai === 'excused') row.push("P");
+                else if (h.trangthai === 'not_recorded') row.push("Chưa điểm danh");
+                else row.push("-");
             });
-            row.push(sv.DiemDanhSummary?.vắng_kp || 0, sv.DiemDanhSummary?.vắng_cp || 0, (sv.DiemDanhSummary?.tile_nghi || "0") + "%");
+            row.push(
+                sv.DiemDanhSummary?.vắng_kp ?? sv.DiemDanhSummary?.vang_kp ?? 0, 
+                sv.DiemDanhSummary?.vắng_cp ?? sv.DiemDanhSummary?.vang_cp ?? 0, 
+                (sv.DiemDanhSummary?.tile_nghi || "0") + "%"
+            );
             data.push(row);
         });
 
@@ -285,6 +292,29 @@ export default function ChiTietDiemDanh() {
                 <TouchableOpacity onPress={handleExportSummaryExcel} style={styles.modalExportBtn}><Ionicons name="download-outline" size={22} color="#28A745" /></TouchableOpacity>
             </View>
 
+            <View style={styles.legendContainer}>
+                <View style={styles.legendItem}>
+                    <Ionicons name="checkmark-circle" size={14} color="#10B981" />
+                    <Text style={styles.legendText}>Có mặt</Text>
+                </View>
+                <View style={styles.legendItem}>
+                    <Ionicons name="close-circle" size={14} color="#EF4444" />
+                    <Text style={styles.legendText}>Vắng</Text>
+                </View>
+                <View style={styles.legendItem}>
+                    <Ionicons name="time" size={14} color="#F59E0B" />
+                    <Text style={styles.legendText}>Muộn</Text>
+                </View>
+                <View style={styles.legendItem}>
+                    <Ionicons name="remove-circle" size={14} color="#3B82F6" />
+                    <Text style={styles.legendText}>Phép</Text>
+                </View>
+                <View style={styles.legendItem}>
+                    <Ionicons name="ellipse-outline" size={11} color="#CBD5E1" />
+                    <Text style={styles.legendText}>Chưa ĐD</Text>
+                </View>
+            </View>
+
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 <View>
                     <View style={styles.tableHeaderRow}>
@@ -304,7 +334,8 @@ export default function ChiTietDiemDanh() {
                                     let ic = <Ionicons name="ellipse-outline" size={12} color="#CBD5E1" />;
                                     if(h?.trangthai === 'present') ic = <Ionicons name="checkmark-circle" size={18} color="#10B981" />;
                                     else if(h?.trangthai === 'absent') ic = <Ionicons name="close-circle" size={18} color="#EF4444" />;
-                                    else if(h?.trangthai === 'excused') ic = <Ionicons name="remove-circle" size={18} color="#F59E0B" />;
+                                    else if(h?.trangthai === 'late') ic = <Ionicons name="time" size={18} color="#F59E0B" />;
+                                    else if(h?.trangthai === 'excused') ic = <Ionicons name="remove-circle" size={18} color="#3B82F6" />;
                                     return <View key={d} style={styles.dataCell}>{ic}</View>;
                                 })}
                             </View>
@@ -336,7 +367,7 @@ const styles = StyleSheet.create({
   searchContainer: { flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF", borderRadius: 12, marginHorizontal: 20, marginVertical: 15, paddingHorizontal: 15, borderWidth: 1, borderColor: '#E8E8E8' },
   searchIcon: { marginRight: 10 },
   searchInput: { flex: 1, height: 46, fontSize: 16 },
-  cardWrapper: { marginBottom: 12, marginHorizontal: 20 },
+  cardWrapper: { marginBottom: 12 },
   card: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 16, padding: 12, borderWidth: 1, borderColor: '#F1F5F9' },
   cardWarningBorder: { borderColor: "#FEE2E2", backgroundColor: "#FFFBFA" },
   cardIconContainer: { position: 'relative' },
@@ -367,4 +398,24 @@ const styles = StyleSheet.create({
   stickyBodyCell: { width: 100, padding: 12, backgroundColor: '#FFF', borderRightWidth: 1, borderRightColor: '#E2E8F0' },
   tableNameText: { fontSize: 12, fontWeight: '600' },
   dataCell: { width: 50, height: 44, justifyContent: 'center', alignItems: 'center', borderRightWidth: 1, borderRightColor: '#F1F5F9' },
+  legendContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-around', 
+    alignItems: 'center', 
+    backgroundColor: '#F8FAFC', 
+    paddingVertical: 10, 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E2E8F0',
+    paddingHorizontal: 10
+  },
+  legendItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+  },
+  legendText: { 
+    fontSize: 11, 
+    color: '#64748B', 
+    fontWeight: '600',
+    marginLeft: 4
+  },
 });

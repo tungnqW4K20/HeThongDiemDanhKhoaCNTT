@@ -15,6 +15,12 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: 'sinhvien_id',
         as: 'SinhVien'
       });
+
+      // Mỗi record điểm danh liên kết trực tiếp tới Học kỳ để tối ưu hóa truy xuất phi chuẩn
+      DiemDanh.belongsTo(models.HocKy, {
+        foreignKey: 'hocky_id',
+        as: 'HocKy'
+      });
     }
   }
 
@@ -38,6 +44,12 @@ module.exports = (sequelize, DataTypes) => {
         references: { model: 'SinhVien', key: 'sinhvien_id' },
         onDelete: 'CASCADE'
       },
+      hocky_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+        references: { model: 'HocKy', key: 'hocky_id' },
+        onDelete: 'SET NULL'
+      },
       trangthai: {
         type: DataTypes.ENUM('present', 'absent', 'late', 'excused'),
         allowNull: false
@@ -59,6 +71,10 @@ module.exports = (sequelize, DataTypes) => {
         {
           unique: true,
           fields: ['buoi_id', 'sinhvien_id']
+        },
+        {
+          name: 'idx_diemdanh_sinhvien_hocky',
+          fields: ['sinhvien_id', 'hocky_id']
         }
       ]
     }

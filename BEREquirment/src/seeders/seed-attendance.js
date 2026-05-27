@@ -3,22 +3,29 @@ const db = require('../models');
 
 function pickStatus({ studentIndex, sessionIndex, isHighRiskStudent }) {
   if (isHighRiskStudent) {
-    return sessionIndex % 4 === 0 ? 'present' : 'absent';
-  }
-
-  if (studentIndex % 5 === 0) {
-    if (sessionIndex % 5 === 0) return 'absent';
-    if (sessionIndex % 3 === 0) return 'late';
+    // Để sinh viên cảnh báo có tỷ lệ nghỉ >20% (ngưỡng cảnh báo) để giảng viên kiểm thử màn cảnh báo:
+    // Ta cho nghỉ 22% (khoảng 2/9 buổi)
+    const r = (sessionIndex + studentIndex) % 9;
+    if (r === 0 || r === 3) return 'absent'; // ~22% vắng không phép
+    if (r === 6) return 'late'; // ~11% đi muộn
     return 'present';
   }
 
-  if (studentIndex % 4 === 0) {
-    if (sessionIndex % 7 === 0) return 'excused';
-    if (sessionIndex % 4 === 0) return 'late';
-    return 'present';
+  // Đối với sinh viên thông thường: tỷ lệ đi muộn, vắng cực kỳ ít
+  const hash = studentIndex * 17 + sessionIndex * 31;
+  const r = hash % 1000;
+
+  if (r < 8) {
+    return 'absent'; // 0.8% vắng không phép (< 1%)
+  }
+  if (r < 26) {
+    return 'excused'; // 1.8% vắng có phép (< 2%)
+  }
+  if (r < 34) {
+    return 'late'; // 0.8% đi muộn (< 1%)
   }
 
-  return sessionIndex % 8 === 0 ? 'late' : 'present';
+  return 'present'; // 96.6% đi học đầy đủ
 }
 
 async function ensureCompletedSessionsForClass(lophocphanId) {
@@ -40,7 +47,7 @@ async function ensureCompletedSessionsForClass(lophocphanId) {
   return toComplete;
 }
 
-async function upsertAttendanceRecord({ buoiId, sinhvienId, trangthai }) {
+async function upsertAttendanceRecord({ buoiId, sinhvienId, trangthai, hockyId }) {
   const existing = await db.DiemDanh.findOne({
     where: {
       buoi_id: buoiId,
@@ -48,11 +55,19 @@ async function upsertAttendanceRecord({ buoiId, sinhvienId, trangthai }) {
     }
   });
 
+  let ghichu = '';
+  if (trangthai === 'excused') {
+    ghichu = 'Có đơn xin nghỉ';
+  } else if (trangthai === 'late') {
+    ghichu = 'Vào muộn';
+  }
+
   if (existing) {
     await existing.update({
       trangthai,
-      ghichu: 'Seed thống kê điểm danh',
-      thoigian_danhdau: new Date()
+      ghichu,
+      thoigian_danhdau: new Date(),
+      hocky_id: hockyId
     });
     return 'updated';
   }
@@ -61,8 +76,9 @@ async function upsertAttendanceRecord({ buoiId, sinhvienId, trangthai }) {
     buoi_id: buoiId,
     sinhvien_id: sinhvienId,
     trangthai,
-    ghichu: 'Seed thống kê điểm danh',
-    thoigian_danhdau: new Date()
+    ghichu,
+    thoigian_danhdau: new Date(),
+    hocky_id: hockyId
   });
 
   return 'created';
@@ -73,7 +89,7 @@ async function run() {
     await db.sequelize.authenticate();
 
     const allClasses = await db.LopHocPhan.findAll({
-      attributes: ['lophocphan_id', 'ma_lop', 'ten_lophocphan'],
+      attributes: ['lophocphan_id', 'ma_lop', 'ten_lophocphan', 'hocky_id'],
       order: [['ma_lop', 'ASC']]
     });
 
@@ -102,6 +118,14 @@ async function run() {
       const completedSessions = await ensureCompletedSessionsForClass(lhp.lophocphan_id);
       if (!completedSessions.length) continue;
 
+      // Xóa tất cả điểm danh cũ của các buổi này để dọn sạch các bản ghi 'present' cũ
+      const completedBuoiIds = completedSessions.map(s => s.buoi_id);
+      await db.DiemDanh.destroy({
+        where: {
+          buoi_id: { [db.Sequelize.Op.in]: completedBuoiIds }
+        }
+      });
+
       classCount += 1;
       completedSessionCount += completedSessions.length;
 
@@ -121,10 +145,15 @@ async function run() {
             isHighRiskStudent
           });
 
+          if (status === 'present') {
+            continue;
+          }
+
           const action = await upsertAttendanceRecord({
             buoiId: session.buoi_id,
             sinhvienId: registration.sinhvien_id,
-            trangthai: status
+            trangthai: status,
+            hockyId: lhp.hocky_id
           });
 
           if (action === 'created') createdCount += 1;

@@ -64,9 +64,8 @@ class DiemDanhService {
         sinhvien_id: sv.sinhvien_id,
         lophocphan_id: lophocphan_id,
         ma_sv: sv.ma_sv,
-        // SỬA LẠI DÒNG NÀY: Chỉ dùng sv.ten
         ho_ten: sv.ten, 
-        trangthai: trangThaiDiemDanh ? trangThaiDiemDanh.trangthai : null, 
+        trangthai: trangThaiDiemDanh ? trangThaiDiemDanh.trangthai : 'present', 
         ghichu: trangThaiDiemDanh ? trangThaiDiemDanh.ghichu : '',
         thoigian: trangThaiDiemDanh ? trangThaiDiemDanh.thoigian_danhdau : null,
         so_buoi_vang: soBuoiVang,
@@ -87,47 +86,6 @@ class DiemDanhService {
     };
   }
 
-  // static async luuDiemDanh({ lophocphan_id, ngay, nguoi_tao, danh_sach_chi_tiet }) {
-  //   const transaction = await db.sequelize.transaction();
-  //   try {
-  //     const [buoiHoc, created] = await BuoiHoc.findOrCreate({
-  //       where: { lophocphan_id, ngay },
-  //       defaults: {
-  //         nguoi_tao: nguoi_tao,
-  //         trangthai: 'completed',
-  //         batdau: new Date()
-  //       },
-  //       transaction
-  //     });
-
-  //     // Nếu BuoiHoc đã tồn tại (admin tạo khi duyệt mở lại), cần update trangthai sang 'completed'
-  //     if (!created && buoiHoc.trangthai !== 'completed') {
-  //       await buoiHoc.update({ trangthai: 'completed' }, { transaction });
-  //     }
-
-  //     const duLieuDiemDanh = danh_sach_chi_tiet.map(item => ({
-  //       buoi_id: buoiHoc.buoi_id,
-  //       sinhvien_id: item.sinhvien_id,
-  //       trangthai: item.trangthai,
-  //       ghichu: item.ghichu || null,
-  //       thoigian_danhdau: new Date()
-  //     }));
-
-  //     await DiemDanh.bulkCreate(duLieuDiemDanh, {
-  //       updateOnDuplicate: ['trangthai', 'ghichu', 'thoigian_danhdau'],
-  //       transaction
-  //     });
-
-  //     await transaction.commit();
-  //     return { message: 'Lưu điểm danh thành công', buoi_id: buoiHoc.buoi_id, success: true };
-  //   } catch (error) {
-  //     await transaction.rollback();
-  //     throw error;
-  //   }
-  // }
-
-
-
   static async luuDiemDanh({ lophocphan_id, ngay, nguoi_tao, danh_sach_chi_tiet }) {
         const transaction = await db.sequelize.transaction();
         try {
@@ -141,28 +99,15 @@ class DiemDanhService {
 
             // BƯỚC 2: Kiểm soát việc tạo buổi học mới
             if (!buoiHoc) {
-                /**
-                 * GIẢI THÍCH: 
-                 * Nếu ngày này chưa có bản ghi BuoiHoc, nghĩa là Giảng viên đang bấm Lưu 
-                 * vào một ngày "trống" (chưa được lên lịch hoặc chưa được Admin duyệt dời sang).
-                 * Để không bị nhảy mẫu số (ví dụ từ 7 lên 8), ta có 2 hướng:
-                 */
-                
-                // Hướng 1 (Khuyên dùng): Chặn - Bắt buộc phải có đề xuất dời lịch trước
-                // throw new Error("Ngày này chưa được Admin duyệt lịch dạy. Vui lòng gửi đề xuất dời lịch hoặc dạy thay.");
-
-                // Hướng 2: Vẫn cho lưu (Dạy bù đột xuất) nhưng đánh dấu là 'is_override'
                 buoiHoc = await BuoiHoc.create({
                     lophocphan_id,
                     ngay: ngayChuan,
                     nguoi_tao: nguoi_tao,
                     trangthai: 'completed',
                     batdau: new Date(),
-                    is_override: true // Cực kỳ quan trọng để phân biệt buổi phát sinh
+                    is_override: true 
                 }, { transaction });
             } else {
-                // Nếu đã có bản ghi (Đúng lịch, hoặc đã được Admin duyệt dời lịch/mở lại)
-                // Cập nhật trạng thái về 'completed'
                 await buoiHoc.update({
                     trangthai: 'completed',
                     nguoi_tao: nguoi_tao,
@@ -170,20 +115,52 @@ class DiemDanhService {
                 }, { transaction });
             }
 
-            // BƯỚC 3: Lưu chi tiết điểm danh cho từng sinh viên
-            const duLieuDiemDanh = danh_sach_chi_tiet.map(item => ({
-                buoi_id: buoiHoc.buoi_id,
-                sinhvien_id: item.sinhvien_id,
-                trangthai: item.trangthai,
-                ghichu: item.ghichu || null,
-                thoigian_danhdau: new Date()
-            }));
-
-            // Sử dụng bulkCreate với updateOnDuplicate để ghi đè nếu đã tồn tại (Upsert)
-            await DiemDanh.bulkCreate(duLieuDiemDanh, {
-                updateOnDuplicate: ['trangthai', 'ghichu', 'thoigian_danhdau'],
-                transaction // Luôn luôn phải có transaction ở đây
+            // BƯỚC 3: Lấy hocky_id từ LopHocPhan của buổi học để lưu phi chuẩn hóa vào DiemDanh
+            const lhp = await db.LopHocPhan.findOne({
+                where: { lophocphan_id },
+                attributes: ['hocky_id'],
+                transaction
             });
+            const hocky_id = lhp?.hocky_id || null;
+
+            // BƯỚC 4: Tách danh sách sinh viên theo Exception-based
+            const listException = [];
+            const listNormalSvIds = [];
+
+            danh_sach_chi_tiet.forEach(item => {
+                const isNormal = item.trangthai === 'present' && (!item.ghichu || item.ghichu.trim() === '');
+                if (isNormal) {
+                    listNormalSvIds.push(item.sinhvien_id);
+                } else {
+                    listException.push({
+                        buoi_id: buoiHoc.buoi_id,
+                        sinhvien_id: item.sinhvien_id,
+                        hocky_id: hocky_id,
+                        trangthai: item.trangthai,
+                        ghichu: item.ghichu || null,
+                        thoigian_danhdau: new Date()
+                    });
+                }
+            });
+
+            // Xóa bản ghi 'present' cũ (nếu có)
+            if (listNormalSvIds.length > 0) {
+                await DiemDanh.destroy({
+                    where: {
+                        buoi_id: buoiHoc.buoi_id,
+                        sinhvien_id: listNormalSvIds
+                    },
+                    transaction
+                });
+            }
+
+            // Ghi nhận các ngoại lệ vào bảng DiemDanh (Upsert)
+            if (listException.length > 0) {
+                await DiemDanh.bulkCreate(listException, {
+                    updateOnDuplicate: ['trangthai', 'ghichu', 'thoigian_danhdau', 'hocky_id'],
+                    transaction 
+                });
+            }
 
             await transaction.commit();
             return { 
@@ -198,10 +175,6 @@ class DiemDanhService {
             throw error;
         }
     }
-
-
-
- 
 
    static async  layBangDiemDanhMacDinh({ lophocphan_id, ngay }) {
   // 1. Lấy tất cả sinh viên đăng ký lớp

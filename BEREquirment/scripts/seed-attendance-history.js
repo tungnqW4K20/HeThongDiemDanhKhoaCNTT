@@ -84,6 +84,15 @@ async function main() {
       registrationsByLhp[reg.lophocphan_id].push(reg.sinhvien_id);
     });
 
+    // Lấy mapping từ lophocphan_id sang hocky_id để lưu vào DiemDanh
+    const lophocphans = await db.LopHocPhan.findAll({
+      attributes: ['lophocphan_id', 'hocky_id']
+    });
+    const hockyIdByLhp = {};
+    lophocphans.forEach(lhp => {
+      hockyIdByLhp[lhp.lophocphan_id] = lhp.hocky_id;
+    });
+
     // 3. Tiến hành phân bổ và sinh dữ liệu
     let completedCount = 0;
     let missedCount = 0;
@@ -124,7 +133,7 @@ async function main() {
           // Cập nhật trạng thái buổi học thành đã điểm danh
           const tietInfo = TIET_START_TIMES[buoi.tiet_bat_dau || 1] || { hour: 7, minute: 0 };
           const sessionDate = parseDateOnly(buoi.ngay);
-          
+
           // Thời gian bắt đầu buổi học thực tế (khoảng thời gian GV mở điểm danh)
           const startDateTime = new Date(sessionDate);
           startDateTime.setHours(tietInfo.hour, tietInfo.minute - 5, 0, 0); // GV mở trước 5p
@@ -142,31 +151,35 @@ async function main() {
             let status = 'present';
             let checkInOffsetMinutes = 0;
 
-            if (rand < 0.88) {
+            if (rand < 0.965) {
               status = 'present';
               // Điểm danh đúng giờ: trong khoảng -5 phút đến +15 phút từ lúc bắt đầu tiết học
               checkInOffsetMinutes = Math.floor(-5 + Math.random() * 20);
-            } else if (rand < 0.93) {
+            } else if (rand < 0.973) {
               status = 'late';
               // Đi muộn: trong khoảng +16 phút đến +45 phút
               checkInOffsetMinutes = Math.floor(16 + Math.random() * 30);
-            } else if (rand < 0.97) {
+            } else if (rand < 0.982) {
               status = 'absent'; // Vắng không phép
             } else {
               status = 'excused'; // Vắng có phép
             }
 
-            // Tính mốc check-in
-            const checkInTime = new Date(sessionDate);
-            checkInTime.setHours(tietInfo.hour, tietInfo.minute + checkInOffsetMinutes, 0, 0);
+            // Chỉ tạo bản ghi điểm danh trong DB nếu trạng thái KHÁC 'present'
+            if (status !== 'present') {
+              // Tính mốc check-in
+              const checkInTime = new Date(sessionDate);
+              checkInTime.setHours(tietInfo.hour, tietInfo.minute + checkInOffsetMinutes, 0, 0);
 
-            diemDanhToCreate.push({
-              buoi_id: buoi.buoi_id,
-              sinhvien_id,
-              trangthai: status,
-              ghichu: status === 'excused' ? 'Xin phép nghỉ ốm' : (status === 'late' ? 'Muộn xe bus' : ''),
-              thoigian_danhdau: (status === 'present' || status === 'late') ? checkInTime : startDateTime
-            });
+              diemDanhToCreate.push({
+                buoi_id: buoi.buoi_id,
+                sinhvien_id,
+                trangthai: status,
+                ghichu: status === 'excused' ? 'Có đơn xin nghỉ' : (status === 'late' ? 'Vào muộn' : ''),
+                thoigian_danhdau: (status === 'present' || status === 'late') ? checkInTime : startDateTime,
+                hocky_id: hockyIdByLhp[buoi.lophocphan_id] || null
+              });
+            }
           }
 
         } else {

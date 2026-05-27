@@ -133,7 +133,7 @@ const StudentCard = React.memo(({ student, onUpdateAttendance }: {
                     <Text style={styles.cardSubtitle}>MSSV: {student.ma_sv}</Text>
                     <View style={styles.dotSeparator} />
                     <Text style={styles.summaryText}>
-                        Nghỉ: <Text style={{ color: getHealthColor(), fontWeight: '700' }}>{summary?.tong_vắng || 0}/{summary?.tong_buoi || 0}</Text>
+                        Nghỉ: <Text style={{ color: getHealthColor(), fontWeight: '700' }}>{summary?.tong_vắng ?? summary?.tong_vang ?? 0}/{summary?.tong_buoi || 0}</Text>
                     </Text>
                 </View>
                 <View style={styles.healthBarContainer}>
@@ -316,9 +316,16 @@ export default function ChiTietLop() {
                 if (!h) row.push("-");
                 else if (h.trangthai === 'present') row.push("x");
                 else if (h.trangthai === 'absent') row.push("V");
+                else if (h.trangthai === 'late') row.push("M");
                 else if (h.trangthai === 'excused') row.push("P");
+                else if (h.trangthai === 'not_recorded') row.push("Chưa điểm danh");
+                else row.push("-");
             });
-            row.push(sv.DiemDanhSummary?.vắng_kp || 0, sv.DiemDanhSummary?.vắng_cp || 0, (sv.DiemDanhSummary?.tile_nghi || "0") + "%");
+            row.push(
+                sv.DiemDanhSummary?.vắng_kp ?? sv.DiemDanhSummary?.vang_kp ?? 0, 
+                sv.DiemDanhSummary?.vắng_cp ?? sv.DiemDanhSummary?.vang_cp ?? 0, 
+                (sv.DiemDanhSummary?.tile_nghi || "0") + "%"
+            );
             data.push(row);
         });
 

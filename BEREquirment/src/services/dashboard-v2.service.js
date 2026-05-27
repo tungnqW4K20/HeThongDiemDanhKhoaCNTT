@@ -257,14 +257,24 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
     });
 
     const dsBuoiHoc = await db.BuoiHoc.findAll({
-        where: { lophocphan_id, trangthai: 'completed' },
-        attributes: ['buoi_id', 'ngay'],
+        where: { lophocphan_id },
+        attributes: ['buoi_id', 'ngay', 'trangthai'],
         order: [['ngay', 'ASC']]
     });
 
-    const dsDiemDanh = await db.DiemDanh.findAll({
-        where: { buoi_id: dsBuoiHoc.map(b => b.buoi_id) }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    const filteredBuoiHoc = dsBuoiHoc.filter(b => {
+        if (b.trangthai === 'completed') return true;
+        const bDate = new Date(b.ngay);
+        return bDate <= today;
     });
+
+    const completedBuoiIds = filteredBuoiHoc.filter(b => b.trangthai === 'completed').map(b => b.buoi_id);
+    const dsDiemDanh = completedBuoiIds.length > 0 ? await db.DiemDanh.findAll({
+        where: { buoi_id: completedBuoiIds }
+    }) : [];
 
     const studentsReport = dsSinhVien.map(dk => {
         const sv = dk.SinhVien;
@@ -280,9 +290,11 @@ const getClassDetailAttendance = async (lophocphan_id, scope = {}) => {
             so_buoi_vang: soBuoiVang,
             tong_so_buoi: tongSoBuoiKeHoach,
             canh_bao: tiLeVang >= 20,
-            history: dsBuoiHoc.map(buoi => ({
+            history: filteredBuoiHoc.map(buoi => ({
                 ngay: buoi.ngay,
-                trangthai: attendanceOfSv.find(dd => dd.buoi_id === buoi.buoi_id)?.trangthai || 'not_recorded'
+                trangthai: buoi.trangthai === 'completed'
+                    ? (attendanceOfSv.find(dd => dd.buoi_id === buoi.buoi_id)?.trangthai || 'present')
+                    : 'not_recorded'
             }))
         };
     });
@@ -407,8 +419,59 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
         order: [['tiet_bat_dau', 'ASC']]
     });
 
-    const classIds = [...new Set(dailyBuoiHoc.map((b) => b.lophocphan_id).filter(Boolean))];
-    if (classIds.length === 0) {
+    // Lấy tất cả classIds của học kỳ (theo Scope) để tính toán cảnh báo vắng cho cả học kỳ
+    const lhpScopeWhere = { hocky_id: hocky_id ? hocky_id : undefined };
+    const lhpInclude = [
+        {
+            model: db.MonHoc,
+            attributes: ['monhoc_id', 'bomon_id', 'chuyennganh_id', 'khoa_id', 'ten_mon', 'ma_mon'],
+            where: (scope.role === 'truongbomon' || (bomon_id && bomon_id !== 'all')) ? monHocWhere : undefined,
+            required: (scope.role === 'truongbomon' || (bomon_id && bomon_id !== 'all')),
+            include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
+        },
+        {
+            model: db.GiangVien,
+            attributes: ['giangvien_id', 'ho', 'ten', 'ma_gv'],
+            required: false
+        },
+        {
+            model: db.LopHanhChinh,
+            as: 'DanhSachLopHanhChinh',
+            attributes: ['lop_hanhchinh_id', 'ten_lop', 'khoa_id'],
+            through: { attributes: [] },
+            required: false
+        },
+        {
+            model: db.BuoiHoc,
+            as: 'DanhSachBuoiHoc',
+            attributes: ['phong'],
+            required: false
+        }
+    ];
+
+    const lhpScopeFilter = (scope.role === 'lanhdao' && targetKhoaId) ? {
+        [Op.or]: [
+            { '$MonHoc.khoa_id$': targetKhoaId },
+            { '$MonHoc.BoMon.khoa_id$': targetKhoaId },
+            { '$DanhSachLopHanhChinh.khoa_id$': targetKhoaId }
+        ]
+    } : {};
+
+    const allSemesterLhps = await db.LopHocPhan.findAll({
+        where: {
+            [Op.and]: [
+                lhpScopeWhere,
+                lhpScopeFilter
+            ]
+        },
+        attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'tuan_hoc', 'phong'],
+        include: lhpInclude
+    });
+
+    const semesterClassIds = [...new Set(allSemesterLhps.map((x) => x.lophocphan_id).filter(Boolean))];
+    const lhpMap = new Map(allSemesterLhps.map(x => [x.lophocphan_id, x]));
+
+    if (semesterClassIds.length === 0) {
         return {
             success: true,
             data: {
@@ -428,7 +491,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
 
     const dangKyHocRows = await db.DangKyHoc.findAll({
         where: {
-            lophocphan_id: { [Op.in]: classIds },
+            lophocphan_id: { [Op.in]: semesterClassIds },
             trangthai: 'active'
         },
         attributes: ['lophocphan_id', 'sinhvien_id'],
@@ -437,7 +500,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
 
     const completedBuoiHoc = await db.BuoiHoc.findAll({
         where: {
-            lophocphan_id: { [Op.in]: classIds },
+            lophocphan_id: { [Op.in]: semesterClassIds },
             trangthai: 'completed'
         },
         attributes: ['buoi_id', 'lophocphan_id']
@@ -470,12 +533,12 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
     });
 
     const warningsStudents = [];
-    classIds.forEach((classId) => {
+    semesterClassIds.forEach((classId) => {
         const regs = regsByClass.get(classId) || [];
         const completedIds = completedByClass.get(classId) || [];
         if (regs.length === 0 || completedIds.length === 0) return;
 
-        const lhp = dailyBuoiHoc.find((b) => b.lophocphan_id === classId)?.LopHocPhan;
+        const lhp = lhpMap.get(classId);
         let tongBuoiKeHoach = completedIds.length;
         if (lhp?.tuan_hoc) {
             try {
@@ -499,6 +562,9 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
 
             const rate = tongBuoiKeHoach > 0 ? (absences / tongBuoiKeHoach) * 100 : 0;
             if (rate >= 20) {
+                const rooms = lhp?.DanhSachBuoiHoc ? [...new Set(lhp.DanhSachBuoiHoc.map(b => b.phong).filter(Boolean))] : [];
+                const classRoom = rooms.length > 0 ? rooms.join(', ') : (lhp?.phong || 'N/A');
+
                 warningsStudents.push({
                     lophocphan_id: classId,
                     ten_lop: lhp?.ten_lophocphan || 'N/A',
@@ -508,7 +574,9 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
                     ten_sv: reg.SinhVien?.ten || 'N/A',
                     ti_le_vang: Number(rate.toFixed(2)),
                     so_buoi_vang: absences,
-                    tong_so_buoi: tongBuoiKeHoach
+                    tong_so_buoi: tongBuoiKeHoach,
+                    phong: classRoom,
+                    giang_vien: lhp?.GiangVien ? `${lhp.GiangVien.ho} ${lhp.GiangVien.ten}` : 'N/A'
                 });
             }
         });
@@ -519,15 +587,17 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
         const lhp = buoi.LopHocPhan;
         const registrations = regsByClass.get(lhp.lophocphan_id) || [];
         const diemDanhRows = buoi.DanhSachDiemDanh || [];
-        const distinctMarked = new Set(diemDanhRows.map((d) => d.sinhvien_id)).size;
-        const soVang = diemDanhRows.filter((d) => d.trangthai === 'absent').length;
-        const soCoMat = diemDanhRows.filter((d) => d.trangthai === 'present').length;
-        const tyLeVangBuoi = registrations.length > 0 ? Number(((soVang / registrations.length) * 100).toFixed(2)) : 0;
+        
+        const isCompleted = buoi.trangthai === 'completed';
+        const distinctMarked = isCompleted ? registrations.length : 0;
+        const soVang = isCompleted ? diemDanhRows.filter((d) => d.trangthai === 'absent').length : 0;
+        const soCoMat = isCompleted ? (registrations.length - soVang) : 0;
+        const tyLeVangBuoi = isCompleted && registrations.length > 0 ? Number(((soVang / registrations.length) * 100).toFixed(2)) : 0;
 
         const gvName = lhp.GiangVien ? `${lhp.GiangVien.ho} ${lhp.GiangVien.ten}` : 'N/A';
         const lopHanhChinh = (lhp.DanhSachLopHanhChinh || []).map((x) => x.ten_lop).join(', ');
 
-        if (distinctMarked === 0) {
+        if (!isCompleted) {
             warningsLecturers.push({
                 buoi_id: buoi.buoi_id,
                 lophocphan_id: lhp.lophocphan_id,
@@ -557,7 +627,7 @@ const getDailyAttendanceReport = async ({ hocky_id, ngay, bomon_id, from_ngay, t
             so_vang: soVang,
             so_co_mat: soCoMat,
             ti_le_vang_buoi: tyLeVangBuoi,
-            trang_thai_diem_danh: distinctMarked > 0 ? 'Đã điểm danh' : 'Chưa điểm danh'
+            trang_thai_diem_danh: isCompleted ? 'Đã điểm danh' : 'Chưa điểm danh'
         };
     });
 

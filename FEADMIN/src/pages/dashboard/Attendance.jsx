@@ -31,6 +31,13 @@ const formatDateShort = (date) => {
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
 };
 
+const clampDateString = (value, min, max) => {
+  if (!value) return min || max || '';
+  if (min && value < min) return min;
+  if (max && value > max) return max;
+  return value;
+};
+
 const parseDateOnlyLocal = (dateValue) => {
   if (!dateValue) return null;
   const normalized = String(dateValue).slice(0, 10);
@@ -115,7 +122,7 @@ const StatCard = ({ title, value, subLabel, icon, variant, onClick, className = 
   const style = styles[variant] || styles.blue;
   const IconComp = icon;
   return (
-    <div 
+    <div
       onClick={onClick}
       className={`bg-white rounded-xl shadow-sm p-5 border border-slate-100 flex items-center justify-between hover:-translate-y-1 duration-300 ${className}`}
     >
@@ -343,6 +350,21 @@ const AttendancePagegggg = () => {
   const [stats, setStats] = useState({ total: 0, completed: 0, pending: 0, warning: 0 });
   const fetchedKeysRef = useRef(new Set());
 
+  const currentSemester = useMemo(() => {
+    return semesters.find(s => s.hocky_id === currentSemesterId) || null;
+  }, [semesters, currentSemesterId]);
+
+  const semesterStartDate = currentSemester?.ngay_batdau ? currentSemester.ngay_batdau.slice(0, 10) : '';
+  const semesterEndDate = currentSemester?.ngay_ketthuc ? currentSemester.ngay_ketthuc.slice(0, 10) : '';
+
+  useEffect(() => {
+    if (!semesterStartDate || !semesterEndDate) return;
+
+    setSelectedDate((prev) => clampDateString(prev, semesterStartDate, semesterEndDate));
+    setFromDate((prev) => clampDateString(prev, semesterStartDate, semesterEndDate));
+    setToDate((prev) => clampDateString(prev, semesterStartDate, semesterEndDate));
+  }, [semesterStartDate, semesterEndDate]);
+
   // Reset pagination và cache khi đổi các bộ lọc chính
   useEffect(() => {
     setVisibleCount(15);
@@ -357,23 +379,77 @@ const AttendancePagegggg = () => {
     setWarningVisibleCount(15);
   }, [searchTerm, filterStatus]);
 
-  const handleNotifyTeacher = async (w) => {
+  // Trạng thái modal xem quá trình điểm danh
+  const [attendanceDetail, setAttendanceDetail] = useState(null);
+  const [isAttendanceModalOpen, setIsAttendanceModalOpen] = useState(false);
+  const [isAttendanceLoading, setIsAttendanceLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isAttendanceModalOpen || typeof document === 'undefined') return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [isAttendanceModalOpen]);
+
+  const handleViewAttendanceProcess = async (item) => {
+    if (!item?.lophocphan_id) {
+      alert('Không tìm thấy thông tin lớp học phần để xem điểm danh.');
+      return;
+    }
+
+    setIsAttendanceLoading(true);
     try {
-      const key = `${w.sinhvien_id}-${manageSession?.lophocphan_id}`;
-      const res = await dashboardService.notifyStudentWarning(w.sinhvien_id, manageSession?.lophocphan_id, w.ti_le_vang);
+      const res = await dashboardService.getClassDetailAttendance(item.lophocphan_id);
+      if (res?.success) {
+        setAttendanceDetail({
+          ...res.data,
+          buoi_hoc: {
+            ngay: item.ngay,
+            tiet_hien_thi: item.ca_hoc || item.tiet || (item.tiet_bat_dau && item.so_tiet ? `${item.tiet_bat_dau}-${item.tiet_bat_dau + item.so_tiet - 1}` : 'N/A'),
+            phong: item.phong || item.phong_hoc || 'N/A',
+          },
+        });
+        setIsAttendanceModalOpen(true);
+      } else {
+        alert(res?.message || 'Không thể tải chi tiết điểm danh.');
+      }
+    } catch (error) {
+      console.error('Lỗi lấy quá trình điểm danh:', error);
+      alert('Không thể tải chi tiết điểm danh.');
+    } finally {
+      setIsAttendanceLoading(false);
+    }
+  };
+
+  const handleCloseAttendanceModal = () => {
+    setIsAttendanceModalOpen(false);
+    setAttendanceDetail(null);
+  };
+
+  const handleNotifyTeacher = async (w, classIdFromDetail = null) => {
+    try {
+      const targetClassId = classIdFromDetail || manageSession?.lophocphan_id;
+      if (!targetClassId) {
+        alert('Không tìm thấy thông tin lớp học phần.');
+        return;
+      }
+      const key = `${w.sinhvien_id}-${targetClassId}`;
+      const res = await dashboardService.notifyStudentWarning(w.sinhvien_id, targetClassId, w.ti_le_vang);
       if (res.success) {
         setNotifiedStudents(prev => {
           const next = new Set(prev);
           next.add(key);
           return next;
         });
-        alert(`Đã gửi thông báo cảnh báo sinh viên ${w.ho_ten || w.ten} đến các giảng viên liên quan thành công!`);
+        alert(`Đã gửi thông báo cảnh báo sinh viên ${w.ten_sv || w.ho_ten || w.ten} đến các giảng viên liên quan thành công!`);
       } else {
         alert(res.message || 'Gửi thông báo thất bại');
       }
     } catch (err) {
       console.error(err);
-      alert('Lỗi kết nối khi gửi thông báo.');
+      alert(err.response?.data?.message || err.message || 'Lỗi kết nối khi gửi thông báo.');
     }
   };
 
@@ -486,7 +562,7 @@ const AttendancePagegggg = () => {
     return () => { isActive = false; };
   }, [currentSemesterId, dateFilterMode, selectedDate, fromDate, toDate, selectedWeekId, weeks]);
 
-  // Lazy load danh sách cảnh báo vắng khi chuyển sang tab 'warning'
+  // Lazy load danh sách cảnh báo vắng khi chuyển sang tab 'warning' (luôn theo học kỳ)
   useEffect(() => {
     let isActive = true;
     if (filterStatus === 'warning' && currentSemesterId) {
@@ -494,20 +570,6 @@ const AttendancePagegggg = () => {
         setWarningsLoading(true);
         try {
           const params = { hocky_id: currentSemesterId, get_warnings: true };
-          if (dateFilterMode === 'week' && selectedWeekId && weeks.length > 0) {
-            const currentWeekObj = weeks.find(w => w.id === Number(selectedWeekId));
-            if (currentWeekObj) {
-              params.from_date = formatDateToYYYYMMDD(currentWeekObj.startDate);
-              params.to_date = formatDateToYYYYMMDD(currentWeekObj.endDate);
-            }
-          } else if (dateFilterMode === 'day' && selectedDate) {
-            params.from_date = selectedDate;
-            params.to_date = selectedDate;
-          } else if (dateFilterMode === 'range' && fromDate && toDate) {
-            params.from_date = fromDate;
-            params.to_date = toDate;
-          }
-
           const res = await phanCongService.getAll(params);
           if (isActive) {
             setWarningStudents(res?.warnings_students || []);
@@ -522,7 +584,7 @@ const AttendancePagegggg = () => {
       fetchWarningsList();
     }
     return () => { isActive = false; };
-  }, [filterStatus, currentSemesterId, dateFilterMode, selectedDate, fromDate, toDate, selectedWeekId, weeks]);
+  }, [filterStatus, currentSemesterId]);
 
   const isInDateScope = useCallback((item) => {
     const d = toLocalDate(item.ngay);
@@ -547,6 +609,16 @@ const AttendancePagegggg = () => {
 
   // 2.2 Thống kê điểm danh (Memoized & Fallback dữ liệu có sẵn từ backend)
   const getAttendanceStats = useCallback((item) => {
+    if (item.trang_thai !== 'completed') {
+      return {
+        total: item.si_so || 0,
+        present: 0,
+        marked: 0,
+        ratio: 0,
+        status: 'pending'
+      };
+    }
+
     const key = `${item.lophocphan_id}-${item.ngay}`;
     if (attendanceMap[key]) {
       const stats = attendanceMap[key];
@@ -772,7 +844,9 @@ const AttendancePagegggg = () => {
                   <input
                     type="date"
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    min={semesterStartDate || undefined}
+                    max={semesterEndDate || undefined}
+                    onChange={(e) => setSelectedDate(clampDateString(e.target.value, semesterStartDate, semesterEndDate))}
                     className="ml-2 px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-sm font-semibold text-slate-700"
                   />
                 </div>
@@ -791,14 +865,18 @@ const AttendancePagegggg = () => {
                     <input
                       type="date"
                       value={fromDate}
-                      onChange={(e) => setFromDate(e.target.value)}
+                      min={semesterStartDate || undefined}
+                      max={semesterEndDate || undefined}
+                      onChange={(e) => setFromDate(clampDateString(e.target.value, semesterStartDate, semesterEndDate))}
                       className="px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-sm font-semibold text-slate-700"
                     />
                     <span className="text-xs text-slate-400 font-semibold">đến</span>
                     <input
                       type="date"
                       value={toDate}
-                      onChange={(e) => setToDate(e.target.value)}
+                      min={semesterStartDate || undefined}
+                      max={semesterEndDate || undefined}
+                      onChange={(e) => setToDate(clampDateString(e.target.value, semesterStartDate, semesterEndDate))}
                       className="px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-sm font-semibold text-slate-700"
                     />
                   </div>
@@ -840,10 +918,11 @@ const AttendancePagegggg = () => {
               <thead className="bg-slate-50/80 sticky top-0 z-10 backdrop-blur-sm">
                 {filterStatus === 'warning' ? (
                   <tr>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[35%] tracking-wider">Sinh Viên</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[40%] tracking-wider">Lớp Học Phần / Môn</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[12%] text-center tracking-wider">Vắng</th>
-                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[13%] text-right tracking-wider">Tác Vụ</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[20%] tracking-wider">Sinh Viên</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[30%] tracking-wider">Lớp Học Phần / Môn</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[20%] tracking-wider">Giảng Viên</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] text-center tracking-wider">Vắng</th>
+                    <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase w-[15%] text-right tracking-wider">Tác Vụ</th>
                   </tr>
                 ) : (
                   <tr>
@@ -859,7 +938,7 @@ const AttendancePagegggg = () => {
                 {filterStatus === 'warning' ? (
                   warningsLoading ? (
                     <tr>
-                      <td colSpan="4" className="px-6 py-24 text-center">
+                      <td colSpan="5" className="px-6 py-24 text-center">
                         <div className="flex flex-col items-center justify-center">
                           <Loader2 className="h-8 w-8 animate-spin text-[#3B5998] mb-4" />
                           <p className="text-slate-500 font-bold">Đang tải danh sách cảnh báo vắng...</p>
@@ -874,7 +953,25 @@ const AttendancePagegggg = () => {
                       </td>
                       <td className="px-6 py-4 align-middle">
                         <div className="font-bold text-slate-700">{w.ten_lop}</div>
-                        <div className="text-xs text-slate-400 font-mono mt-0.5">{w.ma_lop}</div>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="text-xs text-slate-400 font-mono">{w.ma_lop}</span>
+                          {w.phong && w.phong !== 'N/A' && (
+                            <>
+                              <span className="text-slate-300 text-xs">|</span>
+                              <div className="flex items-center gap-1 text-xs text-slate-500">
+                                <MapPin size={12} className="text-slate-400" />
+                                <span>{w.phong}</span>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 align-middle">
+                        <div className="flex items-center gap-3 pr-4">
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-700 truncate">{w.giang_vien || 'N/A'}</p>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 align-middle text-center">
                         <div className="font-black text-rose-600 text-base">{w.so_buoi_vang}/{w.tong_so_buoi}</div>
@@ -888,11 +985,10 @@ const AttendancePagegggg = () => {
                             <button
                               onClick={() => handleNotifyTeacher(w)}
                               disabled={isNotified}
-                              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${
-                                isNotified
+                              className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${isNotified
                                   ? 'bg-emerald-100 text-emerald-700 cursor-not-allowed'
                                   : 'bg-red-600 text-white hover:bg-red-700 active:scale-95 shadow-sm'
-                              }`}
+                                }`}
                             >
                               {isNotified ? 'Đã báo GV' : 'Báo GV'}
                             </button>
@@ -901,7 +997,7 @@ const AttendancePagegggg = () => {
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan="4" className="px-6 py-32 text-center"><div className="flex flex-col items-center justify-center text-slate-300"><Filter size={32} className="mb-2" /><p className="text-slate-600 font-bold text-base">Không có sinh viên cảnh báo vắng</p></div></td></tr>
+                    <tr><td colSpan="5" className="px-6 py-32 text-center"><div className="flex flex-col items-center justify-center text-slate-300"><Filter size={32} className="mb-2" /><p className="text-slate-600 font-bold text-base">Không có sinh viên cảnh báo vắng</p></div></td></tr>
                   )
                 ) : (
                   visibleData.length > 0 ? visibleData.map(item => (
@@ -967,6 +1063,7 @@ const AttendancePagegggg = () => {
                               alert('Không thể tải dữ liệu điểm danh');
                             } finally { setIsLoading(false); }
                           }} className="p-2 text-slate-500 hover:text-[#3B5998] hover:bg-blue-50 rounded-lg transition-colors" title="Quản lý điểm danh"><Eye size={18} /></button>
+                          <button onClick={() => handleViewAttendanceProcess(item)} className="p-2 text-[#3B5998] bg-white hover:bg-blue-50 rounded-lg transition-colors border border-slate-200 hover:border-blue-200 shadow-sm" title="Xem quá trình điểm danh"><Clock size={18} /></button>
                           <button onClick={() => { setSelectedSession(item); setIsModalOpen(true); }} className="p-2 text-emerald-600 bg-white hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200 hover:border-emerald-200 shadow-sm" title="Import Excel"><FileSpreadsheet size={18} /></button>
                         </div>
                       </td>
@@ -1101,6 +1198,30 @@ const AttendancePagegggg = () => {
                         }
                       }));
 
+                      // Cập nhật lại scheduleSessions và stats cards ngay lập tức
+                      setScheduleSessions(prev => {
+                        const newSessions = prev.map(s => 
+                          s.buoi_id === manageSession.buoi_id || (s.lophocphan_id === manageSession.lophocphan_id && s.ngay === manageSession.ngay)
+                            ? { ...s, trang_thai: 'completed', da_diem_danh: list.filter(sv => ['present', 'late', 'excused'].includes(sv.trangthai)).length }
+                            : s
+                        );
+                        
+                        let completedCount = 0;
+                        let pendingCount = 0;
+                        newSessions.forEach(item => {
+                          if (item.trang_thai === 'completed') completedCount++;
+                          else pendingCount++;
+                        });
+                        
+                        setStats(prevStats => ({
+                          ...prevStats,
+                          completed: completedCount,
+                          pending: pendingCount
+                        }));
+
+                        return newSessions;
+                      });
+
                       alert('Lưu điểm danh thành công');
                       setManageModalOpen(false);
                     } catch (err) {
@@ -1122,6 +1243,127 @@ const AttendancePagegggg = () => {
       )}
 
       <ImportModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} sessionData={selectedSession} />
+      
+      {isAttendanceModalOpen && createPortal((
+        <div className="fixed inset-0 z-9999 bg-black/40 backdrop-blur-[2px] flex items-center justify-center p-4">
+          <div className="w-full max-w-7xl max-h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+              <div>
+                <h2 className="text-lg font-black text-slate-800">Quá trình điểm danh sinh viên</h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {attendanceDetail?.ten_lophocphan} ({attendanceDetail?.ma_lop})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseAttendanceModal}
+                className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                title="Đóng"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="px-6 py-4 border-b border-slate-100 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 text-sm">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Giảng viên</p>
+                <p className="font-semibold text-slate-700">{attendanceDetail?.giang_vien || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Lớp hành chính</p>
+                <p className="font-semibold text-slate-700 truncate" title={Array.isArray(attendanceDetail?.lop_hanh_chinh) ? attendanceDetail.lop_hanh_chinh.join(', ') : 'Chưa có dữ liệu'}>
+                  {Array.isArray(attendanceDetail?.lop_hanh_chinh) ? attendanceDetail.lop_hanh_chinh.join(', ') : 'Chưa có dữ liệu'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Buổi được chọn</p>
+                <p className="font-semibold text-slate-700">
+                  {attendanceDetail?.buoi_hoc?.ngay ? new Date(attendanceDetail.buoi_hoc.ngay).toLocaleDateString('vi-VN') : 'N/A'} - {attendanceDetail?.buoi_hoc?.tiet_hien_thi || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Cảnh báo nghỉ quá 20%</p>
+                <p className="font-black text-red-600 inline-flex items-center gap-1">
+                  <AlertTriangle size={14} /> {Array.isArray(attendanceDetail?.danh_sach_sinh_vien) ? attendanceDetail.danh_sach_sinh_vien.filter(sv => sv.canh_bao).length : 0} sinh viên
+                </p>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto">
+              <table className="min-w-full text-sm text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-5 py-3 sticky left-0 z-20 bg-slate-50 border-r border-slate-200 min-w-[220px] font-bold text-slate-600">Sinh viên</th>
+                    <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[120px] font-bold text-slate-600">Số buổi vắng</th>
+                    <th className="px-4 py-3 text-center border-r border-slate-200 min-w-[120px] font-bold text-slate-600">Hành động</th>
+                    {(Array.isArray(attendanceDetail?.danh_sach_sinh_vien?.[0]?.history) ? attendanceDetail.danh_sach_sinh_vien[0].history : []).map((h, i) => (
+                      <th key={i} className="px-3 py-3 text-center text-[10px] font-mono border-r border-slate-200 min-w-[110px] text-slate-500 uppercase">
+                        {new Date(h.ngay).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(Array.isArray(attendanceDetail?.danh_sach_sinh_vien) ? attendanceDetail.danh_sach_sinh_vien : []).map((sv) => {
+                    const key = `${sv.sinhvien_id}-${attendanceDetail?.lophocphan_id}`;
+                    const isNotified = notifiedStudents.has(key);
+                    return (
+                      <tr key={sv.sinhvien_id} className={sv.canh_bao ? 'bg-red-50/40' : 'hover:bg-slate-50'}>
+                        <td className={`px-5 py-3 sticky left-0 z-10 border-r border-slate-200 ${sv.canh_bao ? 'bg-red-50 text-red-900' : 'bg-white text-slate-700'}`}>
+                          <div className="font-semibold">{sv.ten_sv}</div>
+                          <div className="text-[11px] opacity-70 font-mono">{sv.ma_sv}</div>
+                          {sv.canh_bao && <div className="text-[10px] font-bold text-red-600 mt-1">Cảnh báo: Vắng quá 20%</div>}
+                        </td>
+                        <td className={`px-4 py-3 text-center font-black border-r border-slate-200 ${sv.canh_bao ? 'text-red-600' : 'text-slate-600'}`}>
+                          {sv.so_buoi_vang !== undefined ? `${sv.so_buoi_vang}/${sv.tong_so_buoi} buổi` : `${sv.ti_le_vang}%`} ({sv.ti_le_vang}%)
+                        </td>
+                        <td className="px-4 py-3 text-center border-r border-slate-200">
+                          {sv.canh_bao ? (
+                            <button
+                              type="button"
+                              onClick={() => handleNotifyTeacher(sv, attendanceDetail?.lophocphan_id)}
+                              disabled={isNotified}
+                              className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black tracking-wide uppercase transition-all shadow-sm border ${
+                                isNotified
+                                  ? "bg-emerald-100 text-emerald-700 border-emerald-200 cursor-not-allowed"
+                                  : "bg-red-600 text-white hover:bg-red-700 hover:shadow-red-200 active:scale-95 border-red-600"
+                              }`}
+                            >
+                              {isNotified ? 'Đã gửi' : 'Báo GV'}
+                            </button>
+                          ) : (
+                            <span className="text-slate-400 font-bold text-xs">-</span>
+                          )}
+                        </td>
+                        {sv.history?.map((h, i) => (
+                          <td key={i} className="px-3 py-3 text-center border-r border-slate-200 last:border-r-0">
+                            {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto" />}
+                            {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto" />}
+                            {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto" />}
+                            {h.trangthai === 'excused' && <div className="w-3.5 h-3.5 rounded-full bg-slate-400 mx-auto" />}
+                            {h.trangthai === 'not_recorded' && (
+                              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded whitespace-nowrap">Chưa điểm danh</span>
+                            )}
+                          </td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                  {(!attendanceDetail?.danh_sach_sinh_vien || attendanceDetail.danh_sach_sinh_vien.length === 0) && (
+                    <tr>
+                      <td colSpan={4} className="px-5 py-10 text-center text-slate-500">
+                        Chưa có dữ liệu điểm danh cho lớp học phần này.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+
+      {isAttendanceLoading && <LoadingOverlay message="Đang tải quá trình điểm danh..." />}
       {_isLoading && <LoadingOverlay />}
     </div>
   );

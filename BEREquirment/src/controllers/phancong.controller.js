@@ -248,8 +248,55 @@ const getAllAssignments = async (req, res) => {
       else pending++;
     });
 
-    // Tính toán danh sách sinh viên vắng > 20% của các lớp hiển thị trong kỳ/tuần này
-    const classIds = [...new Set(formattedData.map(item => item.lophocphan_id).filter(Boolean))];
+    // Tính toán danh sách sinh viên vắng > 20% trên toàn bộ các lớp của HỌC KỲ này (theo Scope)
+    const lhpScopeWhere = { hocky_id };
+    if (target_khoa_id) {
+      if (target_chuyennganh_id) {
+        lhpScopeWhere[db.Sequelize.Op.or] = [
+          { '$MonHoc.bomon_id$': target_chuyennganh_id },
+          { '$MonHoc.chuyennganh_id$': target_chuyennganh_id }
+        ];
+      } else {
+        lhpScopeWhere[db.Sequelize.Op.or] = [
+          { '$MonHoc.khoa_id$': target_khoa_id },
+          { '$MonHoc.BoMon.khoa_id$': target_khoa_id },
+          { '$DanhSachLopHanhChinh.khoa_id$': target_khoa_id }
+        ];
+      }
+    }
+
+    const lhpRows = await db.LopHocPhan.findAll({
+      where: lhpScopeWhere,
+      attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'phong', 'tuan_hoc'],
+      include: [
+        {
+          model: db.MonHoc,
+          required: false,
+          attributes: ['monhoc_id', 'ten_mon', 'ma_mon', 'khoa_id', 'chuyennganh_id', 'bomon_id'],
+          include: [{ model: db.BoMon, as: 'BoMon', attributes: ['khoa_id'] }]
+        },
+        {
+          model: db.GiangVien,
+          attributes: ['giangvien_id', 'ho', 'ten', 'ma_gv'],
+          required: false
+        },
+        {
+          model: db.LopHanhChinh,
+          as: 'DanhSachLopHanhChinh',
+          attributes: ['lop_hanhchinh_id', 'khoa_id'],
+          through: { attributes: [] },
+          required: false
+        },
+        {
+          model: db.BuoiHoc,
+          as: 'DanhSachBuoiHoc',
+          attributes: ['phong'],
+          required: false
+        }
+      ]
+    });
+
+    const classIds = [...new Set(lhpRows.map(x => x.lophocphan_id).filter(Boolean))];
     const warningsStudents = [];
 
     if (classIds.length > 0) {
@@ -277,11 +324,6 @@ const getAllAssignments = async (req, res) => {
             attributes: ['buoi_id', 'sinhvien_id', 'trangthai']
           })
         : [];
-
-      const lhpRows = await db.LopHocPhan.findAll({
-        where: { lophocphan_id: { [db.Sequelize.Op.in]: classIds } },
-        attributes: ['lophocphan_id', 'ten_lophocphan', 'tuan_hoc']
-      });
 
       const regsByClass = new Map();
       dangKyHocRows.forEach((r) => {
@@ -340,17 +382,21 @@ const getAllAssignments = async (req, res) => {
 
           const rate = tongBuoiKeHoach > 0 ? (absences / tongBuoiKeHoach) * 100 : 0;
           if (rate >= 20) {
+            const rooms = lhpObj?.DanhSachBuoiHoc ? [...new Set(lhpObj.DanhSachBuoiHoc.map(b => b.phong).filter(Boolean))] : [];
+            const classRoom = rooms.length > 0 ? rooms.join(', ') : (lhpObj?.phong || 'N/A');
+
             warningsStudents.push({
               lophocphan_id: classId,
-              ten_lop: details?.ten_mon || lhpObj?.ten_lophocphan || 'N/A',
-              ma_lop: details?.ma_mon || String(classId),
-              giang_vien: details?.giang_vien_day_thay || details?.ten_giang_vien || 'N/A',
+              ten_lop: lhpObj?.MonHoc?.ten_mon || lhpObj?.ten_lophocphan || 'N/A',
+              ma_lop: lhpObj?.ma_lop || lhpObj?.MonHoc?.ma_mon || String(classId),
+              giang_vien: lhpObj?.GiangVien ? `${lhpObj.GiangVien.ho} ${lhpObj.GiangVien.ten}` : 'N/A',
               sinhvien_id: reg.sinhvien_id,
               ma_sv: reg.SinhVien?.ma_sv || 'N/A',
               ten_sv: reg.SinhVien?.ten || 'N/A',
               ti_le_vang: Number(rate.toFixed(2)),
               so_buoi_vang: absences,
-              tong_so_buoi: tongBuoiKeHoach
+              tong_so_buoi: tongBuoiKeHoach,
+              phong: classRoom
             });
           }
         });

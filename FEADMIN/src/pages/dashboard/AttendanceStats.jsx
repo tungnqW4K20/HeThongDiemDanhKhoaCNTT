@@ -513,6 +513,7 @@ const AttendanceStats = () => {
                                         {h.trangthai === 'present' && <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'absent' && <div className="w-3.5 h-3.5 rounded-full bg-red-500 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'late' && <div className="w-3.5 h-3.5 rounded-full bg-amber-500 mx-auto border-2 border-white shadow-sm" />}
+                                        {h.trangthai === 'excused' && <div className="w-3.5 h-3.5 rounded-full bg-slate-400 mx-auto border-2 border-white shadow-sm" />}
                                         {h.trangthai === 'not_recorded' && <div className="w-2 h-2 rounded-full bg-slate-200 mx-auto" />}
                                     </td>
                                 ))}

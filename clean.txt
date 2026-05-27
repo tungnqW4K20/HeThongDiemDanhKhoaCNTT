@@ -1,4 +1,4 @@
 npm run db:clear-students
 npm run db:seed-students
 npm run db:register-students-to-courses
-npm run db:seed-attendance
+npm run seed:attendance
