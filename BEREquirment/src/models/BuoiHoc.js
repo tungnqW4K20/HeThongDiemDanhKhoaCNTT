@@ -94,7 +94,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'BuoiHoc',
-      tableName: 'BuoiHoc',
+      tableName: 'buoihoc',
       timestamps: false,
       indexes: [
         // BẮT BUỘC: Đảm bảo 1 lớp không thể có 2 bản ghi trong cùng 1 ngày

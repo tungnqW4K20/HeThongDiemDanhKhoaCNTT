@@ -33,7 +33,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'LHP_LHC',
-      tableName: 'LHP_LHC',
+      tableName: 'lhp_lhc',
       timestamps: false
     }
   );

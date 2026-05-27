@@ -65,11 +65,11 @@ async function main() {
     console.log('----------------------------------------------------');
   } catch (error) {
     if (transaction) await transaction.rollback();
-    
+
     // Đảm bảo bật lại khóa ngoại kể cả khi lỗi
     try {
       await sequelize.query('SET FOREIGN_KEY_CHECKS = 1;');
-    } catch (_) {}
+    } catch (_) { }
 
     console.error('❌ Lỗi trong quá trình xóa dữ liệu:', error);
     process.exit(1);

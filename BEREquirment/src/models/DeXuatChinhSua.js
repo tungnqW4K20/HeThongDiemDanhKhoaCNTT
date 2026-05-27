@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
   }, {
     sequelize,
     modelName: 'DeXuatChinhSua',
-    tableName: 'DeXuatChinhSua',
+    tableName: 'dexuatchinhsua',
     timestamps: true // Để biết yêu cầu gửi lúc nào
   });
 

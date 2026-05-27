@@ -57,7 +57,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'MonHoc',
-      tableName: 'MonHoc',
+      tableName: 'monhoc',
       timestamps: false
     }
   );

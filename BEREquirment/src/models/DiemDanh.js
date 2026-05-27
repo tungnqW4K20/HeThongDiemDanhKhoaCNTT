@@ -65,7 +65,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'DiemDanh',   // 👈 Quan trọng: trùng với models.DiemDanh
-      tableName: 'DiemDanh',
+      tableName: 'diemdanh',
       timestamps: false,
       indexes: [
         {

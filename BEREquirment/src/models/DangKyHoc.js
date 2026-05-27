@@ -30,7 +30,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'DangKyHoc',
-      tableName: 'DangKyHoc',
+      tableName: 'dangkyhoc',
       timestamps: false,
       indexes: [
         { unique: true, fields: ['sinhvien_id', 'lophocphan_id'] }

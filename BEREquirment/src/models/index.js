@@ -1,11 +1,8 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const Sequelize = require('sequelize');
-const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || 'development';
-const config = require(__dirname + '/../config/config.js')[env];
+const config = require('../config/config.js')[env];
 const db = {};
 
 let sequelize;
@@ -15,21 +12,34 @@ if (config.use_env_variable) {
   sequelize = new Sequelize(config.database, config.username, config.password, config);
 }
 
-fs
-  .readdirSync(__dirname)
-  .filter(file => {
-    return (
-      file.indexOf('.') !== 0 &&
-      file !== basename &&
-      file.slice(-3) === '.js'
-    );
-  })
-  .forEach(file => {
-    // console.log('Đang load model từ file:', file); 
-    // Dòng này giờ sẽ hoạt động đúng vì các file model export ra function
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
-  });
+// Import tường minh từng model (thay vì dùng fs.readdirSync để ncc bundle hoạt động đúng)
+const modelDefiners = [
+  require('./BoMon'),
+  require('./BuoiHoc'),
+  require('./ChuyenNganh'),
+  require('./CoSo'),
+  require('./DangKyHoc'),
+  require('./DeXuatChinhSua'),
+  require('./DiemDanh'),
+  require('./GiangVien'),
+  require('./GiangVien_BoMon'),
+  require('./HocKy'),
+  require('./Khoa'),
+  require('./LopHanhChinh'),
+  require('./LopHocPhan'),
+  require('./MonHoc'),
+  require('./NamHoc'),
+  require('./NgayNghi'),
+  require('./SinhVien'),
+  require('./TaiKhoan'),
+  require('./ThongBao'),
+  require('./lhp-lhc'),
+];
+
+for (const modelDefiner of modelDefiners) {
+  const model = modelDefiner(sequelize, Sequelize.DataTypes);
+  db[model.name] = model;
+}
 
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
@@ -37,7 +47,7 @@ Object.keys(db).forEach(modelName => {
   }
 });
 
-db.sequelize = sequelize; 
-db.Sequelize = Sequelize; 
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
 
 module.exports = db;

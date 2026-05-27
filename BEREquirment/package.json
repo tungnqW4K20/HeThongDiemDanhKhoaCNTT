@@ -6,6 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon src/index.js",
+    "start": "node index.js",
+    "build": "npx @vercel/ncc build src/index.js -o dist",
     "seed:admin": "node src/seeders/seed-admin.js",
     "seed:data": "node src/seeders/seed-data.js",
     "seed:csv:full": "node src/seeders/seed-csv-full.js",
@@ -21,7 +23,8 @@
     "db:clear-students": "node scripts/clear-students.js",
     "db:seed-students": "node scripts/seed-students.js",
     "db:register-students-to-courses": "node scripts/register-students-to-courses.js",
-    "db:seed-attendance": "node scripts/seed-attendance-history.js"
+    "db:seed-attendance": "node scripts/seed-attendance-history.js",
+    "db:clean-attendance": "node scripts/clean-present-add-hocky.js"
   },
   "keywords": [],
   "author": "",
