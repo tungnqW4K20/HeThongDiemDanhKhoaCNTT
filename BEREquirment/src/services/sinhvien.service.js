@@ -29,7 +29,7 @@ const parseEnumValues = (enumType = '') => {
 };
 
 const getTrangThaiEnumValues = async () => {
-    const [rows] = await db.sequelize.query("SHOW COLUMNS FROM `SinhVien` LIKE 'trang_thai'");
+    const [rows] = await db.sequelize.query("SHOW COLUMNS FROM `sinhvien` LIKE 'trang_thai'");
     const enumType = rows?.[0]?.Type || '';
     return parseEnumValues(enumType);
 };

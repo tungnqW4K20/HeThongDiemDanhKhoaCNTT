@@ -169,7 +169,7 @@ const getOverallAttendance = async (hocky_id, scope = {}, bomon_id = null) => {
 
             const counts = await db.sequelize.query(`
                 SELECT buoi_id, trangthai, COUNT(*) AS count
-                FROM DiemDanh
+                FROM diemdanh
                 WHERE buoi_id IN (:buoiIds)
                 GROUP BY buoi_id, trangthai
             `, {

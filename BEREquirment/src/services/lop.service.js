@@ -114,8 +114,8 @@ const getAllLop = async (khoa_id) => {
         [
           db.Sequelize.literal(`(
             SELECT COUNT(*) 
-            FROM SinhVien AS sv 
-            WHERE sv.lop_hanhchinh_id = LopHanhChinh.lop_hanhchinh_id
+            FROM sinhvien AS sv 
+            WHERE sv.lop_hanhchinh_id = lophanhchinh.lop_hanhchinh_id
             AND sv.isDeleted = 0
           )`),
           'si_so'

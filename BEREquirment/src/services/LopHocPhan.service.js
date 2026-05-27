@@ -233,8 +233,8 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
           monhoc_id: {
             [Op.in]: db.sequelize.literal(`(
                     SELECT m.monhoc_id 
-                    FROM MonHoc m 
-                    LEFT JOIN BoMon b ON m.bomon_id = b.bomon_id
+                    FROM monhoc m 
+                    LEFT JOIN bomon b ON m.bomon_id = b.bomon_id
                     WHERE m.khoa_id = '${target_khoa_id}' OR b.khoa_id = '${target_khoa_id}'
                 )`)
           }
@@ -244,8 +244,8 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
           lophocphan_id: {
             [Op.in]: db.sequelize.literal(`(
                     SELECT lhc_lhp.lophocphan_id 
-                    FROM LHP_LHC lhc_lhp
-                    JOIN LopHanhChinh lhc ON lhc_lhp.lop_hanhchinh_id = lhc.lop_hanhchinh_id
+                    FROM lhp_lhc lhc_lhp
+                    JOIN lophanhchinh lhc ON lhc_lhp.lop_hanhchinh_id = lhc.lop_hanhchinh_id
                     WHERE lhc.khoa_id = '${target_khoa_id}'
                 )`)
           }
@@ -261,7 +261,7 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
           monhoc_id: {
             [Op.in]: db.sequelize.literal(`(
                     SELECT monhoc_id 
-                    FROM MonHoc 
+                    FROM monhoc 
                     WHERE bomon_id = '${target_chuyennganh_id}' OR chuyennganh_id = '${target_chuyennganh_id}'
                 )`)
           }
@@ -271,8 +271,8 @@ const getAllLopHocPhan = async (query, target_khoa_id = null, target_chuyennganh
           lophocphan_id: {
             [Op.in]: db.sequelize.literal(`(
                     SELECT lhc_lhp.lophocphan_id 
-                    FROM LHP_LHC lhc_lhp
-                    JOIN LopHanhChinh lhc ON lhc_lhp.lop_hanhchinh_id = lhc.lop_hanhchinh_id
+                    FROM lhp_lhc lhc_lhp
+                    JOIN lophanhchinh lhc ON lhc_lhp.lop_hanhchinh_id = lhc.lop_hanhchinh_id
                     WHERE lhc.chuyennganh_id = '${target_chuyennganh_id}' OR lhc.lop_hanhchinh_id = '${target_chuyennganh_id}'
                 )`)
           }
