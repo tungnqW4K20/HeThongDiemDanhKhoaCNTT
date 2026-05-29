@@ -16,7 +16,7 @@ const createProposal = async (req, res) => {
 
 const getPendingProposals = async (req, res) => {
     try {
-        const data = await deXuatService.getDachSachDeXuat('pending');
+        const data = await deXuatService.getDachSachDeXuat('pending', req.user || {});
         res.status(200).json({ success: true, data });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };
@@ -24,7 +24,8 @@ const getPendingProposals = async (req, res) => {
 const handleReview = async (req, res) => {
     try {
         const { status, phan_hoi } = req.body;
-        await deXuatService.xuLyPheDuyet(req.params.dexuat_id, status, req.user.taikhoan_id, phan_hoi);
+        const reviewerId = req.user?.id || req.user?.taikhoan_id;
+        await deXuatService.xuLyPheDuyet(req.params.dexuat_id, status, reviewerId, phan_hoi, req.user || {});
         res.status(200).json({ success: true, message: "Đã xử lý đề xuất." });
     } catch (error) { res.status(500).json({ success: false, message: error.message }); }
 };

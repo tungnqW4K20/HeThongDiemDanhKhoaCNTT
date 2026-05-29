@@ -14,18 +14,18 @@ router.post(
     deXuatController.createProposal
 );
 
-// API dành cho Admin
+// API dành cho Admin, Trưởng bộ môn, Lãnh đạo
 router.get(
     '/danh-sach-cho', 
     authenticateToken, 
-    authorizeRole(['admin']), 
+    authorizeRole(['admin', 'truongbomon', 'lanhdao']), 
     deXuatController.getPendingProposals
 );
 
 router.put(
     '/phe-duyet/:dexuat_id', 
     authenticateToken, 
-    authorizeRole(['admin']), 
+    authorizeRole(['admin', 'truongbomon', 'lanhdao']), 
     deXuatController.handleReview
 );
 

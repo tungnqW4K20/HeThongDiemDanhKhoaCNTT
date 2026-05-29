@@ -1036,6 +1036,8 @@ const importScheduleExcel = async (buffer, hockyData) => {
       }
     });
 
+    const stagedMaMons = new Set();
+
     // --- BƯỚC 1: ĐỒNG BỘ DANH MỤC (Môn, GV, Lớp HC) - CHỐNG TRÙNG DB ---
     for (const row of dataRows) {
       const tenMon = cleanStr(row[col.hocPhan]);
@@ -1067,10 +1069,24 @@ const importScheduleExcel = async (buffer, hockyData) => {
 
       // Môn học (Unique by Name)
       if (!mapMonHoc.has(tenMon)) {
+        let tempMaMon;
+        let isUnique = false;
+        let monOffset = 0;
+        while (!isUnique) {
+          tempMaMon = `M${String(monCount + (++monOffset)).padStart(3, '0')}`;
+          if (!stagedMaMons.has(tempMaMon)) {
+            const existing = await db.MonHoc.findOne({ where: { ma_mon: tempMaMon }, transaction: t });
+            if (!existing) {
+              isUnique = true;
+            }
+          }
+        }
+        stagedMaMons.add(tempMaMon);
+
         const [mon] = await MonHoc.findOrCreate({
           where: { ten_mon: tenMon },
           defaults: {
-            ma_mon: `M${String(++monCount).padStart(3, '0')}`,
+            ma_mon: tempMaMon,
             sotinchi: 3,
             khoa_id: khoaId,
             bomon_id: boMonId,
@@ -1145,7 +1161,8 @@ const importScheduleExcel = async (buffer, hockyData) => {
       const maGV = cleanStr(row[col.maGV]);
       const thu = parseInt(row[col.thu]);
       const tietBD = parseInt(row[col.tietBD]);
-      const loai = cleanStr(row[col.chat] || "LT");
+      const loaiRaw = cleanStr(row[col.chat] || "LT").toUpperCase();
+      const loai = (loaiRaw.includes("TH") || loaiRaw.includes("THUCHANH") || loaiRaw.includes("PRACTICE")) ? "TH" : "LT";
 
       const khoaId = khoaRaw ? (mapKhoa.get(normalizeLookup(khoaRaw)) || null) : null;
       let rowBoMonId = null;
@@ -1243,7 +1260,19 @@ const importScheduleExcel = async (buffer, hockyData) => {
           loai_hoc_phan: data.loai_hoc_phan,
           ma_lop: maLop // Thêm mã lớp vào where để tránh merge các lớp khác nhau
         },
-        defaults: { ...data, tuan_hoc: weeksInExcel, ma_lop: maLop },
+        defaults: {
+          hocky_id: hocky.hocky_id,
+          monhoc_id: data.monhoc_id,
+          giangvien_id: data.giangvien_id,
+          ten_lophocphan: data.ten_lophocphan,
+          phong: data.phong,
+          thu: data.thu,
+          tiet_bat_dau: data.tiet_bat_dau,
+          so_tiet: data.so_tiet,
+          loai_hoc_phan: data.loai_hoc_phan,
+          tuan_hoc: weeksInExcel,
+          ma_lop: maLop
+        },
         transaction: t
       });
 

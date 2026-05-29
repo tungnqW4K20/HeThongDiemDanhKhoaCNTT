@@ -306,9 +306,18 @@ const guiDeXuat = async (buoi_id, data, user_gv_id) => {
 };
 
 // --- ADMIN LẤY DANH SÁCH (LOGIC MẠNH - KHÔNG SỬA MODEL) ---
-const getDachSachDeXuat = async (status = 'pending') => {
+const getDachSachDeXuat = async (status = 'pending', user = {}) => {
+    const { role, khoa_id, chuyennganh_id } = user;
+    const whereClause = { trang_thai: status };
+
+    if (role === 'lanhdao') {
+        whereClause['$BuoiHoc.LopHocPhan.MonHoc.khoa_id$'] = khoa_id;
+    } else if (role === 'truongbomon') {
+        whereClause['$BuoiHoc.LopHocPhan.MonHoc.bomon_id$'] = chuyennganh_id;
+    }
+
     const list = await DeXuatChinhSua.findAll({
-        where: { trang_thai: status },
+        where: whereClause,
         include: [
             { 
                 model: BuoiHoc, as: 'BuoiHoc',
@@ -316,7 +325,7 @@ const getDachSachDeXuat = async (status = 'pending') => {
                 include: [{ 
                     model: LopHocPhan, as: 'LopHocPhan',
                     include: [
-                        { model: MonHoc, attributes: ['ten_mon'] },
+                        { model: MonHoc, attributes: ['ten_mon', 'khoa_id', 'bomon_id'] },
                         { model: LopHanhChinh, as: 'DanhSachLopHanhChinh', attributes: ['ten_lop'], through: { attributes: [] } }
                     ]
                 }] 
@@ -486,14 +495,32 @@ const getDachSachDeXuat = async (status = 'pending') => {
 //     }
 // };
 
-const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi) => {
+const xuLyPheDuyet = async (dexuat_id, status, admin_id, phan_hoi, user = {}) => {
     const t = await sequelize.transaction();
     try {
         const dx = await DeXuatChinhSua.findByPk(dexuat_id, { 
-            include: [{ model: BuoiHoc, as: 'BuoiHoc' }] 
+            include: [{ 
+                model: BuoiHoc, as: 'BuoiHoc',
+                include: [{
+                    model: LopHocPhan, as: 'LopHocPhan',
+                    include: [{ model: MonHoc, attributes: ['khoa_id', 'bomon_id'] }]
+                }]
+            }] 
         });
         
         if (!dx || dx.trang_thai !== 'pending') throw new Error("Đề xuất không hợp lệ.");
+
+        // Kiểm tra quyền duyệt theo Scope
+        const { role, khoa_id, chuyennganh_id } = user;
+        if (role === 'lanhdao') {
+            if (dx.BuoiHoc?.LopHocPhan?.MonHoc?.khoa_id !== khoa_id) {
+                throw new Error("Bạn không có quyền duyệt đề xuất ngoài khoa quản lý.");
+            }
+        } else if (role === 'truongbomon') {
+            if (dx.BuoiHoc?.LopHocPhan?.MonHoc?.bomon_id !== chuyennganh_id) {
+                throw new Error("Bạn không có quyền duyệt đề xuất ngoài bộ môn quản lý.");
+            }
+        }
 
         if (status === 'approved') {
             const buoi = dx.BuoiHoc;

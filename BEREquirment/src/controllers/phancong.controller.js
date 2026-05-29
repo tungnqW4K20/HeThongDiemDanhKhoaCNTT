@@ -556,7 +556,17 @@ const importSchedule = async (req, res) => {
       importResult: result.rowResults || null
     });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error("IMPORT SCHEDULE ERROR:", error);
+    let msg = error.message;
+    if (error.errors && Array.isArray(error.errors)) {
+      msg = "Lỗi dữ liệu: " + error.errors.map(e => `${e.path} (${e.value}): ${e.message}`).join('; ');
+    }
+    return res.status(500).json({ 
+      success: false, 
+      message: msg,
+      errorName: error.name,
+      details: error.errors || null
+    });
   }
 };
 

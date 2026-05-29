@@ -666,7 +666,7 @@ export default function AssignmentPage() {
                                     </select>
                                 </div>
 
-                                {user?.vaitro === 'admin' && (
+                                {['admin', 'truongbomon', 'lanhdao'].includes(user?.vaitro) && (
                                     <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                                         <button 
                                             onClick={() => setShowProposals(true)}
@@ -675,19 +675,23 @@ export default function AssignmentPage() {
                                             <ClipboardCheck size={18} /> Xét duyệt đề xuất
                                         </button>
 
-                                        <button 
-                                            onClick={() => setIsImportModalOpen(true)} 
-                                            className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                        >
-                                            <Upload size={18} /> Import Excel
-                                        </button>
-                                        
-                                        <button 
-                                            onClick={handleAddNew} 
-                                            className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
-                                        >
-                                            <Plus size={20} /> Thêm lịch dạy
-                                        </button>
+                                        {user?.vaitro === 'admin' && (
+                                            <>
+                                                <button 
+                                                    onClick={() => setIsImportModalOpen(true)} 
+                                                    className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                                >
+                                                    <Upload size={18} /> Import Excel
+                                                </button>
+                                                
+                                                <button 
+                                                    onClick={handleAddNew} 
+                                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-[#3B5998] hover:bg-[#2e4676] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+                                                >
+                                                    <Plus size={20} /> Thêm lịch dạy
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
                                 )}
                             </div>
