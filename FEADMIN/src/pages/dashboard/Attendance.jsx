@@ -430,7 +430,7 @@ const AttendancePagegggg = () => {
 
   const handleNotifyTeacher = async (w, classIdFromDetail = null) => {
     try {
-      const targetClassId = classIdFromDetail || manageSession?.lophocphan_id;
+      const targetClassId = classIdFromDetail || w?.lophocphan_id || manageSession?.lophocphan_id;
       if (!targetClassId) {
         alert('Không tìm thấy thông tin lớp học phần.');
         return;

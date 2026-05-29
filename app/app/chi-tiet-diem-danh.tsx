@@ -177,20 +177,33 @@ export default function ChiTietDiemDanh() {
     return students.filter((sv) => sv.ten.toLowerCase().includes(query) || sv.ma_sv.toLowerCase().includes(query));
   }, [students, searchQuery]);
 
+  const sanitizeFileName = (name: string) => {
+    return name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/đ/g, "d")
+      .replace(/Đ/g, "D")
+      .replace(/[^a-zA-Z0-9._-]/g, "_");
+  };
+
   const saveAndShareExcel = async (wb: XLSX.WorkBook, fileName: string) => {
     try {
+      const cleanFileName = sanitizeFileName(fileName);
       if (Platform.OS === 'web') {
-        XLSX.writeFile(wb, `${fileName}.xlsx`);
+        XLSX.writeFile(wb, `${cleanFileName}.xlsx`);
       } else {
         const wbout = XLSX.write(wb, { type: "base64", bookType: "xlsx" });
-        const fs = FileSystem as any;
-        const directory = fs.cacheDirectory || fs.documentDirectory;
-        const fileUri = `${directory}${fileName}_${Date.now()}.xlsx`;
-        await FileSystem.writeAsStringAsync(fileUri, wbout, { encoding: "base64" });
+        const directory = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+        if (!directory) {
+          throw new Error("Không thể xác định thư mục lưu trữ tạm thời.");
+        }
+        const fileUri = `${directory}${cleanFileName}_${Date.now()}.xlsx`;
+        await FileSystem.writeAsStringAsync(fileUri, wbout, { encoding: FileSystem.EncodingType.Base64 });
         await Sharing.shareAsync(fileUri);
       }
     } catch (e) {
-      Alert.alert("Lỗi", "Không thể xuất file Excel.");
+      console.error("❌ Lỗi xuất file Excel:", e);
+      Alert.alert("Lỗi", `Không thể xuất file Excel: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
