@@ -99,11 +99,14 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
       // validHistory: Chỉ chứa các buổi 'completed' trong bảng DiemDanh (tức là ngoại lệ)
       const validHistory = sv.DanhSachDiemDanh || [];
 
-      // Tính toán thống kê dựa trên các buổi ĐÃ HOÀN THÀNH
+      const lhpData = data.LopHocPhan;
+      const tongSoBuoiKeHoach = lhpData && lhpData.tuan_hoc ? (Array.isArray(lhpData.tuan_hoc) ? lhpData.tuan_hoc.length : JSON.parse(lhpData.tuan_hoc).length) : 0;
+
+      // Tính toán thống kê dựa trên tổng số buổi học kế hoạch của lớp học phần
       const vang_kp = validHistory.filter(h => h.trangthai === 'absent').length;
       const vang_cp = validHistory.filter(h => h.trangthai === 'excused').length;
       const tong_vang = vang_kp + vang_cp;
-      const tile_nghi = tong_buoi_da_hoc > 0 ? (tong_vang / tong_buoi_da_hoc) * 100 : 0;
+      const tile_nghi = tongSoBuoiKeHoach > 0 ? (tong_vang / tongSoBuoiKeHoach) * 100 : 0;
 
       // Lọc lấy dữ liệu điểm danh của ngày đang chọn (ngayChuan)
       const checkExceptionToday = validHistory.find(h => h.BuoiHoc && h.BuoiHoc.ngay === ngayChuan);
@@ -132,7 +135,7 @@ const getStudentsByLopHocPhan = async (lophocphan_id, ngay) => {
             vắng_kp: vang_kp,
             vắng_cp: vang_cp,
             tong_vắng: tong_vang,
-            tong_buoi: tong_buoi_da_hoc,
+            tong_buoi: tongSoBuoiKeHoach,
             tile_nghi: tile_nghi.toFixed(1),
             canh_bao: tile_nghi >= 20
           },
