@@ -204,9 +204,22 @@ const hardDeleteSinhVien = async (sinhvien_id) => {
     }
 };
 
+const getAllSinhVien = async () => {
+    try {
+        return await db.SinhVien.findAll({
+            where: { isDeleted: false },
+            attributes: ['sinhvien_id', 'ma_sv', 'ten', 'email'],
+            order: [['ten', 'ASC']]
+        });
+    } catch (err) {
+        throw new Error('Lỗi lấy tất cả sinh viên: ' + err.message);
+    }
+};
+
 module.exports = {
     getSinhVienByLop,
     createSinhVien,
     updateSinhVien,
-    hardDeleteSinhVien
+    hardDeleteSinhVien,
+    getAllSinhVien
 };

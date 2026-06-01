@@ -6,6 +6,7 @@ import {
 import taiKhoanService from '../../service/taiKhoanService';
 import giangVienService from '../../service/giangVienService';
 import khoaService from '../../service/khoaService';
+import studentService from '../../service/studentService';
 import TaiKhoanModal from '../../components/taikhoan/TaiKhoanModal';
 import TaiKhoanStats from '../../components/taikhoan/TaiKhoanStats';
 import DeleteConfirmModal from '../../components/lectures/DeleteConfirmModal';
@@ -27,6 +28,7 @@ const Avatar = ({ name }) => {
 const TaiKhoanManager = () => {
     const [accounts, setAccounts] = useState([]);
     const [lecturers, setLecturers] = useState([]);
+    const [students, setStudents] = useState([]);
     const [boMons, setBoMons] = useState([]);
     const [faculties, setFaculties] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -55,16 +57,23 @@ const TaiKhoanManager = () => {
     const fetchData = async () => {
         setIsLoading(true);
         try {
-            const [accRes, gvRes, bmRes, kRes] = await Promise.all([
+            const [accRes, gvRes, bmRes, kRes, svRes] = await Promise.all([
                 taiKhoanService.getAll(),
                 giangVienService.getAll(),
                 khoaService.getAllBoMon(),
-                khoaService.getAll()
+                khoaService.getAll(),
+                studentService.getAll()
             ]);
             
             if (accRes.errCode === 0) setAccounts(accRes.data);
             if (gvRes.errCode === 0) setLecturers(gvRes.data);
             
+            // Handle Students response
+            const svData = svRes.data?.data || svRes.data || svRes;
+            if (Array.isArray(svData)) {
+                setStudents(svData);
+            }
+
             // Handle BoMon response
             const bmData = bmRes.data?.data || bmRes.data || bmRes;
             if (Array.isArray(bmData)) {
@@ -175,7 +184,8 @@ const TaiKhoanManager = () => {
             const searchLower = searchTerm.toLowerCase();
             const matchesSearch = 
                 acc.username.toLowerCase().includes(searchLower) ||
-                (acc.GiangVien && `${acc.GiangVien.ho} ${acc.GiangVien.ten}`.toLowerCase().includes(searchLower));
+                (acc.GiangVien && `${acc.GiangVien.ho} ${acc.GiangVien.ten}`.toLowerCase().includes(searchLower)) ||
+                (acc.SinhVien && acc.SinhVien.ten.toLowerCase().includes(searchLower));
             const matchesRole = vaitroFilter === 'all' || acc.vaitro === vaitroFilter;
             return matchesSearch && matchesRole;
         });
@@ -215,7 +225,8 @@ const TaiKhoanManager = () => {
             admin: { label: 'Admin', color: 'bg-red-50 text-red-600 border-red-100' },
             giangvien: { label: 'Giảng viên', color: 'bg-blue-50 text-blue-600 border-blue-100' },
             truongbomon: { label: 'Trưởng bộ môn', color: 'bg-amber-50 text-amber-600 border-amber-100' },
-            lanhdao: { label: 'Lãnh đạo', color: 'bg-purple-50 text-purple-600 border-purple-100' }
+            lanhdao: { label: 'Lãnh đạo', color: 'bg-purple-50 text-purple-600 border-purple-100' },
+            sinhvien: { label: 'Sinh viên', color: 'bg-emerald-50 text-emerald-600 border-emerald-100' }
         };
         const r = roles[role] || { label: role, color: 'bg-gray-50 text-gray-600 border-gray-100' };
         return (
@@ -285,6 +296,7 @@ const TaiKhoanManager = () => {
                                     <option value="giangvien">Giảng viên</option>
                                     <option value="truongbomon">Trưởng bộ môn</option>
                                     <option value="lanhdao">Lãnh đạo</option>
+                                    <option value="sinhvien">Sinh viên</option>
                                 </select>
                                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                     <Filter size={14} className="text-gray-400" />
@@ -404,6 +416,13 @@ const TaiKhoanManager = () => {
                                                         Mã GV: {acc.GiangVien.ma_gv}
                                                     </span>
                                                 </div>
+                                            ) : acc.SinhVien ? (
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-semibold text-gray-800">{acc.SinhVien.ten}</span>
+                                                    <span className="text-[10px] text-gray-400 font-mono">
+                                                        Mã SV: {acc.SinhVien.ma_sv}
+                                                    </span>
+                                                </div>
                                             ) : (
                                                 <span className="text-gray-400 italic text-sm">Chưa liên kết</span>
                                             )}
@@ -462,6 +481,7 @@ const TaiKhoanManager = () => {
                 onSave={handleSave}
                 initialData={currentAccount}
                 lecturers={lecturers}
+                students={students}
                 boMons={boMons}
                 faculties={faculties}
             />

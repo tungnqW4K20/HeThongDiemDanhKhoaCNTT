@@ -1,5 +1,6 @@
 import { phanCongService } from "@/services/phanCongService";
 import { thongBaoService } from "@/services/thongBaoService";
+import { sinhvienService } from "@/services/sinhvienService";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import React, { useEffect, useMemo, useState, useCallback } from "react";
@@ -57,6 +58,10 @@ export default function HomeScreen() {
   const [badgeCount, setBadgeCount] = useState(0);
   const [missedCount, setMissedCount] = useState(0);
 
+  // Student States
+  const [studentSchedule, setStudentSchedule] = useState<any>(null);
+  const [studentAttendance, setStudentAttendance] = useState<any[]>([]);
+
   const fetchNotificationBadge = useCallback(async () => {
     if (!user?.GiangVien?.giangvien_id) return;
     try {
@@ -92,9 +97,10 @@ export default function HomeScreen() {
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (!user?.GiangVien?.giangvien_id) return;
+    if (!user) return;
 
-    const fetchSchedule = async () => {
+    const fetchTeacherSchedule = async () => {
+      if (!user?.GiangVien?.giangvien_id) return;
       setLoading(true);
       try {
         const res = await phanCongService.getLichHomNay();
@@ -108,7 +114,31 @@ export default function HomeScreen() {
       }
     };
 
-    fetchSchedule();
+    const fetchStudentDashboardData = async () => {
+      setLoading(true);
+      try {
+        const [schedRes, attRes] = await Promise.all([
+          sinhvienService.getLichHoc(),
+          sinhvienService.getQuaTrinhDiemDanh()
+        ]);
+        if (schedRes.success) {
+          setStudentSchedule(schedRes.data);
+        }
+        if (attRes.success && Array.isArray(attRes.data)) {
+          setStudentAttendance(attRes.data);
+        }
+      } catch (error) {
+        console.error("Failed to fetch student data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user.role === 'sinhvien') {
+      fetchStudentDashboardData();
+    } else {
+      fetchTeacherSchedule();
+    }
   }, [user]);
 
   const { upcomingClass, nextClasses } = useMemo(() => {
@@ -176,6 +206,101 @@ export default function HomeScreen() {
   // Don't render if user not logged in (will redirect)
   if (!user) {
     return null;
+  }
+
+  if (user.role === 'sinhvien') {
+    const warningCourses = studentAttendance.filter(item => item.thong_ke?.canh_bao === true);
+    const todayClasses = studentSchedule?.lich_hom_nay || [];
+
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+        <View style={styles.container}>
+          {/* Header Section */}
+          <View style={styles.header}>
+            <Image 
+              source={{ uri: "https://e7.pngegg.com/pngimages/584/337/png-clipart-ho-chi-minh-city-university-of-technology-and-education-hung-yen-university-of-technology-and-education-ho-chi-minh-city-pedagogical-university-college-estudents-triangle-logo-thumbnail.png" }} 
+              style={styles.logo} 
+            />
+            <View style={styles.headerIcons}>
+              <TouchableOpacity onPress={() => router.push("/profile")}>
+                <Image source={{ uri: "https://cdn-icons-png.flaticon.com/512/3135/3135715.png" }} style={styles.avatar} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Welcome Student */}
+          <View style={styles.welcomeSection}>
+            <Text style={styles.welcomeText}>Chào mừng Sinh viên,</Text>
+            <Text style={styles.teacherName}>{user?.SinhVien?.ten || "Sinh viên"}</Text>
+            <Text style={{ fontSize: 13, color: COLORS.lightGray, marginTop: 2, fontWeight: "500" }}>
+              MSSV: {user?.SinhVien?.ma_sv}
+            </Text>
+          </View>
+
+          {/* WARNING BANNER FOR EXCESSIVE ABSENCE */}
+          {warningCourses.length > 0 && (
+            <View style={[styles.missedWarningBanner, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', marginBottom: 15 }]}>
+              <Ionicons name="alert-circle" size={24} color="#DC2626" />
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={{ color: "#B91C1C", fontWeight: "bold", fontSize: 14 }}>CẢNH BÁO NGHỈ QUÁ 20%!</Text>
+                <Text style={{ color: "#DC2626", fontSize: 12, marginTop: 2 }}>
+                  Bạn đã vắng quá giới hạn cho phép ở {warningCourses.length} môn học. Vui lòng kiểm tra lại!
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Quick Stats Widget */}
+          <View style={{ flexDirection: "row", gap: 12, marginBottom: 20 }}>
+            <View style={{ flex: 1, backgroundColor: COLORS.white, borderRadius: 12, padding: 15, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
+              <Text style={{ fontSize: 12, color: COLORS.lightGray, fontWeight: "600" }}>Tổng số môn học</Text>
+              <Text style={{ fontSize: 22, fontWeight: "bold", color: COLORS.text, marginTop: 4 }}>{studentAttendance.length}</Text>
+            </View>
+            <View style={{ flex: 1, backgroundColor: COLORS.white, borderRadius: 12, padding: 15, elevation: 2, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 3, shadowOffset: { width: 0, height: 1 } }}>
+              <Text style={{ fontSize: 12, color: COLORS.lightGray, fontWeight: "600" }}>{"Bị cảnh báo (>20%)"}</Text>
+              <Text style={{ fontSize: 22, fontWeight: "bold", color: warningCourses.length > 0 ? "#DC2626" : "#10B981", marginTop: 4 }}>
+                {warningCourses.length}
+              </Text>
+            </View>
+          </View>
+
+          {/* Lịch học hôm nay */}
+          <Text style={styles.sectionTitle}>Lịch học hôm nay</Text>
+          <FlatList
+            data={todayClasses}
+            keyExtractor={(item) => item.buoi_id || item.lophocphan_id}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={{ alignItems: "center", justifyContent: "center", paddingVertical: 40 }}>
+                <MaterialCommunityIcons name="school-outline" size={48} color={COLORS.lightGray} />
+                <Text style={[styles.emptyListText, { marginTop: 10 }]}>Hôm nay bạn không có lịch học. Hãy tự học nhé! ✨</Text>
+              </View>
+            }
+            renderItem={({ item }) => (
+              <View style={[styles.classItemCard, { borderLeftWidth: 4, borderLeftColor: COLORS.primary }]}>
+                <View style={styles.classItemContent}>
+                  <Text style={styles.classItemCourseName} numberOfLines={1}>
+                    {item.ten_mon}
+                  </Text>
+                  <Text style={[styles.classItemInfo, { color: COLORS.text, marginTop: 4 }]}>
+                    Tiết {item.tiet_bat_dau} - {item.tiet_bat_dau + item.so_tiet - 1} | Phòng: {item.phong}
+                  </Text>
+                  <Text style={[styles.classItemInfo, { marginTop: 4 }]}>
+                    GV: {item.giangvien?.ten_giang_vien} {item.giangvien?.sdt ? `(${item.giangvien.sdt})` : ""}
+                  </Text>
+                </View>
+                <View style={{ alignItems: "flex-end", justifyContent: "center" }}>
+                  <Text style={{ fontSize: 11, fontWeight: "bold", color: item.trang_thai === 'completed' ? "#10B981" : "#F59E0B" }}>
+                    {item.trang_thai === 'completed' ? 'Đã học' : 'Chưa diễn ra'}
+                  </Text>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (

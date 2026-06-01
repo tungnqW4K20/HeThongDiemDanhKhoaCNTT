@@ -6,6 +6,7 @@ const upload = require('../middlewares/upload.middleware');
 const { authenticateToken, authorizeRole } = require('../middlewares/auth.middleware');
 
 router.get('/lop/:lop_hanhchinh_id', svController.getSinhVienByLop);// lấy danh sách sinh viên của một lớp
+router.get('/all', authenticateToken, authorizeRole('admin'), svController.getAllSinhVien);
 
 router.post('/',authenticateToken, authorizeRole('admin'), svController.createSinhVien);
 

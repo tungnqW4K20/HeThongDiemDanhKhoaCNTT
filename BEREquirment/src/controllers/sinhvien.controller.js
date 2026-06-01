@@ -382,10 +382,24 @@ const importStudents = async (req, res) => {
 
 
 
+const getAllSinhVien = async (req, res) => {
+    try {
+        const list = await svService.getAllSinhVien();
+        return res.json({
+            success: true,
+            message: 'Lấy tất cả sinh viên thành công',
+            data: list
+        });
+    } catch (err) {
+        return res.status(500).json({ success: false, message: err.message });
+    }
+};
+
 module.exports = {
     getSinhVienByLop,
     createSinhVien,
     updateSinhVien,
     deleteSinhVien,
     importStudents,
+    getAllSinhVien
 };

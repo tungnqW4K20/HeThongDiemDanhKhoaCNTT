@@ -22,6 +22,7 @@ import {
 
 import { hocKyService } from '@/services/hocKyService';
 import { phanCongService } from '@/services/phanCongService';
+import { sinhvienService } from '@/services/sinhvienService';
 import { apiClient } from '@/services/apiClient';
 import { useAuth } from '../../components/ui/AuthContext';
 
@@ -195,6 +196,62 @@ export default function LichDayChuyenNghiepScreen() {
     if (!currentSemester) return;
     try {
       setLoading(true);
+
+      if (user?.role === 'sinhvien') {
+        const res = await sinhvienService.getLichHoc();
+        if (!res.success) {
+          setPH_CONG_DATA([]);
+          setLoading(false);
+          return;
+        }
+
+        const thuArr = ["CN", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+        const mapped = (res.data || res.data?.lich_tuan_nay || []).map((item: any) => {
+          const ngayHoc = item.ngay || new Date().toISOString().split('T')[0];
+          const start = getTimeByTiet(ngayHoc, item.tiet_bat_dau, true);
+          const end = getTimeByTiet(ngayHoc, item.tiet_bat_dau + item.so_tiet - 1, false);
+          const d = parseDateSafe(ngayHoc);
+          const gv = item.lop_hoc_phan?.giang_vien;
+          return {
+            id: item.buoi_id,
+            ngay_hoc_raw: ngayHoc,
+            ngay: d.toLocaleDateString('vi-VN'),
+            thu: thuArr[d.getDay()],
+            tenMon: item.lop_hoc_phan?.mon_hoc?.ten_mon || item.ten_mon || "Môn học",
+            tenLop: item.lop_hoc_phan?.ma_lop ? `Lớp: ${item.lop_hoc_phan.ma_lop}` : "Lớp:",
+            thoiGian: `Tiết ${item.tiet_bat_dau} - ${item.tiet_bat_dau + item.so_tiet - 1}`,
+            phong: item.phong || "Chưa xếp phòng",
+            lophocphan_id: item.lop_hoc_phan?.lophocphan_id,
+            startDateTime: start,
+            endDateTime: end,
+            trang_thai: item.trangthai_buoi || 'scheduled',
+            giangvien_name: gv ? `${gv.ho} ${gv.ten}` : 'Chưa phân công',
+            giangvien_sdt: gv?.sdt || '',
+            giangvien_email: gv?.email || '',
+            gv_day_thay: item.giang_vien_day_thay ? `${item.giang_vien_day_thay.ho} ${item.giang_vien_day_thay.ten}` : null,
+            diem_danh: item.diem_danh
+          };
+        });
+
+        setPH_CONG_DATA(mapped.sort((a: any, b: any) => a.startDateTime.getTime() - b.startDateTime.getTime()));
+
+        if ((isFirstLoad.current || weeks.length === 0) && mapped.length > 0) {
+          const firstDateStr = mapped[0].ngay_hoc_raw;
+          const firstDate = parseDateSafe(firstDateStr);
+          firstDate.setDate(firstDate.getDate() - ((firstDate.getDay() + 6) % 7)); // Về Thứ 2 tuần đó
+          const endDate = new Date(firstDate);
+          endDate.setDate(endDate.getDate() + 7 * 15);
+          const listWeeks = generateWeeks(firstDate.toISOString(), endDate.toISOString(), 1);
+          setWeeks(listWeeks);
+          const now = new Date();
+          const cur = listWeeks.find(w => w.startDate && w.endDate && now >= w.startDate && now <= w.endDate);
+          setSelectedWeek(cur || listWeeks[0]);
+          isFirstLoad.current = false;
+        }
+        setLoading(false);
+        return;
+      }
+
       const [res, dxRes] = await Promise.all([
         phanCongService.getLichGiangDay(currentSemester.id),
         apiClient('/de-xuat/my-proposals')
@@ -248,7 +305,7 @@ export default function LichDayChuyenNghiepScreen() {
       console.error(e); 
       setLoading(false);
     }
-  }, [currentSemester, applyApprovedProposalOverrides, weeks.length]);
+  }, [currentSemester, applyApprovedProposalOverrides, weeks.length, user]);
 
   // Khởi tạo học kỳ: Tự động tìm học kỳ hiện tại/sắp tới
   useEffect(() => {
@@ -280,6 +337,17 @@ export default function LichDayChuyenNghiepScreen() {
         }
 
         setCurrentSemester({ id: selected.hocky_id, name: selected.ten_hocky });
+
+        // Tự động khởi tạo danh sách tuần học từ thông tin học kỳ để tránh treo trạng thái loading
+        const listWeeks = generateWeeks(
+          selected.ngay_monday_tuan_1 || selected.ngay_batdau, 
+          selected.ngay_ketthuc, 
+          selected.tuan_bat_dau_co_lich || 1
+        );
+        setWeeks(listWeeks);
+        const cur = listWeeks.find(w => w.startDate && w.endDate && now >= w.startDate && now <= w.endDate);
+        setSelectedWeek(cur || listWeeks[0]);
+        isFirstLoad.current = false;
       }
     })();
   }, []);
@@ -305,7 +373,89 @@ export default function LichDayChuyenNghiepScreen() {
   }, [PHAN_CONG_DATA, selectedWeek]);
 
   // Hàm render hàng lịch dạy (Giữ nguyên logic màu sắc, icon, khóa nút)
-  const renderScheduleRow = (item: PhanCong) => {
+  const renderScheduleRow = (item: any) => {
+    if (user?.role === 'sinhvien') {
+      const today = new Date();
+      const isFuture = item.startDateTime > today;
+
+      let attendanceLabel = isFuture ? 'Chưa diễn ra' : 'Giảng viên chưa điểm danh';
+      let attendanceColor = isFuture ? COLORS.lightGray : '#4B5563';
+      let attendanceBg = '#F3F4F6';
+
+      if (item.diem_danh?.trangthai === 'present') {
+        attendanceLabel = 'Có mặt';
+        attendanceColor = '#10B981';
+        attendanceBg = '#E6F4EA';
+      } else if (item.diem_danh?.trangthai === 'absent') {
+        attendanceLabel = 'Vắng mặt';
+        attendanceColor = '#EF4444';
+        attendanceBg = '#FEE2E2';
+      } else if (item.diem_danh?.trangthai === 'late') {
+        attendanceLabel = 'Đi muộn';
+        attendanceColor = '#F59E0B';
+        attendanceBg = '#FEF3C7';
+      } else if (item.diem_danh?.trangthai === 'excused') {
+        attendanceLabel = 'Vắng có phép';
+        attendanceColor = '#8B5CF6';
+        attendanceBg = '#EDE9FE';
+      } else if (item.trang_thai === 'completed') {
+        attendanceLabel = 'Vắng mặt';
+        attendanceColor = '#EF4444';
+        attendanceBg = '#FEE2E2';
+      }
+
+      return (
+        <View key={item.id} style={{ backgroundColor: '#fff', borderRadius: 12, padding: 15, marginVertical: 6, borderWidth: 1, borderColor: '#F0F2F5' }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, color: '#666', fontWeight: '600' }}>
+              {item.thu}, {item.ngay}
+            </Text>
+            <View style={{ backgroundColor: attendanceBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: attendanceColor }}>
+                {attendanceLabel}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={{ fontSize: 15, fontWeight: 'bold', color: COLORS.text, marginTop: 6 }}>
+            {item.tenLop}
+          </Text>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+            <Ionicons name="time-outline" size={14} color={COLORS.lightGray} />
+            <Text style={{ fontSize: 12, color: COLORS.lightGray, marginLeft: 4 }}>{item.thoiGian}</Text>
+            <Text style={{ marginHorizontal: 8, color: '#ddd' }}>|</Text>
+            <Ionicons name="location-outline" size={14} color={COLORS.lightGray} />
+            <Text style={{ fontSize: 12, color: COLORS.lightGray, marginLeft: 4 }}>Phòng: {item.phong}</Text>
+          </View>
+
+          {/* Lecturer contact card */}
+          <View style={{ marginTop: 10, padding: 10, backgroundColor: '#F9FAFB', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: COLORS.primary }}>
+            <Text style={{ fontSize: 12, fontWeight: 'bold', color: COLORS.text }}>
+              Giảng viên: {item.giangvien_name}
+            </Text>
+            {item.giangvien_sdt ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons name="call-outline" size={12} color={COLORS.lightGray} />
+                <Text style={{ fontSize: 11, color: '#4B5563', marginLeft: 4 }}>SĐT: {item.giangvien_sdt}</Text>
+              </View>
+            ) : null}
+            {item.giangvien_email ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                <Ionicons name="mail-outline" size={12} color={COLORS.lightGray} />
+                <Text style={{ fontSize: 11, color: '#4B5563', marginLeft: 4 }}>Email: {item.giangvien_email}</Text>
+              </View>
+            ) : null}
+            {item.gv_day_thay ? (
+              <Text style={{ fontSize: 11, fontStyle: 'italic', color: COLORS.substitute, marginTop: 4 }}>
+                * Thay thế bởi: {item.gv_day_thay}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+      );
+    }
+
     const now = new Date();
     const isPast = (() => {
       const today = new Date();
@@ -391,8 +541,8 @@ export default function LichDayChuyenNghiepScreen() {
       {/* HEADER */}
       <View style={styles.customHeader}>
         <View>
-          <Text style={styles.welcomeText}>Xin chào Giảng viên,</Text>
-          <Text style={styles.headerTitle}>Lịch Giảng Dạy</Text>
+          <Text style={styles.welcomeText}>{user?.role === 'sinhvien' ? 'Xin chào Sinh viên,' : 'Xin chào Giảng viên,'}</Text>
+          <Text style={styles.headerTitle}>{user?.role === 'sinhvien' ? 'Lịch Học Cá Nhân' : 'Lịch Giảng Dạy'}</Text>
         </View>
         {/* <TouchableOpacity style={styles.notificationBtn}>
           <Ionicons name="notifications-outline" size={24} color={COLORS.text} />
@@ -439,7 +589,9 @@ export default function LichDayChuyenNghiepScreen() {
                   >
                     <View style={{ flex: 1 }}>
                       <Text style={styles.cardTitle}>{item.tenMon}</Text>
-                      <Text style={styles.cardSub}>{item.schedules.length} buổi dạy</Text>
+                      <Text style={styles.cardSub}>
+                        {user?.role === 'sinhvien' ? `${item.schedules.length} buổi học` : `${item.schedules.length} buổi dạy`}
+                      </Text>
                     </View>
                     <Ionicons name={expandedSubject === item.tenMon ? "chevron-up" : "chevron-down"} size={20} color={COLORS.primary} />
                   </TouchableOpacity>
@@ -453,7 +605,9 @@ export default function LichDayChuyenNghiepScreen() {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Ionicons name="calendar-outline" size={60} color="#ddd" />
-                <Text style={styles.empty}>Không có lịch dạy trong tuần này</Text>
+                <Text style={styles.empty}>
+                  {user?.role === 'sinhvien' ? 'Không có lịch học trong tuần này' : 'Không có lịch dạy trong tuần này'}
+                </Text>
               </View>
             }
           />

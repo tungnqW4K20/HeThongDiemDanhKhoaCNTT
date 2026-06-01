@@ -541,7 +541,8 @@ const AttendancePagegggg = () => {
             si_so: item.si_so || 0,
             da_diem_danh: item.da_diem_danh || 0,
             trang_thai: item.trang_thai || 'pending',
-            ngay
+            ngay,
+            cac_lop_hanh_chinh: item.cac_lop_hanh_chinh || ''
           };
         }) : [];
 
@@ -1009,7 +1010,15 @@ const AttendancePagegggg = () => {
                             <span className="font-mono text-xs font-bold text-slate-500 bg-white border border-slate-200 px-1.5 rounded">{item.ma_lop_hp}</span>
                           </div>
                           <span className="font-bold text-slate-800 text-base line-clamp-2">{item.ten_mon}</span>
-                          <div className="flex items-center gap-1 text-xs text-slate-500"><MapPin size={12} /> {item.phong}</div>
+                          <div className="flex items-center gap-2.5 text-xs text-slate-500 mt-1">
+                            <div className="flex items-center gap-1"><MapPin size={12} /> {item.phong}</div>
+                            {item.cac_lop_hanh_chinh && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <div className="flex items-center gap-1 font-semibold text-[#3B5998]">Lớp HC: {item.cac_lop_hanh_chinh}</div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4 align-top">

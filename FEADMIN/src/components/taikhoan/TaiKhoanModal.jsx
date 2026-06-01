@@ -111,7 +111,7 @@ const SearchSelect = ({ options, value, onChange, placeholder }) => {
     );
 };
 
-const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], boMons = [], faculties = [] }) => {
+const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], students = [], boMons = [], faculties = [] }) => {
     const [formData, setFormData] = useState({
         username: '',
         password: '',
@@ -185,6 +185,11 @@ const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], b
         label: `${gv.ma_gv} - ${gv.ho} ${gv.ten}`
     }));
 
+    const studentOptions = students.map(sv => ({
+        value: sv.sinhvien_id,
+        label: `${sv.ma_sv} - ${sv.ten}`
+    }));
+
     return createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col transform animate-in zoom-in-95 duration-200 max-h-[90vh]">
@@ -207,27 +212,30 @@ const TaiKhoanModal = ({ isOpen, onClose, onSave, initialData, lecturers = [], b
                             <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider">Vai trò</label>
                             <select
                                 value={formData.vaitro}
-                                onChange={(e) => setFormData({ ...formData, vaitro: e.target.value })}
+                                onChange={(e) => setFormData({ ...formData, vaitro: e.target.value, ref_id: '' })}
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#3B5998]/20 transition-all text-sm bg-white"
                             >
                                 <option value="admin">Quản trị viên (Admin)</option>
                                 <option value="giangvien">Giảng viên</option>
                                 <option value="truongbomon">Trưởng bộ môn</option>
                                 <option value="lanhdao">Lãnh đạo</option>
+                                <option value="sinhvien">Sinh viên</option>
                             </select>
                         </div>
 
-                        {/* Liên kết Giảng viên */}
+                        {/* Liên kết Nhân sự / Sinh viên */}
                         {formData.vaitro !== 'admin' && (
                             <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider">Liên kết Giảng viên</label>
+                                <label className="block text-xs font-bold text-gray-600 mb-1.5 uppercase tracking-wider">
+                                    {formData.vaitro === 'sinhvien' ? 'Liên kết Sinh viên' : 'Liên kết Giảng viên'}
+                                </label>
                                 <div className="relative">
                                     <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 z-10" />
                                     <SearchSelect 
-                                        options={lecturerOptions}
+                                        options={formData.vaitro === 'sinhvien' ? studentOptions : lecturerOptions}
                                         value={formData.ref_id}
                                         onChange={(val) => setFormData({ ...formData, ref_id: val })}
-                                        placeholder="-- Gõ tên hoặc mã để tìm giảng viên --"
+                                        placeholder={formData.vaitro === 'sinhvien' ? "-- Gõ tên hoặc mã để tìm sinh viên --" : "-- Gõ tên hoặc mã để tìm giảng viên --"}
                                     />
                                 </div>
                             </div>

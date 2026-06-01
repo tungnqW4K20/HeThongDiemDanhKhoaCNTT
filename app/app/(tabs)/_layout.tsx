@@ -20,6 +20,11 @@ export default function TabLayout() {
       return;
     }
 
+    if (user.role === 'sinhvien') {
+      setHasAdvisoryClass(false);
+      return;
+    }
+
     const checkAdvisoryClasses = async () => {
       try {
         const res = await giangVienService.getAdvisoryClasses();
@@ -56,7 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="lichday"
         options={{
-          title: 'Lịch dạy',
+          title: user?.role === 'sinhvien' ? 'Lịch học' : 'Lịch dạy',
           tabBarIcon: ({ color }) => <Ionicons name="calendar" size={24} color={color} />,
           href: user ? undefined : null, // Ẩn tab khi chưa đăng nhập
         }}
@@ -65,7 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="lop-hoc-phan"
         options={{
-          title: 'Lớp học phần',
+          title: user?.role === 'sinhvien' ? 'Điểm danh' : 'Lớp học phần',
           tabBarIcon: ({ color }) => <Ionicons name="library" size={24} color={color} />,
           href: user ? undefined : null, // Ẩn tab khi chưa đăng nhập
         }}
@@ -76,7 +81,7 @@ export default function TabLayout() {
         options={{
           title: 'Đề xuất thay thế',
           tabBarIcon: ({ color }) => <Ionicons name="document-text" size={24} color={color} />,
-          href: user ? undefined : null, // Ẩn tab khi chưa đăng nhập
+          href: (user && user.role !== 'sinhvien') ? undefined : null, // Ẩn tab đối với sinh viên
         }}
       />
 
@@ -85,7 +90,7 @@ export default function TabLayout() {
         options={{
           title: 'Lớp chủ nhiệm',
           tabBarIcon: ({ color }) => <Ionicons name="people" size={24} color={color} />,
-          href: (user && hasAdvisoryClass === true) ? undefined : null, // Chỉ hiện khi có ít nhất 1 lớp chủ nhiệm
+          href: (user && user.role !== 'sinhvien' && hasAdvisoryClass === true) ? undefined : null, // Chỉ hiện khi có ít nhất 1 lớp chủ nhiệm và không phải sinh viên
         }}
       />
 

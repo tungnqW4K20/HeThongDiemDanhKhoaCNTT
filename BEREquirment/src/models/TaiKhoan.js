@@ -15,6 +15,12 @@ module.exports = (sequelize, DataTypes) => {
         as: 'GiangVien'
       });
 
+      TaiKhoan.belongsTo(models.SinhVien, {
+        foreignKey: 'ref_id',
+        constraints: false,
+        as: 'SinhVien'
+      });
+
       TaiKhoan.hasMany(models.BoMon, {
         foreignKey: 'truong_bomon_id',
         as: 'DanhSachBoMonQuanLy'
@@ -49,7 +55,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false
       },
       vaitro: {
-        type: DataTypes.ENUM('admin', 'giangvien', 'lanhdao', 'truongbomon'),
+        type: DataTypes.ENUM('admin', 'giangvien', 'lanhdao', 'truongbomon', 'sinhvien'),
         allowNull: false
       },
       ref_id: {

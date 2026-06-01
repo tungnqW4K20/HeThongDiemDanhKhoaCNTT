@@ -48,6 +48,12 @@ export default function LopChuNhiemScreen() {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // BỘ LỌC VÀ SẮP XẾP MỚI
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [sortOption, setSortOption] = useState<string>("absentRate");
+  const [filtersVisible, setFiltersVisible] = useState(false);
   
   // UI Select Modals
   const [semesterModalVisible, setSemesterModalVisible] = useState(false);
@@ -198,6 +204,8 @@ export default function LopChuNhiemScreen() {
 
   useEffect(() => {
     if (selectedClass) {
+      setSelectedMonth("all");
+      setSelectedSubject("all");
       fetchAttendance();
     }
   }, [selectedClass, selectedSemester]);
@@ -207,16 +215,132 @@ export default function LopChuNhiemScreen() {
     fetchAttendance(false);
   };
 
-  // Filter students by search query
-  const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return students;
-    const query = searchQuery.toLowerCase().trim();
-    return students.filter(
-      (s) =>
-        s.ho_ten?.toLowerCase().includes(query) ||
-        s.ma_sv?.toLowerCase().includes(query)
-    );
-  }, [students, searchQuery]);
+  // 1. Lọc danh sách Môn học duy nhất trong lớp chủ nhiệm
+  const uniqueSubjects = useMemo(() => {
+    const subjects = new Map();
+    students.forEach(student => {
+      student.courses?.forEach((course: any) => {
+        if (course.ma_mon && course.ten_mon) {
+          subjects.set(course.ma_mon, course.ten_mon);
+        }
+      });
+    });
+    return Array.from(subjects.entries()).map(([ma_mon, ten_mon]) => ({ ma_mon, ten_mon }));
+  }, [students]);
+
+  // 2. Lọc các Tháng duy nhất có dữ liệu buổi học
+  const uniqueMonths = useMemo(() => {
+    const months = new Set<string>();
+    students.forEach(student => {
+      student.courses?.forEach((course: any) => {
+        course.sessions?.forEach((session: any) => {
+          if (session.ngay) {
+            const date = new Date(session.ngay);
+            const monthVal = String(date.getMonth() + 1).padStart(2, '0');
+            months.add(monthVal);
+          }
+        });
+      });
+    });
+    return Array.from(months).sort();
+  }, [students]);
+
+  // 3. Tính toán lại số liệu và lọc/sắp xếp danh sách học sinh theo bộ lọc động
+  const processedStudents = useMemo(() => {
+    const list = students.map(student => {
+      let filteredCourses = student.courses || [];
+      
+      // Lọc theo môn học
+      if (selectedSubject !== "all") {
+        filteredCourses = filteredCourses.filter((c: any) => c.ma_mon === selectedSubject);
+      }
+
+      let totalPresent = 0;
+      let totalAbsent = 0;
+      let totalLate = 0;
+      let totalExcused = 0;
+      let totalSessions = 0;
+
+      const updatedCourses = filteredCourses.map((course: any) => {
+        let filteredSessions = course.sessions || [];
+        
+        // Lọc theo tháng
+        if (selectedMonth !== "all") {
+          filteredSessions = filteredSessions.filter((s: any) => {
+            if (!s.ngay) return false;
+            const date = new Date(s.ngay);
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            return m === selectedMonth;
+          });
+        }
+
+        const absent = filteredSessions.filter((s: any) => s.trangthai === 'absent').length;
+        const late = filteredSessions.filter((s: any) => s.trangthai === 'late').length;
+        const excused = filteredSessions.filter((s: any) => s.trangthai === 'excused').length;
+        const total = filteredSessions.length;
+        const present = total > 0 ? (total - absent - late - excused) : 0;
+
+        totalPresent += present;
+        totalAbsent += absent;
+        totalLate += late;
+        totalExcused += excused;
+        totalSessions += total;
+
+        return {
+          ...course,
+          filteredStats: {
+            present,
+            absent,
+            late,
+            excused,
+            total
+          }
+        };
+      });
+
+      const absRate = totalSessions > 0 ? totalAbsent / totalSessions : 0;
+
+      return {
+        ...student,
+        calculated_stats: {
+          present: totalPresent,
+          absent: totalAbsent,
+          late: totalLate,
+          excused: totalExcused,
+          total: totalSessions,
+          absRate
+        },
+        calculated_courses: updatedCourses
+      };
+    });
+
+    // Lọc theo từ khóa tìm kiếm
+    let filtered = list;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(
+        (s) =>
+          s.ho_ten?.toLowerCase().includes(query) ||
+          s.ma_sv?.toLowerCase().includes(query)
+      );
+    }
+
+    // Sắp xếp
+    if (sortOption === "absentRate") {
+      filtered.sort((a, b) => {
+        const rateDiff = b.calculated_stats.absRate - a.calculated_stats.absRate;
+        if (Math.abs(rateDiff) > 0.001) return rateDiff;
+        const countDiff = b.calculated_stats.absent - a.calculated_stats.absent;
+        if (countDiff !== 0) return countDiff;
+        return a.ho_ten.localeCompare(b.ho_ten, 'vi');
+      });
+    } else {
+      // Sắp xếp mặc định theo tên
+      filtered.sort((a, b) => a.ho_ten.localeCompare(b.ho_ten, 'vi'));
+    }
+
+    return filtered;
+  }, [students, selectedMonth, selectedSubject, sortOption, searchQuery]);
 
   // Check if a student has any course with > 20% absence rate
   const checkWarningStatus = (student: any) => {
@@ -346,22 +470,129 @@ export default function LopChuNhiemScreen() {
         </View>
       )}
 
-      {/* SEARCH BAR */}
+      {/* SEARCH BAR & FILTER SECTION */}
       {classes.length > 0 && (
-        <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color={COLORS.textLight} style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Tìm theo tên hoặc MSSV..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            clearButtonMode="while-editing"
-          />
-          {searchQuery ? (
-            <TouchableOpacity onPress={() => setSearchQuery("")}>
-              <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
+        <View style={{ position: "relative", zIndex: 10 }}>
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={COLORS.textLight} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Tìm theo tên hoặc MSSV..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              clearButtonMode="while-editing"
+            />
+            {searchQuery ? (
+              <TouchableOpacity onPress={() => setSearchQuery("")} style={{ marginRight: 8 }}>
+                <Ionicons name="close-circle" size={18} color={COLORS.textLight} />
+              </TouchableOpacity>
+            ) : null}
+            
+            {/* Vertical Separator */}
+            <View style={styles.searchDivider} />
+
+            {/* Filter funnel toggle button inside search container */}
+            <TouchableOpacity 
+              style={styles.filterToggleBtn} 
+              onPress={() => setFiltersVisible(!filtersVisible)}
+            >
+              <Ionicons 
+                name={filtersVisible ? "funnel" : "funnel-outline"} 
+                size={20} 
+                color={(selectedMonth !== "all" || selectedSubject !== "all") ? COLORS.primary : COLORS.textLight} 
+              />
+              {(selectedMonth !== "all" || selectedSubject !== "all") && (
+                <View style={styles.filterDot} />
+              )}
             </TouchableOpacity>
-          ) : null}
+          </View>
+
+          {/* BỘ LỌC ĐỘNG (MÔN, THÁNG, SẮP XẾP) */}
+          {students.length > 0 && filtersVisible && (
+            <View style={styles.filterSectionContainer}>
+              {/* Lọc theo môn */}
+              <View style={styles.filterRow}>
+                <Text style={styles.filterRowLabel}>Môn học:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillScroll} style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[styles.filterPill, selectedSubject === "all" && styles.filterPillActive]}
+                    onPress={() => setSelectedSubject("all")}
+                  >
+                    <Text style={[styles.filterPillText, selectedSubject === "all" && styles.filterPillTextActive]}>
+                      Tất cả môn
+                    </Text>
+                  </TouchableOpacity>
+                  {uniqueSubjects.map((sub: any) => (
+                    <TouchableOpacity
+                      key={sub.ma_mon}
+                      style={[styles.filterPill, selectedSubject === sub.ma_mon && styles.filterPillActive]}
+                      onPress={() => setSelectedSubject(sub.ma_mon)}
+                    >
+                      <Text style={[styles.filterPillText, selectedSubject === sub.ma_mon && styles.filterPillTextActive]}>
+                        {sub.ten_mon}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Lọc theo tháng */}
+              <View style={styles.filterRow}>
+                <Text style={styles.filterRowLabel}>Tháng học:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterPillScroll} style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[styles.filterPill, selectedMonth === "all" && styles.filterPillActive]}
+                    onPress={() => setSelectedMonth("all")}
+                  >
+                    <Text style={[styles.filterPillText, selectedMonth === "all" && styles.filterPillTextActive]}>
+                      Cả học kỳ
+                    </Text>
+                  </TouchableOpacity>
+                  {["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"].map((monthStr) => {
+                    const hasSessions = uniqueMonths.includes(monthStr);
+                    if (!hasSessions && uniqueMonths.length > 0) return null;
+
+                    return (
+                      <TouchableOpacity
+                        key={monthStr}
+                        style={[styles.filterPill, selectedMonth === monthStr && styles.filterPillActive]}
+                        onPress={() => setSelectedMonth(monthStr)}
+                      >
+                        <Text style={[styles.filterPillText, selectedMonth === monthStr && styles.filterPillTextActive]}>
+                          Tháng {parseInt(monthStr)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Sắp xếp nhanh */}
+              <View style={styles.sortRow}>
+                <Text style={styles.filterRowLabel}>Sắp xếp:</Text>
+                <View style={styles.sortBtnGroup}>
+                  <TouchableOpacity
+                    style={[styles.sortBtn, sortOption === "absentRate" && styles.sortBtnActive]}
+                    onPress={() => setSortOption("absentRate")}
+                  >
+                    <Ionicons name="trending-down-outline" size={14} color={sortOption === "absentRate" ? COLORS.white : COLORS.textLight} style={{ marginRight: 4 }} />
+                    <Text style={[styles.sortBtnText, sortOption === "absentRate" && styles.sortBtnTextActive]}>
+                      Tỷ lệ vắng
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.sortBtn, sortOption === "default" && styles.sortBtnActive]}
+                    onPress={() => setSortOption("default")}
+                  >
+                    <Ionicons name="text-outline" size={14} color={sortOption === "default" ? COLORS.white : COLORS.textLight} style={{ marginRight: 4 }} />
+                    <Text style={[styles.sortBtnText, sortOption === "default" && styles.sortBtnTextActive]}>
+                      Tên học sinh
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -379,7 +610,7 @@ export default function LopChuNhiemScreen() {
             Tài khoản của bạn chưa được liên kết chủ nhiệm với lớp hành chính nào.
           </Text>
         </View>
-      ) : filteredStudents.length === 0 ? (
+      ) : processedStudents.length === 0 ? (
         <ScrollView 
           contentContainerStyle={styles.centerContainer}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -387,12 +618,12 @@ export default function LopChuNhiemScreen() {
           <Ionicons name="search-outline" size={64} color={COLORS.textLight} />
           <Text style={styles.emptyTitle}>Không tìm thấy học sinh</Text>
           <Text style={styles.emptySub}>
-            Không tìm thấy học sinh phù hợp với từ khóa tìm kiếm của bạn.
+            Không tìm thấy học sinh phù hợp với bộ lọc hiện tại của bạn.
           </Text>
         </ScrollView>
       ) : (
         <FlatList
-          data={filteredStudents}
+          data={processedStudents}
           keyExtractor={(item) => item.sinhvien_id.toString()}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           contentContainerStyle={styles.listContent}
@@ -400,10 +631,10 @@ export default function LopChuNhiemScreen() {
             const warningInfo = checkWarningStatus(item);
             const initial = item.ho_ten ? item.ho_ten.split(" ").pop()?.charAt(0).toUpperCase() : "S";
             
-            // Calculate overall absence rate
-            const overallAbs = item.overall_stats?.absent || 0;
-            const overallTot = item.overall_stats?.total || 0;
-            const absRate = overallTot > 0 ? overallAbs / overallTot : 0;
+            // Tính toán số liệu vắng động theo bộ lọc đã chọn
+            const overallAbs = item.calculated_stats?.absent || 0;
+            const overallTot = item.calculated_stats?.total || 0;
+            const absRate = item.calculated_stats?.absRate || 0;
             const styleAttr = getAttendanceStyle(absRate);
 
             return (
@@ -446,17 +677,30 @@ export default function LopChuNhiemScreen() {
 
                 {/* Right Attendance Stats */}
                 <View style={styles.studentStats}>
-                  <Text style={[styles.statsRateText, { color: styleAttr.color }]}>
-                    Vắng {overallAbs} buổi
-                  </Text>
-                  <Text style={styles.statsLabel}>
-                    Tổng học: {overallTot} buổi
-                  </Text>
-                  <View style={[styles.statusPill, { backgroundColor: styleAttr.color + "15" }]}>
-                    <Text style={[styles.statusPillText, { color: styleAttr.color }]}>
-                      {styleAttr.label}
-                    </Text>
-                  </View>
+                  {overallTot > 0 ? (
+                    <>
+                      <Text style={[styles.statsRateText, { color: styleAttr.color }]}>
+                        Vắng {overallAbs} buổi
+                      </Text>
+                      <Text style={styles.statsLabel}>
+                        Tổng học: {overallTot} buổi
+                      </Text>
+                      <View style={[styles.statusPill, { backgroundColor: styleAttr.color + "15" }]}>
+                        <Text style={[styles.statusPillText, { color: styleAttr.color }]}>
+                          {styleAttr.label}
+                        </Text>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={[styles.statsRateText, { color: COLORS.textLight, fontSize: 12 }]}>
+                        Chưa học
+                      </Text>
+                      <Text style={styles.statsLabel}>
+                        Không có lịch
+                      </Text>
+                    </>
+                  )}
                 </View>
               </TouchableOpacity>
             );
@@ -628,17 +872,17 @@ export default function LopChuNhiemScreen() {
 
                     {/* Attendance Breakdown List */}
                     <Text style={[styles.sectionSubtitle, { marginTop: 15 }]}>
-                      Chi tiết chuyên cần học kỳ
+                      Chi tiết chuyên cần {(selectedMonth !== "all" || selectedSubject !== "all") ? "(Bộ lọc đang áp dụng)" : "học kỳ"}
                     </Text>
                     
-                    {!selectedStudent.courses || selectedStudent.courses.length === 0 ? (
+                    {(!selectedStudent.calculated_courses || selectedStudent.calculated_courses.length === 0) ? (
                       <View style={styles.noCoursesCard}>
                         <Ionicons name="book-outline" size={32} color={COLORS.textLight} />
-                        <Text style={styles.noCoursesText}>Học sinh này chưa đăng ký môn học nào trong học kỳ này.</Text>
+                        <Text style={styles.noCoursesText}>Học sinh này chưa đăng ký môn học nào hoặc không khớp bộ lọc.</Text>
                       </View>
                     ) : (
-                      selectedStudent.courses.map((course: any) => {
-                        const { present, absent, late, excused, total } = course.stats || {};
+                      selectedStudent.calculated_courses.map((course: any) => {
+                        const { present, absent, late, excused, total } = course.filteredStats || course.stats || {};
                         const absRate = total > 0 ? absent / total : 0;
                         const ratePercent = total > 0 ? Math.round((present + late + excused) / total * 100) : 100;
                         
@@ -651,19 +895,30 @@ export default function LopChuNhiemScreen() {
                             <View style={styles.courseItemHeader}>
                               <View style={{ flex: 1 }}>
                                 <Text style={styles.courseName}>{course.ten_mon || course.ten_lophocphan}</Text>
-                                <Text style={styles.courseCode}>Mã lớp: {course.ma_lop}</Text>
+                                <Text style={styles.courseCode}>Mã môn: {course.ma_mon || "N/A"}  |  Lớp: {course.ma_lop}</Text>
+                                <Text style={styles.courseLecturer}>Giảng viên: {course.ten_giangvien || "Chưa phân công"}</Text>
                               </View>
-                              <View style={[styles.attendancePercentPill, { backgroundColor: progressColor + "15" }]}>
-                                <Text style={[styles.attendancePercentText, { color: progressColor }]}>
-                                  {ratePercent}% đi học
-                                </Text>
-                              </View>
+                              {total > 0 ? (
+                                <View style={[styles.attendancePercentPill, { backgroundColor: progressColor + "15" }]}>
+                                  <Text style={[styles.attendancePercentText, { color: progressColor }]}>
+                                    {ratePercent}% đi học
+                                  </Text>
+                                </View>
+                              ) : (
+                                <View style={[styles.attendancePercentPill, { backgroundColor: "#F3F4F6" }]}>
+                                  <Text style={[styles.attendancePercentText, { color: COLORS.textLight }]}>
+                                    Chưa có lịch
+                                  </Text>
+                                </View>
+                              )}
                             </View>
 
                             {/* Progress bar */}
-                            <View style={styles.progressBarBg}>
-                              <View style={[styles.progressBarFill, { width: `${ratePercent}%`, backgroundColor: progressColor }]} />
-                            </View>
+                            {total > 0 && (
+                              <View style={styles.progressBarBg}>
+                                <View style={[styles.progressBarFill, { width: `${ratePercent}%`, backgroundColor: progressColor }]} />
+                              </View>
+                            )}
 
                             {/* Breakdown counters */}
                             <View style={styles.countersRow}>
@@ -689,7 +944,7 @@ export default function LopChuNhiemScreen() {
                               </View>
                             </View>
                             
-                            {absRate > 0.20 && (
+                            {absRate > 0.20 && total > 0 && (
                               <View style={styles.courseWarningAlert}>
                                 <Ionicons name="alert-circle" size={16} color={COLORS.danger} />
                                 <Text style={styles.courseWarningAlertText}>
@@ -776,6 +1031,27 @@ const styles = StyleSheet.create({
   },
   searchIcon: { marginRight: 8 },
   searchInput: { flex: 1, fontSize: 14, color: COLORS.text, padding: 0 },
+  searchDivider: {
+    width: 1,
+    height: 20,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 10,
+  },
+  filterToggleBtn: {
+    padding: 4,
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  filterDot: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.danger,
+  },
 
   centerContainer: { flex: 1, justifyContent: "center", alignItems: "center", padding: 30 },
   loadingText: { marginTop: 10, color: COLORS.textLight, fontSize: 14 },
@@ -900,6 +1176,7 @@ const styles = StyleSheet.create({
   courseItemHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
   courseName: { fontSize: 14, fontWeight: "bold", color: COLORS.text, flex: 1 },
   courseCode: { fontSize: 11, color: COLORS.textLight, marginTop: 2 },
+  courseLecturer: { fontSize: 11, color: COLORS.text, marginTop: 4, fontWeight: "500" },
   attendancePercentPill: { borderRadius: 12, paddingHorizontal: 8, paddingVertical: 3 },
   attendancePercentText: { fontSize: 10, fontWeight: "bold" },
   
@@ -921,4 +1198,92 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   courseWarningAlertText: { fontSize: 10, color: COLORS.danger, fontWeight: "500", flex: 1 },
+
+  // BỘ LỌC ĐỘNG STYLES
+  filterSectionContainer: {
+    position: "absolute",
+    top: 60,
+    left: 15,
+    right: 15,
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    zIndex: 999,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+  },
+  filterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  filterRowLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.text,
+    width: 70,
+  },
+  filterPillScroll: {
+    paddingRight: 10,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    backgroundColor: COLORS.background,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  filterPillActive: {
+    backgroundColor: COLORS.primaryLight,
+    borderColor: COLORS.primary,
+  },
+  filterPillText: {
+    fontSize: 12,
+    color: COLORS.textLight,
+  },
+  filterPillTextActive: {
+    color: COLORS.primary,
+    fontWeight: "bold",
+  },
+  sortRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+  },
+  sortBtnGroup: {
+    flexDirection: "row",
+    flex: 1,
+    gap: 8,
+  },
+  sortBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  sortBtnActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  sortBtnText: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    marginLeft: 4,
+  },
+  sortBtnTextActive: {
+    color: COLORS.white,
+    fontWeight: "bold",
+  },
 });

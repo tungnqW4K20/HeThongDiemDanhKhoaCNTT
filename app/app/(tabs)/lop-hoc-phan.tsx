@@ -16,6 +16,7 @@ import {
 
 import { hocKyService } from '@/services/hocKyService';
 import { phanCongService } from '@/services/phanCongService';
+import { sinhvienService } from '@/services/sinhvienService';
 import { useAuth } from '../../components/ui/AuthContext';
 
 // =================================================================
@@ -68,6 +69,7 @@ export default function LopHocPhanScreen() {
   
   const [currentSemester, setCurrentSemester] = useState<HocKy | null>(null);
   const [classes, setClasses] = useState<GroupedSubject[]>([]);
+  const [studentAttendance, setStudentAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedSubject, setExpandedSubject] = useState<string | null>(null);
 
@@ -110,6 +112,18 @@ export default function LopHocPhanScreen() {
     if (!currentSemester) return;
     try {
       setLoading(true);
+
+      if (user?.role === 'sinhvien') {
+        const res = await sinhvienService.getQuaTrinhDiemDanh();
+        if (res.success && Array.isArray(res.data)) {
+          setStudentAttendance(res.data);
+        } else {
+          setStudentAttendance([]);
+        }
+        setLoading(false);
+        return;
+      }
+
       const res = await phanCongService.getLichGiangDay(currentSemester.id);
 
       if (!res.success || !res.data) {
@@ -215,6 +229,193 @@ export default function LopHocPhanScreen() {
       </View>
     );
   };
+
+  const renderStudentCourseItem = ({ item }: { item: any }) => {
+    const isExpanded = expandedSubject === item.lophocphan_id;
+    const isWarning = item.stats?.canh_bao === true;
+
+    return (
+      <View style={[styles.card, isWarning && { borderWidth: 1.5, borderColor: '#DC2626' }]}>
+        <TouchableOpacity
+          style={styles.cardHeader}
+          onPress={() => setExpandedSubject(isExpanded ? null : item.lophocphan_id)}
+        >
+          <View style={[styles.iconContainer, isWarning && { backgroundColor: '#FEE2E2' }]}>
+            <Ionicons 
+              name={isWarning ? "alert-circle" : "book-outline"} 
+              size={24} 
+              color={isWarning ? "#DC2626" : COLORS.primary} 
+            />
+          </View>
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={[styles.cardTitle, isWarning && { color: '#B91C1C' }]} numberOfLines={2}>
+              {item.mon_hoc?.ten_mon || item.ten_lophocphan}
+            </Text>
+            <Text style={styles.cardSub}>
+              Mã HP: {item.mon_hoc?.ma_mon || "N/A"} | Lớp HC: {item.ma_lop} | Tín chỉ: {item.mon_hoc?.sotinchi}
+            </Text>
+            <Text style={[styles.cardSub, { marginTop: 2, color: COLORS.primary, fontWeight: '500' }]}>
+              Giảng viên: {item.giang_vien?.ho_ten || "Chưa phân công"}
+            </Text>
+            {isWarning && (
+              <Text style={{ fontSize: 11, fontWeight: 'bold', color: '#DC2626', marginTop: 4 }}>
+                ⚠ CẢNH BÁO NGHỈ QUÁ 20% ({item.stats?.tile_nghi}%)
+              </Text>
+            )}
+          </View>
+          <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color="#ccc" />
+        </TouchableOpacity>
+
+        {/* Stats Summary Panel */}
+        <View style={{ flexDirection: 'row', backgroundColor: '#F9FAFB', borderTopWidth: 1, borderTopColor: '#f0f0f0', paddingVertical: 10, paddingHorizontal: 16 }}>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 10, color: COLORS.lightGray, fontWeight: '600' }}>TỔNG BUỔI</Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', color: COLORS.text, marginTop: 2 }}>{item.stats?.tong_buoi}</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 10, color: '#10B981', fontWeight: '600' }}>CÓ MẶT</Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#10B981', marginTop: 2 }}>{item.stats?.present}</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 10, color: '#EF4444', fontWeight: '600' }}>VẮNG</Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#EF4444', marginTop: 2 }}>{item.stats?.tong_nghi}</Text>
+          </View>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 10, color: '#F59E0B', fontWeight: '600' }}>ĐI MUỘN</Text>
+            <Text style={{ fontSize: 14, fontWeight: 'bold', color: '#F59E0B', marginTop: 2 }}>{item.stats?.late}</Text>
+          </View>
+        </View>
+
+        {isExpanded && (
+          <View style={styles.cardBody}>
+            {/* Lecturer details */}
+            {item.giang_vien && (
+              <View style={{ padding: 12, backgroundColor: '#EFF6FF', borderBottomWidth: 1, borderBottomColor: '#DBEAFE', flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="person-circle" size={32} color={COLORS.primary} />
+                <View style={{ marginLeft: 10, flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: 'bold', color: COLORS.text }}>
+                    GV: {item.giang_vien.ho_ten}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#4B5563', marginTop: 1 }}>
+                    SĐT: {item.giang_vien.sdt || "Chưa cập nhật"} | Email: {item.giang_vien.email || "Chưa cập nhật"}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Session list details */}
+            {(!item.chi_tiet_buoi_hoc || item.chi_tiet_buoi_hoc.length === 0) ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: COLORS.lightGray, fontSize: 13 }}>Chưa có buổi học nào được lên lịch.</Text>
+              </View>
+            ) : (
+              item.chi_tiet_buoi_hoc.map((session: any, index: number) => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const sessionDate = new Date(session.ngay);
+                sessionDate.setHours(0, 0, 0, 0);
+                const isFuture = sessionDate > today;
+
+                let badgeLabel = isFuture ? 'Chưa diễn ra' : 'Chưa điểm danh';
+                let badgeColor = isFuture ? COLORS.lightGray : '#4B5563';
+                let badgeBg = '#F3F4F6';
+
+                if (session.diem_danh?.trangthai === 'present') {
+                  badgeLabel = 'Có mặt';
+                  badgeColor = '#10B981';
+                  badgeBg = '#E6F4EA';
+                } else if (session.diem_danh?.trangthai === 'absent') {
+                  badgeLabel = 'Vắng mặt';
+                  badgeColor = '#EF4444';
+                  badgeBg = '#FEE2E2';
+                } else if (session.diem_danh?.trangthai === 'late') {
+                  badgeLabel = 'Đi muộn';
+                  badgeColor = '#F59E0B';
+                  badgeBg = '#FEF3C7';
+                } else if (session.diem_danh?.trangthai === 'excused') {
+                  badgeLabel = 'Vắng có phép';
+                  badgeColor = '#8B5CF6';
+                  badgeBg = '#EDE9FE';
+                } else if (session.trangthai_buoi === 'completed') {
+                  badgeLabel = 'Có mặt';
+                  badgeColor = '#10B981';
+                  badgeBg = '#E6F4EA';
+                }
+
+                return (
+                  <View key={session.buoi_id || index} style={{ flexDirection: 'row', padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', alignItems: 'center' }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 13, fontWeight: 'bold', color: COLORS.text }}>
+                        Buổi {index + 1}: {new Date(session.ngay).toLocaleDateString('vi-VN')}
+                      </Text>
+                      <Text style={{ fontSize: 11, color: COLORS.lightGray, marginTop: 2 }}>
+                        Tiết {session.tiet_bat_dau} - {session.tiet_bat_dau + session.so_tiet - 1} | Phòng: {session.phong}
+                      </Text>
+                      {session.diem_danh?.ghichu ? (
+                        <Text style={{ fontSize: 11, color: '#4B5563', fontStyle: 'italic', marginTop: 4 }}>
+                          * Ghi chú: {session.diem_danh.ghichu}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={{ backgroundColor: badgeBg, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                      <Text style={{ fontSize: 11, fontWeight: 'bold', color: badgeColor }}>
+                        {badgeLabel}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  if (user?.role === 'sinhvien') {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+        
+        {/* HEADER */}
+        <View style={styles.customHeader}>
+          <View>
+            <Text style={styles.welcomeText}>Chào mừng Sinh viên,</Text>
+            <Text style={styles.headerTitle}>Quá Trình Điểm Danh</Text>
+          </View>
+        </View>
+
+        <View style={styles.container}>
+          {/* SEMESTER CHIP */}
+          <View style={styles.semesterWrapper}>
+              <View style={[styles.chip, styles.chipActive]}>
+                  <Text style={[styles.chipText, { color: '#fff' }]}>
+                    {currentSemester ? currentSemester.name : "Đang tải..."}
+                  </Text>
+              </View>
+          </View>
+
+          {/* MAIN LIST */}
+          {loading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} size="large" color={COLORS.primary} />
+          ) : (
+            <FlatList
+              data={studentAttendance}
+              keyExtractor={it => it.lophocphan_id}
+              contentContainerStyle={{ paddingBottom: 100 }}
+              renderItem={renderStudentCourseItem}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="library-outline" size={60} color="#ddd" />
+                  <Text style={styles.empty}>Bạn chưa đăng ký lớp học phần nào trong học kỳ này.</Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>

@@ -14,6 +14,11 @@ const getAllTaiKhoan = async () => {
                     attributes: ['ma_gv', 'ho', 'ten', 'email']
                 },
                 {
+                    model: db.SinhVien,
+                    as: 'SinhVien',
+                    attributes: ['ma_sv', 'ten', 'email']
+                },
+                {
                     model: db.BoMon,
                     as: 'DanhSachBoMonQuanLy',
                     attributes: ['bomon_id', 'ten_bomon']
@@ -240,6 +245,14 @@ const importTaiKhoanExcelService = async (fileBuffer) => {
         // Maps/Sets for fast O(1) checks
         const existingUsernames = new Set(allExistingAccounts.map(a => normalize(a.username)));
         
+        const allStudents = await db.SinhVien.findAll({ attributes: ['sinhvien_id', 'ma_sv', 'ten'] });
+        const studentMap = new Map();
+        const studentNameMap = new Map();
+        allStudents.forEach(s => {
+            studentMap.set(normalize(s.ma_sv), s.sinhvien_id);
+            studentNameMap.set(normalize(s.ma_sv), s.ten);
+        });
+
         const lecturerMap = new Map(); // ma_gv -> giangvien_id
         const lecturerNameMap = new Map(); // ma_gv -> ho_ten
         allLecturers.forEach(l => {
@@ -264,7 +277,7 @@ const importTaiKhoanExcelService = async (fileBuffer) => {
         // Track usernames processed in this file to prevent duplicates within the file itself
         const processedUsernamesInFile = new Set();
 
-        const validRoles = new Set(['admin', 'giangvien', 'lanhdao', 'truongbomon']);
+        const validRoles = new Set(['admin', 'giangvien', 'lanhdao', 'truongbomon', 'sinhvien']);
 
         // Cache department and faculty managers updates to execute post-insert
         const boMonManagerUpdates = [];
@@ -312,12 +325,13 @@ const importTaiKhoanExcelService = async (fileBuffer) => {
             else if (rawRole.includes('giang vien') || rawRole.includes('giangvien') || rawRole.includes('gv')) vaitro = 'giangvien';
             else if (rawRole.includes('truong bo mon') || rawRole.includes('truongbomon') || rawRole.includes('tbm')) vaitro = 'truongbomon';
             else if (rawRole.includes('lanh dao') || rawRole.includes('lanhdao') || rawRole.includes('ld')) vaitro = 'lanhdao';
+            else if (rawRole.includes('sinh vien') || rawRole.includes('sinhvien') || rawRole.includes('sv')) vaitro = 'sinhvien';
 
             if (!validRoles.has(vaitro)) {
                 failedRows.push({
                     rowNumber: rowNum,
                     label: rawLabel,
-                    reason: `Vai trò "${vaitroVal}" không hợp lệ. Phải thuộc: admin, giangvien, truongbomon, lanhdao`
+                    reason: `Vai trò "${vaitroVal}" không hợp lệ. Phải thuộc: admin, giangvien, truongbomon, lanhdao, sinhvien`
                 });
                 continue;
             }
@@ -342,21 +356,34 @@ const importTaiKhoanExcelService = async (fileBuffer) => {
                 continue;
             }
 
-            // Check Lecturer link (ma_gv)
+            // Check Lecturer/Student link
             let ref_id = null;
             let lecturerLabel = '';
             if (maGvVal) {
-                const cleanMaGv = normalize(maGvVal);
-                if (!lecturerMap.has(cleanMaGv)) {
-                    failedRows.push({
-                        rowNumber: rowNum,
-                        label: rawLabel,
-                        reason: `Mã giảng viên "${maGvVal}" không tồn tại trên hệ thống`
-                    });
-                    continue;
+                const cleanCode = normalize(maGvVal);
+                if (vaitro === 'sinhvien') {
+                    if (!studentMap.has(cleanCode)) {
+                        failedRows.push({
+                            rowNumber: rowNum,
+                            label: rawLabel,
+                            reason: `Mã sinh viên "${maGvVal}" không tồn tại trên hệ thống`
+                        });
+                        continue;
+                    }
+                    ref_id = studentMap.get(cleanCode);
+                    lecturerLabel = ` (Liên kết SV: ${studentNameMap.get(cleanCode)})`;
+                } else {
+                    if (!lecturerMap.has(cleanCode)) {
+                        failedRows.push({
+                            rowNumber: rowNum,
+                            label: rawLabel,
+                            reason: `Mã giảng viên "${maGvVal}" không tồn tại trên hệ thống`
+                        });
+                        continue;
+                    }
+                    ref_id = lecturerMap.get(cleanCode);
+                    lecturerLabel = ` (Liên kết GV: ${lecturerNameMap.get(cleanCode)})`;
                 }
-                ref_id = lecturerMap.get(cleanMaGv);
-                lecturerLabel = ` (Liên kết GV: ${lecturerNameMap.get(cleanMaGv)})`;
             }
 
             // Validate department mapping for truongbomon

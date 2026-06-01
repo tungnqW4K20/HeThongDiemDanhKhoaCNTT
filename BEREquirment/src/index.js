@@ -20,6 +20,7 @@ const DiemDanhRoute = require('./routes/diemdanh.routes')
 const KhoaRoute = require('./routes/khoa.routes')
 const PhanCongAutoRoutes = require('./routes/phancong-auto.routes')
 const SinhVienRoute = require('./routes/sinhvien.routes')
+const SinhVienSelfRoute = require('./routes/sinhvienSelf.route');
 
 const MonHocRoute = require('./routes/monhoc.routes')
 const CoSoRoute = require('./routes/coso.routes')
@@ -56,6 +57,7 @@ db.sequelize.authenticate()
     app.use('/api/diem-danh', DiemDanhRoute);
     app.use('/api/khoa', KhoaRoute);
     app.use('/api/sinh-vien', SinhVienRoute);
+    app.use('/api/sinhvien-self', SinhVienSelfRoute);
     app.use('/api/phan-cong-auto', PhanCongAutoRoutes);
     app.use('/api/mon-hoc', MonHocRoute);
     app.use('/api/co-so', CoSoRoute);

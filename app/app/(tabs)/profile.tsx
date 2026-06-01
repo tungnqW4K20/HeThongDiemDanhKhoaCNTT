@@ -56,10 +56,25 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<GiangVienProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Gọi API khi component được mount
+  // Gọi API hoặc lấy thông tin từ session khi component được mount
   useEffect(() => {
     const fetchProfile = async () => {
-      // Kiểm tra xem user đã đăng nhập chưa và có ID không
+      // Nếu là sinh viên, lấy thông tin trực tiếp từ user context (đã bao gồm thông tin chi tiết từ API đăng nhập)
+      if (user?.role === 'sinhvien' && user?.SinhVien) {
+        setProfile({
+          giangvien_id: user.SinhVien.sinhvien_id,
+          ho_ten: user.SinhVien.ten,
+          ma_gv: user.SinhVien.ma_sv,
+          email: user.SinhVien.email || "",
+          sdt: user.SinhVien.sdt || "",
+          don_vi_cong_tac: user.SinhVien.Lop?.ten_lop || "Chưa gán lớp",
+          hoc_vi: "Sinh viên",
+        } as any);
+        setLoading(false);
+        return;
+      }
+
+      // Kiểm tra xem user giảng viên đã đăng nhập chưa và có ID không
       if (!user?.GiangVien?.giangvien_id) {
         setLoading(false);
         return;
@@ -131,6 +146,11 @@ export default function ProfileScreen() {
       </View>
   );
 
+  // Avatar tương ứng với vai trò sinh viên / giảng viên
+  const avatarUrl = user?.role === 'sinhvien'
+    ? 'https://cdn-icons-png.flaticon.com/512/3135/3135810.png'
+    : DEFAULT_AVATAR;
+
   // --- Render Loading ---
   if (loading) {
     return (
@@ -145,7 +165,7 @@ export default function ProfileScreen() {
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={{flex:1, justifyContent:'center', alignItems:'center'}}>
-          <Text style={{color: COLORS.text}}>Không tìm thấy thông tin giảng viên.</Text>
+          <Text style={{color: COLORS.text}}>Không tìm thấy thông tin tài khoản.</Text>
           <TouchableOpacity onPress={handleLogout} style={{marginTop: 20}}>
             <Text style={{color: COLORS.primary, fontWeight: 'bold'}}>Đăng xuất</Text>
           </TouchableOpacity>
@@ -162,10 +182,12 @@ export default function ProfileScreen() {
         
         {/* Phần Header */}
         <View style={styles.profileHeader}>
-          <Image source={{ uri: DEFAULT_AVATAR }} style={styles.avatar} />
+          <Image source={{ uri: avatarUrl }} style={styles.avatar} />
           <Text style={styles.nameText}>{profile.ho_ten}</Text>
           <View style={styles.idBadge}>
-            <Text style={styles.idBadgeText}>{profile.ma_gv}</Text>
+            <Text style={styles.idBadgeText}>
+              {user?.role === 'sinhvien' ? `MSSV: ${profile.ma_gv}` : `MSGV: ${profile.ma_gv}`}
+            </Text>
           </View>
         </View>
 
@@ -176,12 +198,18 @@ export default function ProfileScreen() {
             <InfoRow icon="call" label="Số điện thoại" value={profile.sdt} />
         </InfoCard>
 
-        {/* Nhóm thông tin chuyên môn */}
-        <InfoCard title="Thông tin chuyên môn">
-            <InfoRow icon="business" label="Đơn vị công tác" value={profile.don_vi_cong_tac} />
-            <View style={styles.separator} />
-            <InfoRow icon="school" label="Học vị" value={profile.hoc_vi || "Chưa cập nhật"} />
-        </InfoCard>
+        {/* Nhóm thông tin học tập hoặc chuyên môn tùy theo vai trò */}
+        {user?.role === 'sinhvien' ? (
+          <InfoCard title="Thông tin học tập">
+              <InfoRow icon="business" label="Lớp hành chính" value={profile.don_vi_cong_tac} />
+          </InfoCard>
+        ) : (
+          <InfoCard title="Thông tin chuyên môn">
+              <InfoRow icon="business" label="Đơn vị công tác" value={profile.don_vi_cong_tac} />
+              <View style={styles.separator} />
+              <InfoRow icon="school" label="Học vị" value={profile.hoc_vi || "Chưa cập nhật"} />
+          </InfoCard>
+        )}
         
         {/* Nhóm các hành động */}
         <InfoCard title="Tài khoản">

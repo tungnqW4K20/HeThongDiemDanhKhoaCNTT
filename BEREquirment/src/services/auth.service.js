@@ -113,6 +113,12 @@ const loginTaiKhoan = async ({ username, password }) => {
         model: db.GiangVien,
         as: "GiangVien",
         attributes: ["giangvien_id", "ma_gv", "ho", "ten", "email"]
+      },
+      {
+        model: db.SinhVien,
+        as: "SinhVien",
+        attributes: ["sinhvien_id", "ma_sv", "ten", "email", "sdt", "lop_hanhchinh_id"],
+        include: [{ model: db.LopHanhChinh, as: "Lop", attributes: ["ten_lop"] }]
       }
     ]
   });
@@ -121,9 +127,9 @@ const loginTaiKhoan = async ({ username, password }) => {
     throw new Error('Username hoặc mật khẩu không chính xác.');
   }
 
-  const allowedRoles = ["giangvien", "truongbomon", "lanhdao"];
+  const allowedRoles = ["giangvien", "truongbomon", "lanhdao", "sinhvien"];
   if (!allowedRoles.includes(account.vaitro)) {
-    throw new Error("Tài khoản này không thuộc vai trò giảng viên, trưởng bộ môn hoặc lãnh đạo.");
+    throw new Error("Tài khoản này không thuộc vai trò hợp lệ.");
   }
 
   const isMatch = await bcrypt.compare(password, account.password_hash);
@@ -134,12 +140,14 @@ const loginTaiKhoan = async ({ username, password }) => {
   const payload = {
     taikhoan_id: account.taikhoan_id,
     role: account.vaitro,
-    giangvien_id: account.ref_id 
+    giangvien_id: account.vaitro === 'sinhvien' ? null : account.ref_id,
+    sinhvien_id: account.vaitro === 'sinhvien' ? account.ref_id : null
   };
 
   const token = generateToken(payload);
   const refreshToken = generateRefreshToken(payload, 'giangvien');
   const accData = account.toJSON();
+  accData.role = account.vaitro; // map to role for mobile app compatibility
   delete accData.password_hash;
 
   return {
@@ -147,6 +155,7 @@ const loginTaiKhoan = async ({ username, password }) => {
     refreshToken,
     user: accData,
     giangvien: account.GiangVien,
+    sinhvien: account.SinhVien
   };
 };
 
@@ -360,6 +369,7 @@ const loginAdmin = async ({ username, password }) => {
     refreshToken,
     user: {
       ...accData,
+      role: account.vaitro, // map to role for frontend/mobile app compatibility
       khoa_id: payload.khoa_id,
       ten_khoa: payload.ten_khoa,
       chuyennganh_id: payload.chuyennganh_id,

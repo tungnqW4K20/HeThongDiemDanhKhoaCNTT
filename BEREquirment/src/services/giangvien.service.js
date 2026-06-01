@@ -422,11 +422,29 @@ const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => 
   try {
     let targetHocKyId = hocky_id;
     if (!targetHocKyId) {
-      const latestHocKy = await db.HocKy.findOne({
-        order: [['ngay_batdau', 'DESC']]
+      const nowStr = new Date().toISOString().split('T')[0];
+      // 1. Tìm học kỳ đang diễn ra
+      let activeHocKy = await db.HocKy.findOne({
+        where: {
+          ngay_batdau: { [db.Sequelize.Op.lte]: nowStr },
+          ngay_ketthuc: { [db.Sequelize.Op.gte]: nowStr }
+        }
       });
-      if (latestHocKy) {
-        targetHocKyId = latestHocKy.hocky_id;
+      // 2. Nếu không có học kỳ đang diễn ra, tìm học kỳ gần nhất đã bắt đầu
+      if (!activeHocKy) {
+        activeHocKy = await db.HocKy.findOne({
+          where: { ngay_batdau: { [db.Sequelize.Op.lte]: nowStr } },
+          order: [['ngay_batdau', 'DESC']]
+        });
+      }
+      // 3. Nếu vẫn không thấy, lấy học kỳ mới nhất nói chung
+      if (!activeHocKy) {
+        activeHocKy = await db.HocKy.findOne({
+          order: [['ngay_batdau', 'DESC']]
+        });
+      }
+      if (activeHocKy) {
+        targetHocKyId = activeHocKy.hocky_id;
       }
     }
 
@@ -454,12 +472,16 @@ const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => 
         {
           model: db.LopHocPhan,
           where: targetHocKyId ? { hocky_id: targetHocKyId } : {},
-          attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop'],
+          attributes: ['lophocphan_id', 'ten_lophocphan', 'ma_lop', 'giangvien_id'],
           required: true,
           include: [
             {
               model: db.MonHoc,
               attributes: ['monhoc_id', 'ten_mon', 'ma_mon']
+            },
+            {
+              model: db.GiangVien,
+              attributes: ['giangvien_id', 'ho', 'ten', 'ma_gv']
             }
           ]
         }
@@ -473,7 +495,7 @@ const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => 
             lophocphan_id: { [Op.in]: classIds },
             trangthai: 'completed'
           },
-          attributes: ['buoi_id', 'lophocphan_id']
+          attributes: ['buoi_id', 'lophocphan_id', 'ngay']
         })
       : [];
 
@@ -530,19 +552,33 @@ const getAdvisoryClassAttendance = async (lop_hanhchinh_id, hocky_id = null) => 
         totalLate += late;
         totalExcused += excused;
 
+        // Xây dựng danh sách chi tiết các buổi học cho client-side filter
+        const sessions = courseCompletedBuoi.map(buoi => {
+          const attend = courseAttends.find(a => a.buoi_id === buoi.buoi_id);
+          return {
+            buoi_id: buoi.buoi_id,
+            ngay: buoi.ngay,
+            trangthai: attend ? attend.trangthai : 'present',
+            ghichu: attend ? attend.ghichu : ''
+          };
+        });
+
         return {
           lophocphan_id: lhp.lophocphan_id,
           ma_lop: lhp.ma_lop,
           ten_lophocphan: lhp.ten_lophocphan,
           ten_mon: lhp.MonHoc ? lhp.MonHoc.ten_mon : '',
           ma_mon: lhp.MonHoc ? lhp.MonHoc.ma_mon : '',
+          ten_giangvien: lhp.GiangVien ? `${lhp.GiangVien.ho} ${lhp.GiangVien.ten}` : 'Chưa phân công',
+          ma_gv: lhp.GiangVien ? lhp.GiangVien.ma_gv : '',
           stats: {
             present,
             absent,
             late,
             excused,
             total
-          }
+          },
+          sessions
         };
       }).filter(Boolean);
 

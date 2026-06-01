@@ -5,6 +5,10 @@ const studentService = {
     return axiosClient.get(`/sinh-vien/lop/${classId}`);
   },
 
+  getAll() {
+    return axiosClient.get('/sinh-vien/all');
+  },
+
   create(data) {
     return axiosClient.post('/sinh-vien', data);
   },
