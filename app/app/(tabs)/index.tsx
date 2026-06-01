@@ -87,7 +87,11 @@ export default function HomeScreen() {
     }
   }, [user]);
 
-  useFocusEffect(fetchNotificationBadge);
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotificationBadge();
+    }, [fetchNotificationBadge])
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
