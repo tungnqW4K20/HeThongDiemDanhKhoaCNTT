@@ -910,10 +910,10 @@ export default function QuanLyDeXuatScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Ngày dạy mới (DD-MM-YYYY)</Text>
                 <View 
-                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', padding: 0 }]}
+                  style={[styles.input, { flexDirection: 'row', alignItems: 'center', padding: 0, height: 48 }]}
                 >
                   <TextInput 
-                    style={{ flex: 1, padding: 12 }} 
+                    style={{ flex: 1, paddingLeft: 12, paddingRight: 12, height: '100%', fontSize: 15 }} 
                     value={formData.ngay_moi} 
                     onChangeText={text => {
                       const cleaned = text.replace(/\D/g, '');
@@ -940,6 +940,7 @@ export default function QuanLyDeXuatScreen() {
                       } else {
                         setCalendarMonth(new Date());
                       }
+                      setModalVisible(false); // Đóng modal chính để tránh chồng chéo modal gây đơ trên iOS
                       setShowDatePicker(true);
                     }}
                   >
@@ -952,7 +953,7 @@ export default function QuanLyDeXuatScreen() {
                 <View style={{flex: 1}}><Text style={styles.inputLabel}>Số tiết</Text><TextInput style={styles.input} keyboardType="numeric" value={formData.so_tiet_moi} onChangeText={t => setFormData({...formData, so_tiet_moi: t})}/></View>
               </View>
               <View style={styles.inputGroup}><Text style={styles.inputLabel}>Phòng học mới</Text><TextInput style={styles.input} value={formData.phong_moi} onChangeText={t => setFormData({...formData, phong_moi: t})}/></View>
-              <View style={styles.inputGroup}><Text style={styles.inputLabel}>Giảng viên dạy thay *</Text><TouchableOpacity style={styles.pickerTrigger} onPress={() => setGVModalVisible(true)}><Text numberOfLines={1} style={{color: formData.giangvien_day_thay_moi_id ? '#333' : '#999', flex: 1}}>{formData.ten_giangvien_thay_moi}</Text><Ionicons name="chevron-down" size={20} color="#666" /></TouchableOpacity></View>
+              <View style={styles.inputGroup}><Text style={styles.inputLabel}>Giảng viên dạy thay *</Text><TouchableOpacity style={styles.pickerTrigger} onPress={() => { setModalVisible(false); setGVModalVisible(true); }}><Text numberOfLines={1} style={{color: formData.giangvien_day_thay_moi_id ? '#333' : '#999', flex: 1}}>{formData.ten_giangvien_thay_moi}</Text><Ionicons name="chevron-down" size={20} color="#666" /></TouchableOpacity></View>
               {selectedGVContact && (
                 <View style={styles.contactBox}>
                   <Text style={styles.contactLabel}>Liên hệ giảng viên thay:</Text>
@@ -997,12 +998,12 @@ export default function QuanLyDeXuatScreen() {
           <View style={styles.gvModalContent}>
             <View style={styles.searchBar}><Ionicons name="search" size={20} color="#999" /><TextInput placeholder="Tìm tên giảng viên..." style={styles.searchInput} onChangeText={setSearchGV} /></View>
             <FlatList data={filteredGV} keyExtractor={item => item.giangvien_id} renderItem={({item}) => (
-              <TouchableOpacity style={styles.gvItem} onPress={() => { setFormData({...formData, giangvien_day_thay_moi_id: item.giangvien_id, ten_giangvien_thay_moi: `${item.ho} ${item.ten}` }); setGVModalVisible(false); }}>
+              <TouchableOpacity style={styles.gvItem} onPress={() => { setFormData({...formData, giangvien_day_thay_moi_id: item.giangvien_id, ten_giangvien_thay_moi: `${item.ho} ${item.ten}` }); setGVModalVisible(false); setModalVisible(true); }}>
                 <Text style={styles.gvName}>{item.ho} {item.ten}</Text><Text style={styles.gvCode}>Mã GV: {item.ma_gv}</Text>
                 <Text style={styles.gvContact}>SĐT: {item.sdt || 'Chưa có'} | Email: {item.email || 'Chưa có'}</Text>
               </TouchableOpacity>
             )} />
-            <TouchableOpacity style={styles.closeGVBtn} onPress={() => setGVModalVisible(false)}><Text style={{color: '#FFF', fontWeight: 'bold'}}>Hủy bỏ</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.closeGVBtn} onPress={() => { setGVModalVisible(false); setModalVisible(true); }}><Text style={{color: '#FFF', fontWeight: 'bold'}}>Hủy bỏ</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1135,6 +1136,7 @@ export default function QuanLyDeXuatScreen() {
                           const dateStr = `${String(d).padStart(2, '0')}-${String(m+1).padStart(2, '0')}-${y}`;
                           setFormData({...formData, ngay_moi: dateStr});
                           setShowDatePicker(false);
+                          setModalVisible(true); // Mở lại modal chính
                         }}
                       >
                         <View style={{
@@ -1157,7 +1159,7 @@ export default function QuanLyDeXuatScreen() {
               </View>
             </View>
             
-            <TouchableOpacity style={[styles.closeGVBtn, { margin: 15, marginTop: 0 }]} onPress={() => setShowDatePicker(false)}>
+            <TouchableOpacity style={[styles.closeGVBtn, { margin: 15, marginTop: 0 }]} onPress={() => { setShowDatePicker(false); setModalVisible(true); }}>
               <Text style={{color: '#FFF', fontWeight: 'bold'}}>Hủy bỏ</Text>
             </TouchableOpacity>
           </View>
