@@ -1,0 +1,5 @@
+npm install -g eas-cli
+eas login
+
+cd app
+eas build --platform android --profile preview
